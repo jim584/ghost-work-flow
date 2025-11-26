@@ -263,13 +263,35 @@ const DesignerDashboard = () => {
                 id="file"
                 type="file"
                 multiple
-                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                onChange={(e) => {
+                  const newFiles = Array.from(e.target.files || []);
+                  setFiles(prev => [...prev, ...newFiles]);
+                  e.target.value = ''; // Reset input to allow selecting same file again
+                }}
                 accept="image/*,.pdf,.ai,.psd,.fig,.sketch"
               />
               {files.length > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {files.length} file(s) selected
-                </p>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {files.length} file(s) selected:
+                  </p>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {files.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1">
+                        <span className="truncate flex-1">{file.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 ml-2"
+                          onClick={() => setFiles(prev => prev.filter((_, i) => i !== index))}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
             <Button
