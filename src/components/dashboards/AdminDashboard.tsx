@@ -261,16 +261,18 @@ const AdminDashboard = () => {
                 {users?.map((user) => {
                   const currentRole = Array.isArray(user.user_roles) && user.user_roles.length > 0 
                     ? user.user_roles[0].role 
-                    : "No role assigned";
+                    : null;
                   
                   return (
                     <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="space-y-1">
                         <p className="font-medium">{user.full_name || "No name"}</p>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
-                        <Badge variant="outline">{currentRole}</Badge>
+                        {currentRole && <Badge variant="outline">{currentRole}</Badge>}
+                        {!currentRole && <Badge variant="outline">No role assigned</Badge>}
                       </div>
                       <Select
+                        value={currentRole || undefined}
                         onValueChange={(role: "admin" | "project_manager" | "designer") => 
                           assignRole.mutate({ userId: user.id, role })
                         }
