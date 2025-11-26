@@ -31,7 +31,8 @@ const AdminDashboard = () => {
         .from("tasks")
         .select(`
           *,
-          teams(name)
+          teams(name),
+          profiles!tasks_project_manager_id_fkey(email, full_name)
         `)
         .order("created_at", { ascending: false });
 
@@ -253,6 +254,11 @@ const AdminDashboard = () => {
                           <span className="text-muted-foreground">
                             Team: <span className="font-medium">{task.teams?.name}</span>
                           </span>
+                          {task.profiles && (
+                            <span className="text-muted-foreground">
+                              • PM: <span className="font-medium">{task.profiles.full_name || task.profiles.email}</span>
+                            </span>
+                          )}
                           {taskSubmissions.length > 0 && (
                             <span className="text-primary">
                               • {taskSubmissions.length} submission(s)
@@ -412,6 +418,10 @@ const AdminDashboard = () => {
                   <div>
                     <Label className="text-muted-foreground">Team</Label>
                     <p className="font-medium">{viewDetailsTask?.teams?.name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Project Manager</Label>
+                    <p className="font-medium">{viewDetailsTask?.profiles?.full_name || viewDetailsTask?.profiles?.email || "N/A"}</p>
                   </div>
                 </div>
               </div>
