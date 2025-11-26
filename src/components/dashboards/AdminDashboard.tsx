@@ -16,8 +16,7 @@ const AdminDashboard = () => {
         .from("tasks")
         .select(`
           *,
-          teams(name),
-          project_manager:project_manager_id(email)
+          teams(name)
         `)
         .order("created_at", { ascending: false });
 
