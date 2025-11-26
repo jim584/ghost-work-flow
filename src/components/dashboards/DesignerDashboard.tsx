@@ -300,18 +300,35 @@ const DesignerDashboard = () => {
                               className="flex items-center justify-between bg-background p-3 rounded-md"
                             >
                               <div className="flex-1">
-                                <p className="text-sm font-medium">{submission.file_name}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium">{submission.file_name}</p>
+                                  <Badge 
+                                    variant={
+                                      submission.revision_status === "approved" ? "default" :
+                                      submission.revision_status === "needs_revision" ? "destructive" : 
+                                      "secondary"
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {submission.revision_status?.replace("_", " ")}
+                                  </Badge>
+                                </div>
                                 <p className="text-xs text-muted-foreground">
                                   Uploaded: {new Date(submission.submitted_at || "").toLocaleString()}
                                 </p>
+                                {submission.revision_notes && (
+                                  <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
+                                    <span className="font-medium text-destructive">Revision requested:</span>
+                                    <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
+                                  </div>
+                                )}
                               </div>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleDownload(submission.file_path, submission.file_name)}
                               >
-                                <Download className="h-4 w-4 mr-2" />
-                                Download
+                                <Download className="h-4 w-4" />
                               </Button>
                             </div>
                           ))}

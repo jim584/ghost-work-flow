@@ -23,6 +23,8 @@ const PMDashboard = () => {
   const [description, setDescription] = useState("");
   const [teamId, setTeamId] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
+  const [revisionNotes, setRevisionNotes] = useState("");
 
   const { data: teams } = useQuery({
     queryKey: ["teams"],
@@ -90,6 +92,45 @@ const PMDashboard = () => {
       });
     }
   };
+
+  const handleApproveSubmission = useMutation({
+    mutationFn: async (submissionId: string) => {
+      const { error } = await supabase
+        .from("design_submissions")
+        .update({
+          revision_status: "approved",
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user!.id,
+        })
+        .eq("id", submissionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["design-submissions"] });
+      toast({ title: "Design approved" });
+    },
+  });
+
+  const handleRequestRevision = useMutation({
+    mutationFn: async ({ submissionId, notes }: { submissionId: string; notes: string }) => {
+      const { error } = await supabase
+        .from("design_submissions")
+        .update({
+          revision_status: "needs_revision",
+          revision_notes: notes,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user!.id,
+        })
+        .eq("id", submissionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["design-submissions"] });
+      toast({ title: "Revision requested" });
+      setRevisionDialog(null);
+      setRevisionNotes("");
+    },
+  });
 
   const createTask = useMutation({
     mutationFn: async () => {
@@ -318,19 +359,59 @@ const PMDashboard = () => {
                               className="flex items-center justify-between bg-background p-3 rounded-md"
                             >
                               <div className="flex-1">
-                                <p className="text-sm font-medium">{submission.file_name}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium">{submission.file_name}</p>
+                                  <Badge 
+                                    variant={
+                                      submission.revision_status === "approved" ? "default" :
+                                      submission.revision_status === "needs_revision" ? "destructive" : 
+                                      "secondary"
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {submission.revision_status?.replace("_", " ")}
+                                  </Badge>
+                                </div>
                                 <p className="text-xs text-muted-foreground">
                                   Submitted: {new Date(submission.submitted_at || "").toLocaleString()}
                                 </p>
+                                {submission.revision_notes && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    <span className="font-medium">Revision notes:</span> {submission.revision_notes}
+                                  </p>
+                                )}
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDownload(submission.file_path, submission.file_name)}
-                              >
-                                <Download className="h-4 w-4 mr-2" />
-                                Download
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDownload(submission.file_path, submission.file_name)}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                                {submission.revision_status !== "approved" && (
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => handleApproveSubmission.mutate(submission.id)}
+                                  >
+                                    Approve
+                                  </Button>
+                                )}
+                                {submission.revision_status !== "needs_revision" && (
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => setRevisionDialog({ 
+                                      open: true, 
+                                      submissionId: submission.id,
+                                      fileName: submission.file_name 
+                                    })}
+                                  >
+                                    Request Revision
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -348,6 +429,39 @@ const PMDashboard = () => {
           </CardContent>
         </Card>
       </main>
+
+      <Dialog open={revisionDialog?.open || false} onOpenChange={(open) => !open && setRevisionDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Revision</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              File: <span className="font-medium">{revisionDialog?.fileName}</span>
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="revision-notes">Revision Notes</Label>
+              <Textarea
+                id="revision-notes"
+                value={revisionNotes}
+                onChange={(e) => setRevisionNotes(e.target.value)}
+                placeholder="Explain what needs to be changed..."
+                rows={4}
+              />
+            </div>
+            <Button
+              onClick={() => revisionDialog && handleRequestRevision.mutate({ 
+                submissionId: revisionDialog.submissionId, 
+                notes: revisionNotes 
+              })}
+              disabled={!revisionNotes.trim() || handleRequestRevision.isPending}
+              className="w-full"
+            >
+              {handleRequestRevision.isPending ? "Submitting..." : "Submit Revision Request"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
