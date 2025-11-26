@@ -26,7 +26,7 @@ const AdminDashboard = () => {
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
-  const [newUserData, setNewUserData] = useState({ email: "", password: "", full_name: "" });
+  const [newUserData, setNewUserData] = useState({ email: "", password: "", full_name: "", team_name: "" });
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -87,7 +87,7 @@ const AdminDashboard = () => {
   });
 
   const createUser = useMutation({
-    mutationFn: async (userData: { email: string; password: string; full_name: string }) => {
+    mutationFn: async (userData: { email: string; password: string; full_name: string; team_name: string }) => {
       const { data, error } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
@@ -98,13 +98,24 @@ const AdminDashboard = () => {
         },
       });
       if (error) throw error;
+      
+      // Update profile with team_name if user was created successfully
+      if (data.user && userData.team_name) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ team_name: userData.team_name })
+          .eq('id', data.user.id);
+        
+        if (profileError) throw profileError;
+      }
+      
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       toast({ title: "User created successfully" });
       setShowAddUserDialog(false);
-      setNewUserData({ email: "", password: "", full_name: "" });
+      setNewUserData({ email: "", password: "", full_name: "", team_name: "" });
     },
     onError: (error: any) => {
       toast({
@@ -767,34 +778,47 @@ const AdminDashboard = () => {
                 onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-user-name">Full Name (Optional)</Label>
-              <Input
-                id="new-user-name"
-                type="text"
-                placeholder="John Doe"
-                value={newUserData.full_name}
-                onChange={(e) => setNewUserData({ ...newUserData, full_name: e.target.value })}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="new-user-name">Full Name (Optional)</Label>
+                <Input
+                  id="new-user-name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={newUserData.full_name}
+                  onChange={(e) => setNewUserData({ ...newUserData, full_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-user-team-name">Team Name (For Designers Only)</Label>
+                <Input
+                  id="new-user-team-name"
+                  type="text"
+                  placeholder="e.g., Logo Team A"
+                  value={newUserData.team_name}
+                  onChange={(e) => setNewUserData({ ...newUserData, team_name: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  This will be the team name shown to project managers when assigning tasks
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowAddUserDialog(false);
-                setNewUserData({ email: "", password: "", full_name: "" });
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => createUser.mutate(newUserData)}
-              disabled={!newUserData.email || !newUserData.password || createUser.isPending}
-            >
-              {createUser.isPending ? "Creating..." : "Create User"}
-            </Button>
-          </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAddUserDialog(false);
+                  setNewUserData({ email: "", password: "", full_name: "", team_name: "" });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => createUser.mutate(newUserData)}
+                disabled={!newUserData.email || !newUserData.password || createUser.isPending}
+              >
+                {createUser.isPending ? "Creating..." : "Create User"}
+              </Button>
+            </div>
         </DialogContent>
       </Dialog>
     </div>
