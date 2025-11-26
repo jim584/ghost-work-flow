@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -165,10 +165,16 @@ const DesignerDashboard = () => {
     },
   });
 
+  const tasksNeedingRevision = tasks?.filter((t) => {
+    const taskSubmissions = submissions?.filter(s => s.task_id === t.id) || [];
+    return taskSubmissions.some(s => s.revision_status === "needs_revision");
+  }) || [];
+
   const stats = {
     total: tasks?.length || 0,
     pending: tasks?.filter((t) => t.status === "pending").length || 0,
     in_progress: tasks?.filter((t) => t.status === "in_progress").length || 0,
+    needs_revision: tasksNeedingRevision.length,
   };
 
   const getStatusColor = (status: string) => {
@@ -199,7 +205,7 @@ const DesignerDashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="grid gap-6 md:grid-cols-3 mb-8">
+        <div className="grid gap-6 md:grid-cols-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
@@ -227,6 +233,15 @@ const DesignerDashboard = () => {
               <div className="text-2xl font-bold">{stats.in_progress}</div>
             </CardContent>
           </Card>
+          <Card className="border-destructive">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Needs Revision</CardTitle>
+              <AlertCircle className="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">{stats.needs_revision}</div>
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
@@ -238,9 +253,13 @@ const DesignerDashboard = () => {
               {tasks?.map((task) => {
                 const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
                 const isExpanded = expandedTaskId === task.id;
+                const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
                 
                 return (
-                  <div key={task.id} className="border rounded-lg">
+                  <div 
+                    key={task.id} 
+                    className={`border rounded-lg ${hasRevision ? 'border-destructive border-2 bg-destructive/5' : ''}`}
+                  >
                     <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                       <div className="space-y-1 flex-1">
                         <div className="flex items-center gap-3">
@@ -248,6 +267,12 @@ const DesignerDashboard = () => {
                             #{task.task_number}
                           </span>
                           <h3 className="font-semibold">{task.title}</h3>
+                          {hasRevision && (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Revision Needed
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
                         <div className="text-sm text-muted-foreground">
