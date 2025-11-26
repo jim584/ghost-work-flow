@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const PMDashboard = () => {
   const { user, signOut } = useAuth();
@@ -22,6 +32,7 @@ const PMDashboard = () => {
   const [open, setOpen] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
+  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
   const [revisionNotes, setRevisionNotes] = useState("");
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
@@ -180,6 +191,29 @@ const PMDashboard = () => {
     },
   });
 
+  const deleteTask = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("tasks")
+        .delete()
+        .eq("id", taskId)
+        .eq("status", "pending");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Task deleted successfully" });
+      setDeleteTaskId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error deleting task",
+        description: error.message,
+      });
+    },
+  });
+
   const stats = {
     total: tasks?.length || 0,
     in_progress: tasks?.filter((t) => t.status === "in_progress").length || 0,
@@ -316,6 +350,15 @@ const PMDashboard = () => {
                         <Badge className={getStatusColor(task.status)}>
                           {task.status.replace("_", " ")}
                         </Badge>
+                        {task.status === "pending" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDeleteTaskId(task.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                         {taskSubmissions.length > 0 && (
                           <Button
                             size="sm"
@@ -645,6 +688,27 @@ const PMDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTaskId} onOpenChange={() => setDeleteTaskId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this task? This action cannot be undone.
+              Only pending tasks can be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTaskId && deleteTask.mutate(deleteTaskId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
