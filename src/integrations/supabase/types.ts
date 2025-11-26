@@ -309,6 +309,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_set_user_role: {
+        Args: {
+          role_name: Database["public"]["Enums"]["app_role"]
+          target_user_id: string
+        }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -316,10 +323,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      set_user_role: {
-        Args: { role_name: Database["public"]["Enums"]["app_role"] }
-        Returns: undefined
-      }
+      set_user_role_designer: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "project_manager" | "designer"
