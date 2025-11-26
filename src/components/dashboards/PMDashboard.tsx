@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { FilePreview } from "@/components/FilePreview";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -386,13 +387,14 @@ const PMDashboard = () => {
                         <h4 className="text-sm font-semibold mb-3">Submitted Files:</h4>
                         <div className="space-y-2">
                           {taskSubmissions.map((submission) => (
-                            <div
-                              key={submission.id}
-                              className="flex items-center justify-between bg-background p-3 rounded-md"
-                            >
-                              <div className="flex-1">
+                            <div key={submission.id} className="flex items-center gap-3 justify-between bg-background p-3 rounded-md">
+                              <FilePreview 
+                                filePath={submission.file_path}
+                                fileName={submission.file_name}
+                              />
+                              <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium">{submission.file_name}</p>
+                                  <p className="text-sm font-medium truncate">{submission.file_name}</p>
                                   <Badge 
                                     variant={
                                       submission.revision_status === "approved" ? "default" :
