@@ -402,6 +402,15 @@ const PMDashboard = () => {
                             </Button>
                           )}
                         </div>
+                        {task.attachment_file_path && (
+                          <div className="mt-3 p-2 bg-muted/30 rounded border">
+                            <p className="text-xs text-muted-foreground mb-2">Task Attachment:</p>
+                            <FilePreview 
+                              filePath={task.attachment_file_path}
+                              fileName={task.attachment_file_name!}
+                            />
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className={getStatusColor(task.status)}>
@@ -682,6 +691,28 @@ const PMDashboard = () => {
                         <p className="font-medium">{viewDetailsTask.additional_details}</p>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Attachment */}
+              {viewDetailsTask?.attachment_file_path && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Task Attachment</h3>
+                  <div className="p-3 bg-muted/30 rounded">
+                    <FilePreview 
+                      filePath={viewDetailsTask.attachment_file_path}
+                      fileName={viewDetailsTask.attachment_file_name!}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 w-full"
+                      onClick={() => handleDownload(viewDetailsTask.attachment_file_path!, viewDetailsTask.attachment_file_name!)}
+                    >
+                      <Download className="h-3 w-3 mr-2" />
+                      Download Attachment
+                    </Button>
                   </div>
                 </div>
               )}
