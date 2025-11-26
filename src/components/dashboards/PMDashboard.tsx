@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 import { CreateTaskForm } from "./CreateTaskForm";
+import { CreateLogoOrderForm } from "./CreateLogoOrderForm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +32,7 @@ const PMDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [taskType, setTaskType] = useState<"social_media" | "logo" | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
@@ -282,7 +284,10 @@ const PMDashboard = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>My Tasks</CardTitle>
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog open={open} onOpenChange={(isOpen) => {
+              setOpen(isOpen);
+              if (!isOpen) setTaskType(null);
+            }}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
@@ -290,14 +295,65 @@ const PMDashboard = () => {
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-3xl">
-                <DialogHeader>
-                  <DialogTitle>Create New Social Media Post Request</DialogTitle>
-                </DialogHeader>
-                <CreateTaskForm 
-                  userId={user!.id} 
-                  teams={teams || []} 
-                  onSuccess={() => setOpen(false)}
-                />
+                {!taskType ? (
+                  <div className="space-y-4">
+                    <DialogHeader>
+                      <DialogTitle>Select Task Type</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        variant="outline"
+                        className="h-32 flex flex-col gap-2"
+                        onClick={() => setTaskType("social_media")}
+                      >
+                        <FolderKanban className="h-8 w-8" />
+                        <div className="text-center">
+                          <p className="font-semibold">Social Media Post</p>
+                          <p className="text-xs text-muted-foreground">Create social media content</p>
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-32 flex flex-col gap-2"
+                        onClick={() => setTaskType("logo")}
+                      >
+                        <FileText className="h-8 w-8" />
+                        <div className="text-center">
+                          <p className="font-semibold">Logo Order</p>
+                          <p className="text-xs text-muted-foreground">Create logo design order</p>
+                        </div>
+                      </Button>
+                    </div>
+                  </div>
+                ) : taskType === "social_media" ? (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Create New Social Media Post Request</DialogTitle>
+                    </DialogHeader>
+                    <CreateTaskForm 
+                      userId={user!.id} 
+                      teams={teams || []} 
+                      onSuccess={() => {
+                        setOpen(false);
+                        setTaskType(null);
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Create New Logo Order</DialogTitle>
+                    </DialogHeader>
+                    <CreateLogoOrderForm 
+                      userId={user!.id} 
+                      teams={teams || []} 
+                      onSuccess={() => {
+                        setOpen(false);
+                        setTaskType(null);
+                      }}
+                    />
+                  </>
+                )}
               </DialogContent>
             </Dialog>
           </CardHeader>
