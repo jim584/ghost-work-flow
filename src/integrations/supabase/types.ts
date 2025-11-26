@@ -20,6 +20,10 @@ export type Database = {
           file_name: string
           file_path: string
           id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          revision_notes: string | null
+          revision_status: string | null
           submitted_at: string | null
           task_id: string
         }
@@ -28,6 +32,10 @@ export type Database = {
           file_name: string
           file_path: string
           id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision_notes?: string | null
+          revision_status?: string | null
           submitted_at?: string | null
           task_id: string
         }
@@ -36,6 +44,10 @@ export type Database = {
           file_name?: string
           file_path?: string
           id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision_notes?: string | null
+          revision_status?: string | null
           submitted_at?: string | null
           task_id?: string
         }
