@@ -5,14 +5,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const AdminDashboard = () => {
   const { signOut } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
+  const [revisionNotes, setRevisionNotes] = useState("");
+  const [revisionFile, setRevisionFile] = useState<File | null>(null);
+  const [uploadingRevision, setUploadingRevision] = useState(false);
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -29,6 +39,119 @@ const AdminDashboard = () => {
       return data;
     },
   });
+
+  const { data: submissions } = useQuery({
+    queryKey: ["admin-submissions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("design_submissions")
+        .select("*")
+        .order("submitted_at", { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const handleDownload = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("design-files")
+        .download(filePath);
+      
+      if (error) throw error;
+      
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "Download started" });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error downloading file",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleApproveSubmission = useMutation({
+    mutationFn: async (submissionId: string) => {
+      const { error } = await supabase
+        .from("design_submissions")
+        .update({
+          revision_status: "approved",
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", submissionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
+      toast({ title: "Design approved successfully" });
+    },
+  });
+
+  const handleRequestRevision = async () => {
+    if (!revisionDialog || !revisionNotes.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please provide revision notes",
+      });
+      return;
+    }
+
+    setUploadingRevision(true);
+    try {
+      let revisionFilePath = null;
+      let revisionFileName = null;
+
+      if (revisionFile) {
+        const sanitizedFileName = revisionFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        revisionFileName = `revision_reference_${Date.now()}_${sanitizedFileName}`;
+        revisionFilePath = `revisions/${revisionFileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("design-files")
+          .upload(revisionFilePath, revisionFile);
+
+        if (uploadError) throw uploadError;
+      }
+
+      const { error } = await supabase
+        .from("design_submissions")
+        .update({
+          revision_status: "needs_revision",
+          revision_notes: revisionNotes,
+          revision_reference_file_path: revisionFilePath,
+          revision_reference_file_name: revisionFileName,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", revisionDialog.submissionId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
+      toast({ title: "Revision requested successfully" });
+      setRevisionDialog(null);
+      setRevisionNotes("");
+      setRevisionFile(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error requesting revision",
+        description: error.message,
+      });
+    } finally {
+      setUploadingRevision(false);
+    }
+  };
 
   const stats = {
     total: tasks?.length || 0,
@@ -111,40 +234,140 @@ const AdminDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {tasks?.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm text-muted-foreground">
-                        #{task.task_number}
-                      </span>
-                      <h3 className="font-semibold">{task.title}</h3>
+              {tasks?.map((task) => {
+                const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
+                const isExpanded = expandedTaskId === task.id;
+                
+                return (
+                  <div key={task.id} className="border rounded-lg">
+                    <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-sm text-muted-foreground">
+                            #{task.task_number}
+                          </span>
+                          <h3 className="font-semibold">{task.title}</h3>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{task.description}</p>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-muted-foreground">
+                            Team: <span className="font-medium">{task.teams?.name}</span>
+                          </span>
+                          {taskSubmissions.length > 0 && (
+                            <span className="text-primary">
+                              • {taskSubmissions.length} submission(s)
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setViewDetailsTask(task)}
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            View Details
+                          </Button>
+                          {task.attachment_file_path && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDownload(task.attachment_file_path!, task.attachment_file_name!)}
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              Download Attachment
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className={getStatusColor(task.status)}>
+                          {task.status.replace("_", " ")}
+                        </Badge>
+                        {taskSubmissions.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                          >
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">{task.description}</p>
-                    <div className="flex items-center gap-3 text-sm">
-                      <span className="text-muted-foreground">
-                        Team: <span className="font-medium">{task.teams?.name}</span>
-                      </span>
-                    </div>
-                    <div className="flex gap-2 mt-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setViewDetailsTask(task)}
-                      >
-                        <FileText className="h-3 w-3 mr-1" />
-                        View Details
-                      </Button>
-                    </div>
+                    
+                    {isExpanded && taskSubmissions.length > 0 && (
+                      <div className="border-t bg-muted/20 p-4">
+                        <h4 className="text-sm font-semibold mb-3">Design Submissions:</h4>
+                        <div className="space-y-2">
+                          {taskSubmissions.map((submission) => (
+                            <div
+                              key={submission.id}
+                              className="flex items-center justify-between bg-background p-3 rounded-md"
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium">{submission.file_name}</p>
+                                  <Badge 
+                                    variant={
+                                      submission.revision_status === "approved" ? "default" :
+                                      submission.revision_status === "needs_revision" ? "destructive" : 
+                                      "secondary"
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {submission.revision_status?.replace("_", " ")}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Uploaded: {new Date(submission.submitted_at || "").toLocaleString()}
+                                </p>
+                                {submission.revision_notes && (
+                                  <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
+                                    <span className="font-medium text-destructive">Revision notes:</span>
+                                    <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDownload(submission.file_path, submission.file_name)}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                                {submission.revision_status !== "approved" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={() => handleApproveSubmission.mutate(submission.id)}
+                                    >
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => setRevisionDialog({ 
+                                        open: true, 
+                                        submissionId: submission.id,
+                                        fileName: submission.file_name
+                                      })}
+                                    >
+                                      Request Revision
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <Badge className={getStatusColor(task.status)}>
-                    {task.status.replace("_", " ")}
-                  </Badge>
-                </div>
-              ))}
+                );
+              })}
               {!tasks?.length && (
                 <p className="text-center text-muted-foreground py-8">
                   No tasks available
@@ -322,6 +545,44 @@ const AdminDashboard = () => {
               )}
             </div>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={revisionDialog?.open || false} onOpenChange={(open) => !open && setRevisionDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Revision - {revisionDialog?.fileName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Revision Notes (Required)</Label>
+              <Textarea
+                value={revisionNotes}
+                onChange={(e) => setRevisionNotes(e.target.value)}
+                placeholder="Explain what needs to be changed..."
+                className="mt-2"
+                rows={4}
+              />
+            </div>
+            <div>
+              <Label>Reference File (Optional)</Label>
+              <Input
+                type="file"
+                onChange={(e) => setRevisionFile(e.target.files?.[0] || null)}
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Upload a reference file to help the designer understand the changes
+              </p>
+            </div>
+            <Button
+              onClick={handleRequestRevision}
+              disabled={uploadingRevision || !revisionNotes.trim()}
+              className="w-full"
+            >
+              {uploadingRevision ? "Uploading..." : "Submit Revision Request"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
