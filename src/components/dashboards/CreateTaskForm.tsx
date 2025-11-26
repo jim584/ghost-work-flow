@@ -86,8 +86,6 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
     target_audience_other: "",
     platforms: [] as string[],
     deadline: "",
-    notes_extra_instructions: "",
-    additional_details: "",
   });
 
   const createTask = useMutation({
@@ -496,26 +494,6 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
               onChange={(e) => handleChange("description", e.target.value)}
               rows={2}
               placeholder="Brief description of the task"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes_extra_instructions">Notes / Extra Instructions</Label>
-            <Textarea
-              id="notes_extra_instructions"
-              value={formData.notes_extra_instructions}
-              onChange={(e) => handleChange("notes_extra_instructions", e.target.value)}
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="additional_details">Additional Details</Label>
-            <Textarea
-              id="additional_details"
-              value={formData.additional_details}
-              onChange={(e) => handleChange("additional_details", e.target.value)}
-              rows={3}
             />
           </div>
 
