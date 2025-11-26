@@ -46,7 +46,10 @@ const AdminDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("design_submissions")
-        .select("*")
+        .select(`
+          *,
+          profiles!design_submissions_designer_id_fkey(email, full_name)
+        `)
         .order("submitted_at", { ascending: false });
       
       if (error) throw error;
@@ -325,6 +328,9 @@ const AdminDashboard = () => {
                                     {submission.revision_status?.replace("_", " ")}
                                   </Badge>
                                 </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Designer: <span className="font-medium">{submission.profiles?.full_name || submission.profiles?.email}</span>
+                                </p>
                                 <p className="text-xs text-muted-foreground">
                                   Uploaded: {new Date(submission.submitted_at || "").toLocaleString()}
                                 </p>
