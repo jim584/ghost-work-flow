@@ -4,24 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
+import { CreateTaskForm } from "./CreateTaskForm";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 const PMDashboard = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [teamId, setTeamId] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
   const [revisionNotes, setRevisionNotes] = useState("");
@@ -166,33 +163,6 @@ const PMDashboard = () => {
     },
   });
 
-  const createTask = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("tasks").insert({
-        title,
-        description,
-        team_id: teamId,
-        project_manager_id: user!.id,
-        status: "pending",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
-      toast({ title: "Task created successfully" });
-      setOpen(false);
-      setTitle("");
-      setDescription("");
-      setTeamId("");
-    },
-    onError: (error: any) => {
-      toast({
-        variant: "destructive",
-        title: "Error creating task",
-        description: error.message,
-      });
-    },
-  });
 
   const updateTaskStatus = useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string; status: Database["public"]["Enums"]["task_status"] }) => {
@@ -282,52 +252,15 @@ const PMDashboard = () => {
                   Create Task
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-3xl">
                 <DialogHeader>
-                  <DialogTitle>Create New Task</DialogTitle>
+                  <DialogTitle>Create New Social Media Post Request</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Title</Label>
-                    <Input
-                      id="title"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Task title"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Task description"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="team">Team</Label>
-                    <Select value={teamId} onValueChange={setTeamId}>
-                      <SelectTrigger id="team">
-                        <SelectValue placeholder="Select a team" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {teams?.map((team) => (
-                          <SelectItem key={team.id} value={team.id}>
-                            {team.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    onClick={() => createTask.mutate()}
-                    disabled={!title || !teamId || createTask.isPending}
-                    className="w-full"
-                  >
-                    {createTask.isPending ? "Creating..." : "Create Task"}
-                  </Button>
-                </div>
+                <CreateTaskForm 
+                  userId={user!.id} 
+                  teams={teams || []} 
+                  onSuccess={() => setOpen(false)}
+                />
               </DialogContent>
             </Dialog>
           </CardHeader>
