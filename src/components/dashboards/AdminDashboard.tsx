@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,8 @@ const AdminDashboard = () => {
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showAddUserDialog, setShowAddUserDialog] = useState(false);
+  const [newUserData, setNewUserData] = useState({ email: "", password: "", full_name: "" });
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -81,6 +83,35 @@ const AdminDashboard = () => {
         ...profile,
         user_roles: roles?.filter(r => r.user_id === profile.id) || []
       }));
+    },
+  });
+
+  const createUser = useMutation({
+    mutationFn: async (userData: { email: string; password: string; full_name: string }) => {
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            full_name: userData.full_name,
+          },
+        },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ title: "User created successfully" });
+      setShowAddUserDialog(false);
+      setNewUserData({ email: "", password: "", full_name: "" });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error creating user",
+        description: error.message,
+      });
     },
   });
 
@@ -253,8 +284,12 @@ const AdminDashboard = () => {
       <main className="container mx-auto px-4 py-8">
         {showUserManagement ? (
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>User Management</CardTitle>
+              <Button onClick={() => setShowAddUserDialog(true)} size="sm">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add User
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -700,6 +735,64 @@ const AdminDashboard = () => {
               className="w-full"
             >
               {uploadingRevision ? "Uploading..." : "Submit Revision Request"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add User Dialog */}
+      <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-user-email">Email</Label>
+              <Input
+                id="new-user-email"
+                type="email"
+                placeholder="user@example.com"
+                value={newUserData.email}
+                onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-user-password">Password</Label>
+              <Input
+                id="new-user-password"
+                type="password"
+                placeholder="••••••••"
+                value={newUserData.password}
+                onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-user-name">Full Name (Optional)</Label>
+              <Input
+                id="new-user-name"
+                type="text"
+                placeholder="John Doe"
+                value={newUserData.full_name}
+                onChange={(e) => setNewUserData({ ...newUserData, full_name: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddUserDialog(false);
+                setNewUserData({ email: "", password: "", full_name: "" });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createUser.mutate(newUserData)}
+              disabled={!newUserData.email || !newUserData.password || createUser.isPending}
+            >
+              {createUser.isPending ? "Creating..." : "Create User"}
             </Button>
           </div>
         </DialogContent>
