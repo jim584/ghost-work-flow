@@ -30,18 +30,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const fetchUserRole = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
+  const fetchUserRole = async (userId: string, retries = 3): Promise<UserRole | null> => {
+    for (let i = 0; i < retries; i++) {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-    if (error) {
-      console.error("Error fetching user role:", error);
-      return null;
+      if (error) {
+        console.error("Error fetching user role:", error);
+        return null;
+      }
+      
+      if (data?.role) {
+        return data.role as UserRole;
+      }
+      
+      // If no role found and we have retries left, wait and try again
+      if (i < retries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
     }
-    return data?.role as UserRole | null;
+    return null;
   };
 
   useEffect(() => {
@@ -51,9 +62,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          // Small delay to ensure session is fully established
           setTimeout(() => {
             fetchUserRole(session.user.id).then(setRole);
-          }, 0);
+          }, 100);
         } else {
           setRole(null);
         }
