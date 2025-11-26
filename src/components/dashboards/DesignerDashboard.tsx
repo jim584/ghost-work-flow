@@ -316,12 +316,26 @@ const DesignerDashboard = () => {
                                 <p className="text-xs text-muted-foreground">
                                   Uploaded: {new Date(submission.submitted_at || "").toLocaleString()}
                                 </p>
-                                {submission.revision_notes && (
-                                  <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
-                                    <span className="font-medium text-destructive">Revision requested:</span>
-                                    <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
-                                  </div>
-                                )}
+                                 {submission.revision_notes && (
+                                   <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
+                                     <span className="font-medium text-destructive">Revision requested:</span>
+                                     <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
+                                     {submission.revision_reference_file_path && (
+                                       <Button
+                                         size="sm"
+                                         variant="outline"
+                                         className="mt-2"
+                                         onClick={() => handleDownload(
+                                           submission.revision_reference_file_path!, 
+                                           submission.revision_reference_file_name!
+                                         )}
+                                       >
+                                         <Download className="h-3 w-3 mr-1" />
+                                         Download Reference File
+                                       </Button>
+                                     )}
+                                   </div>
+                                 )}
                               </div>
                               <Button
                                 size="sm"

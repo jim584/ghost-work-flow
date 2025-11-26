@@ -23,6 +23,8 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           revision_notes: string | null
+          revision_reference_file_name: string | null
+          revision_reference_file_path: string | null
           revision_status: string | null
           submitted_at: string | null
           task_id: string
@@ -35,6 +37,8 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           revision_notes?: string | null
+          revision_reference_file_name?: string | null
+          revision_reference_file_path?: string | null
           revision_status?: string | null
           submitted_at?: string | null
           task_id: string
@@ -47,6 +51,8 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           revision_notes?: string | null
+          revision_reference_file_name?: string | null
+          revision_reference_file_path?: string | null
           revision_status?: string | null
           submitted_at?: string | null
           task_id?: string
