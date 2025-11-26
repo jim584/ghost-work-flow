@@ -62,15 +62,25 @@ const AdminDashboard = () => {
   const { data: users } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch profiles
+      const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select(`
-          *,
-          user_roles(role)
-        `);
+        .select("*");
       
-      if (error) throw error;
-      return data;
+      if (profilesError) throw profilesError;
+      
+      // Fetch user roles
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id, role");
+      
+      if (rolesError) throw rolesError;
+      
+      // Combine profiles with their roles
+      return profiles?.map(profile => ({
+        ...profile,
+        user_roles: roles?.filter(r => r.user_id === profile.id) || []
+      }));
     },
   });
 
