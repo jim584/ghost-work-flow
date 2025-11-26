@@ -84,15 +84,21 @@ const Auth = () => {
           title: "Error assigning role",
           description: roleError.message,
         });
+        setLoading(false);
       } else {
         toast({
           title: "Account created!",
-          description: "You can now sign in with your credentials.",
+          description: "Redirecting to dashboard...",
         });
-        navigate("/dashboard");
+        // Wait a moment for the session to fully establish
+        setTimeout(() => {
+          navigate("/dashboard");
+          setLoading(false);
+        }, 1000);
       }
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
