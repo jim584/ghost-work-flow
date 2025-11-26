@@ -25,6 +25,8 @@ const PMDashboard = () => {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
   const [revisionNotes, setRevisionNotes] = useState("");
+  const [revisionFile, setRevisionFile] = useState<File | null>(null);
+  const [uploadingRevision, setUploadingRevision] = useState(false);
 
   const { data: teams } = useQuery({
     queryKey: ["teams"],
@@ -112,23 +114,55 @@ const PMDashboard = () => {
   });
 
   const handleRequestRevision = useMutation({
-    mutationFn: async ({ submissionId, notes }: { submissionId: string; notes: string }) => {
-      const { error } = await supabase
-        .from("design_submissions")
-        .update({
-          revision_status: "needs_revision",
-          revision_notes: notes,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user!.id,
-        })
-        .eq("id", submissionId);
-      if (error) throw error;
+    mutationFn: async ({ submissionId, notes, file }: { submissionId: string; notes: string; file: File | null }) => {
+      setUploadingRevision(true);
+      try {
+        let referenceFilePath = null;
+        let referenceFileName = null;
+
+        // Upload reference file if provided
+        if (file) {
+          const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          referenceFileName = `revision_ref_${Date.now()}_${sanitizedFileName}`;
+          referenceFilePath = `${user!.id}/revision_references/${referenceFileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("design-files")
+            .upload(referenceFilePath, file);
+
+          if (uploadError) throw uploadError;
+        }
+
+        const { error } = await supabase
+          .from("design_submissions")
+          .update({
+            revision_status: "needs_revision",
+            revision_notes: notes,
+            revision_reference_file_path: referenceFilePath,
+            revision_reference_file_name: referenceFileName,
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: user!.id,
+          })
+          .eq("id", submissionId);
+        
+        if (error) throw error;
+      } finally {
+        setUploadingRevision(false);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["design-submissions"] });
       toast({ title: "Revision requested" });
       setRevisionDialog(null);
       setRevisionNotes("");
+      setRevisionFile(null);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error requesting revision",
+        description: error.message,
+      });
     },
   });
 
@@ -430,7 +464,13 @@ const PMDashboard = () => {
         </Card>
       </main>
 
-      <Dialog open={revisionDialog?.open || false} onOpenChange={(open) => !open && setRevisionDialog(null)}>
+      <Dialog open={revisionDialog?.open || false} onOpenChange={(open) => {
+        if (!open) {
+          setRevisionDialog(null);
+          setRevisionNotes("");
+          setRevisionFile(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Request Revision</DialogTitle>
@@ -449,15 +489,33 @@ const PMDashboard = () => {
                 rows={4}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="revision-file">Reference File (optional)</Label>
+              <Input
+                id="revision-file"
+                type="file"
+                onChange={(e) => setRevisionFile(e.target.files?.[0] || null)}
+                accept="image/*,.pdf,.ai,.psd,.fig,.sketch"
+              />
+              {revisionFile && (
+                <p className="text-xs text-muted-foreground">
+                  Selected: {revisionFile.name}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Upload an annotated image or reference file to clarify the changes needed
+              </p>
+            </div>
             <Button
               onClick={() => revisionDialog && handleRequestRevision.mutate({ 
                 submissionId: revisionDialog.submissionId, 
-                notes: revisionNotes 
+                notes: revisionNotes,
+                file: revisionFile
               })}
-              disabled={!revisionNotes.trim() || handleRequestRevision.isPending}
+              disabled={!revisionNotes.trim() || uploadingRevision}
               className="w-full"
             >
-              {handleRequestRevision.isPending ? "Submitting..." : "Submit Revision Request"}
+              {uploadingRevision ? "Uploading..." : "Submit Revision Request"}
             </Button>
           </div>
         </DialogContent>
