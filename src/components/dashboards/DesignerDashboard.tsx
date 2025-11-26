@@ -17,7 +17,7 @@ const DesignerDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
   const { data: tasks } = useQuery({
@@ -43,31 +43,43 @@ const DesignerDashboard = () => {
   });
 
   const handleFileUpload = async () => {
-    if (!file || !selectedTask) return;
+    if (!files.length || !selectedTask) return;
 
     setUploading(true);
     try {
       const teamName = selectedTask.teams.name.replace(/\s+/g, "_");
-      const fileName = `${teamName}_Task_${selectedTask.task_number}_${file.name}`;
-      const filePath = `${user!.id}/${fileName}`;
+      let uploadedCount = 0;
 
-      const { error: uploadError } = await supabase.storage
-        .from("design-files")
-        .upload(filePath, file);
+      // Upload all files and create submissions
+      for (const file of files) {
+        const fileName = `${teamName}_Task_${selectedTask.task_number}_${file.name}`;
+        const filePath = `${user!.id}/${fileName}`;
 
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from("design-files")
+          .upload(filePath, file);
 
-      const { error: submissionError } = await supabase
-        .from("design_submissions")
-        .insert({
-          task_id: selectedTask.id,
-          designer_id: user!.id,
-          file_path: filePath,
-          file_name: fileName,
+        if (uploadError) throw uploadError;
+
+        const { error: submissionError } = await supabase
+          .from("design_submissions")
+          .insert({
+            task_id: selectedTask.id,
+            designer_id: user!.id,
+            file_path: filePath,
+            file_name: fileName,
+          });
+
+        if (submissionError) throw submissionError;
+        uploadedCount++;
+        
+        // Show progress
+        toast({ 
+          title: `Uploaded ${uploadedCount} of ${files.length} files` 
         });
+      }
 
-      if (submissionError) throw submissionError;
-
+      // Update task status after all files are uploaded
       const { error: statusError } = await supabase
         .from("tasks")
         .update({ status: "completed" })
@@ -76,13 +88,16 @@ const DesignerDashboard = () => {
       if (statusError) throw statusError;
 
       queryClient.invalidateQueries({ queryKey: ["designer-tasks"] });
-      toast({ title: "Design uploaded successfully" });
+      toast({ 
+        title: "All designs uploaded successfully",
+        description: `${files.length} file(s) submitted for review`
+      });
       setSelectedTask(null);
-      setFile(null);
+      setFiles([]);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error uploading design",
+        title: "Error uploading designs",
         description: error.message,
       });
     } finally {
@@ -236,25 +251,31 @@ const DesignerDashboard = () => {
                 Task: {selectedTask?.title}
               </p>
               <p className="text-sm text-muted-foreground">
-                File will be named: {selectedTask?.teams?.name.replace(/\s+/g, "_")}_Task_
+                Files will be named: {selectedTask?.teams?.name.replace(/\s+/g, "_")}_Task_
                 {selectedTask?.task_number}_[filename]
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="file">Design File</Label>
+              <Label htmlFor="file">Design Files (multiple allowed)</Label>
               <Input
                 id="file"
                 type="file"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                accept="image/*,.pdf,.ai,.psd"
+                multiple
+                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                accept="image/*,.pdf,.ai,.psd,.fig,.sketch"
               />
+              {files.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {files.length} file(s) selected
+                </p>
+              )}
             </div>
             <Button
               onClick={handleFileUpload}
-              disabled={!file || uploading}
+              disabled={!files.length || uploading}
               className="w-full"
             >
-              {uploading ? "Uploading..." : "Upload Design"}
+              {uploading ? "Uploading..." : `Upload ${files.length || ""} Design${files.length !== 1 ? "s" : ""}`}
             </Button>
           </div>
         </DialogContent>
