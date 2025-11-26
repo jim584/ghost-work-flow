@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { File as FileIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -264,16 +265,20 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
               accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip"
             />
             {attachmentFile && (
-              <div className="flex items-center gap-3 p-2 bg-muted/50 rounded">
-                {attachmentPreview && (
+              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded border">
+                {attachmentPreview ? (
                   <img 
                     src={attachmentPreview} 
                     alt="Preview" 
-                    className="w-16 h-16 object-cover rounded border"
+                    className="w-16 h-16 object-cover rounded border border-border"
                   />
+                ) : (
+                  <div className="w-16 h-16 flex items-center justify-center bg-secondary rounded border border-border">
+                    <FileIcon className="h-8 w-8 text-muted-foreground" />
+                  </div>
                 )}
                 <div className="flex-1">
-                  <p className="text-xs font-medium">
+                  <p className="text-sm font-medium">
                     {attachmentFile.name}
                   </p>
                   <p className="text-xs text-muted-foreground">
