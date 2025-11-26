@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,7 @@ const DesignerDashboard = () => {
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   const { data: tasks } = useQuery({
     queryKey: ["designer-tasks", user?.id],
@@ -41,6 +42,47 @@ const DesignerDashboard = () => {
       return data;
     },
   });
+
+  const { data: submissions } = useQuery({
+    queryKey: ["designer-submissions", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("design_submissions")
+        .select("*")
+        .eq("designer_id", user!.id)
+        .order("submitted_at", { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const handleDownload = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("design-files")
+        .download(filePath);
+      
+      if (error) throw error;
+      
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "Download started" });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error downloading file",
+        description: error.message,
+      });
+    }
+  };
 
   const handleFileUpload = async () => {
     if (!files.length || !selectedTask) return;
@@ -191,47 +233,94 @@ const DesignerDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {tasks?.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm text-muted-foreground">
-                        #{task.task_number}
-                      </span>
-                      <h3 className="font-semibold">{task.title}</h3>
+              {tasks?.map((task) => {
+                const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
+                const isExpanded = expandedTaskId === task.id;
+                
+                return (
+                  <div key={task.id} className="border rounded-lg">
+                    <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-sm text-muted-foreground">
+                            #{task.task_number}
+                          </span>
+                          <h3 className="font-semibold">{task.title}</h3>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{task.description}</p>
+                        <div className="text-sm text-muted-foreground">
+                          Team: <span className="font-medium">{task.teams?.name}</span>
+                          {taskSubmissions.length > 0 && (
+                            <span className="ml-2 text-primary">
+                              • {taskSubmissions.length} file(s) uploaded
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className={getStatusColor(task.status)}>
+                          {task.status.replace("_", " ")}
+                        </Badge>
+                        {taskSubmissions.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                          >
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        )}
+                        {task.status === "pending" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              updateTaskStatus.mutate({ taskId: task.id, status: "in_progress" })
+                            }
+                          >
+                            Start
+                          </Button>
+                        )}
+                        {task.status === "in_progress" && (
+                          <Button size="sm" onClick={() => setSelectedTask(task)}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">{task.description}</p>
-                    <div className="text-sm text-muted-foreground">
-                      Team: <span className="font-medium">{task.teams?.name}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={getStatusColor(task.status)}>
-                      {task.status.replace("_", " ")}
-                    </Badge>
-                    {task.status === "pending" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          updateTaskStatus.mutate({ taskId: task.id, status: "in_progress" })
-                        }
-                      >
-                        Start
-                      </Button>
+                    
+                    {isExpanded && taskSubmissions.length > 0 && (
+                      <div className="border-t bg-muted/20 p-4">
+                        <h4 className="text-sm font-semibold mb-3">Your Uploaded Files:</h4>
+                        <div className="space-y-2">
+                          {taskSubmissions.map((submission) => (
+                            <div
+                              key={submission.id}
+                              className="flex items-center justify-between bg-background p-3 rounded-md"
+                            >
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{submission.file_name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Uploaded: {new Date(submission.submitted_at || "").toLocaleString()}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDownload(submission.file_path, submission.file_name)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                    {task.status === "in_progress" && (
-                      <Button size="sm" onClick={() => setSelectedTask(task)}>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload
-                      </Button>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {!tasks?.length && (
                 <p className="text-center text-muted-foreground py-8">
                   No tasks assigned to your team yet
