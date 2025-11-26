@@ -7,13 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<string>("designer");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -81,10 +79,8 @@ const Auth = () => {
     }
 
     if (data.user) {
-      // Use RPC to set role (bypasses RLS)
-      const { error: roleError } = await supabase.rpc('set_user_role', {
-        role_name: role as "admin" | "project_manager" | "designer",
-      });
+      // Set default designer role for new signups
+      const { error: roleError } = await supabase.rpc('set_user_role_designer');
 
       if (roleError) {
         toast({
@@ -96,7 +92,7 @@ const Auth = () => {
       } else {
         toast({
           title: "Account created!",
-          description: "Redirecting to dashboard...",
+          description: "You've been registered as a designer. Contact an admin to change your role.",
         });
         // Wait a moment for the session to fully establish
         setTimeout(() => {
@@ -178,21 +174,8 @@ const Auth = () => {
                     minLength={6}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select value={role} onValueChange={setRole}>
-                    <SelectTrigger id="role">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="project_manager">Project Manager</SelectItem>
-                      <SelectItem value="designer">Designer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Creating account..." : "Sign Up"}
+                  {loading ? "Creating account..." : "Sign Up as Designer"}
                 </Button>
               </form>
             </TabsContent>

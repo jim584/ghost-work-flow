@@ -7,11 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const AdminDashboard = () => {
   const { signOut } = useAuth();
@@ -23,6 +24,7 @@ const AdminDashboard = () => {
   const [revisionNotes, setRevisionNotes] = useState("");
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [uploadingRevision, setUploadingRevision] = useState(false);
+  const [showUserManagement, setShowUserManagement] = useState(false);
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -54,6 +56,42 @@ const AdminDashboard = () => {
       
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: users } = useQuery({
+    queryKey: ["admin-users"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(`
+          *,
+          user_roles(role)
+        `);
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const assignRole = useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "project_manager" | "designer" }) => {
+      const { error } = await supabase.rpc('admin_set_user_role', {
+        target_user_id: userId,
+        role_name: role,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ title: "Role assigned successfully" });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error assigning role",
+        description: error.message,
+      });
     },
   });
 
@@ -185,14 +223,65 @@ const AdminDashboard = () => {
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
-          <Button onClick={signOut} variant="outline" size="sm">
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setShowUserManagement(!showUserManagement)} 
+              variant="outline" 
+              size="sm"
+            >
+              <UserCog className="mr-2 h-4 w-4" />
+              {showUserManagement ? "View Tasks" : "Manage Users"}
+            </Button>
+            <Button onClick={signOut} variant="outline" size="sm">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {showUserManagement ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>User Management</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {users?.map((user) => {
+                  const currentRole = Array.isArray(user.user_roles) && user.user_roles.length > 0 
+                    ? user.user_roles[0].role 
+                    : "No role assigned";
+                  
+                  return (
+                    <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="space-y-1">
+                        <p className="font-medium">{user.full_name || "No name"}</p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <Badge variant="outline">{currentRole}</Badge>
+                      </div>
+                      <Select
+                        onValueChange={(role: "admin" | "project_manager" | "designer") => 
+                          assignRole.mutate({ userId: user.id, role })
+                        }
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Assign role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="designer">Designer</SelectItem>
+                          <SelectItem value="project_manager">Project Manager</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
         <div className="grid gap-6 md:grid-cols-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -388,6 +477,8 @@ const AdminDashboard = () => {
             </div>
           </CardContent>
         </Card>
+        </>
+        )}
       </main>
 
       <Dialog open={!!viewDetailsTask} onOpenChange={() => setViewDetailsTask(null)}>
