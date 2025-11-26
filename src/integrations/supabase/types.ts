@@ -105,17 +105,23 @@ export type Database = {
           attachment_file_path: string | null
           brand_colors: string | null
           business_name: string | null
+          competitors_inspiration: string | null
           created_at: string | null
           cta: string | null
           deadline: string | null
           description: string | null
           design_style: string | null
+          file_formats_needed: string | null
           fonts: string | null
           headline_main_text: string | null
           id: string
           industry: string | null
+          logo_style: string | null
+          logo_type: string | null
           logo_url: string | null
           notes_extra_instructions: string | null
+          number_of_concepts: string | null
+          number_of_revisions: string | null
           objective: string | null
           platforms: string[] | null
           post_type: string | null
@@ -127,6 +133,7 @@ export type Database = {
           project_manager_id: string
           status: Database["public"]["Enums"]["task_status"]
           supporting_text: string | null
+          tagline: string | null
           target_audience_age: string | null
           target_audience_interest: string | null
           target_audience_location: string | null
@@ -135,6 +142,7 @@ export type Database = {
           team_id: string
           title: string
           updated_at: string | null
+          usage_type: string | null
           website_url: string | null
         }
         Insert: {
@@ -143,17 +151,23 @@ export type Database = {
           attachment_file_path?: string | null
           brand_colors?: string | null
           business_name?: string | null
+          competitors_inspiration?: string | null
           created_at?: string | null
           cta?: string | null
           deadline?: string | null
           description?: string | null
           design_style?: string | null
+          file_formats_needed?: string | null
           fonts?: string | null
           headline_main_text?: string | null
           id?: string
           industry?: string | null
+          logo_style?: string | null
+          logo_type?: string | null
           logo_url?: string | null
           notes_extra_instructions?: string | null
+          number_of_concepts?: string | null
+          number_of_revisions?: string | null
           objective?: string | null
           platforms?: string[] | null
           post_type?: string | null
@@ -165,6 +179,7 @@ export type Database = {
           project_manager_id: string
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
+          tagline?: string | null
           target_audience_age?: string | null
           target_audience_interest?: string | null
           target_audience_location?: string | null
@@ -173,6 +188,7 @@ export type Database = {
           team_id: string
           title: string
           updated_at?: string | null
+          usage_type?: string | null
           website_url?: string | null
         }
         Update: {
@@ -181,17 +197,23 @@ export type Database = {
           attachment_file_path?: string | null
           brand_colors?: string | null
           business_name?: string | null
+          competitors_inspiration?: string | null
           created_at?: string | null
           cta?: string | null
           deadline?: string | null
           description?: string | null
           design_style?: string | null
+          file_formats_needed?: string | null
           fonts?: string | null
           headline_main_text?: string | null
           id?: string
           industry?: string | null
+          logo_style?: string | null
+          logo_type?: string | null
           logo_url?: string | null
           notes_extra_instructions?: string | null
+          number_of_concepts?: string | null
+          number_of_revisions?: string | null
           objective?: string | null
           platforms?: string[] | null
           post_type?: string | null
@@ -203,6 +225,7 @@ export type Database = {
           project_manager_id?: string
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
+          tagline?: string | null
           target_audience_age?: string | null
           target_audience_interest?: string | null
           target_audience_location?: string | null
@@ -211,6 +234,7 @@ export type Database = {
           team_id?: string
           title?: string
           updated_at?: string | null
+          usage_type?: string | null
           website_url?: string | null
         }
         Relationships: [
