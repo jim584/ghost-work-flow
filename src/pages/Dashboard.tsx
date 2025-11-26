@@ -3,6 +3,8 @@ import { Navigate } from "react-router-dom";
 import AdminDashboard from "@/components/dashboards/AdminDashboard";
 import PMDashboard from "@/components/dashboards/PMDashboard";
 import DesignerDashboard from "@/components/dashboards/DesignerDashboard";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 
 const Dashboard = () => {
@@ -26,6 +28,13 @@ const Dashboard = () => {
         <div className="text-center space-y-4">
           <h2 className="text-2xl font-bold text-foreground">No Role Assigned</h2>
           <p className="text-muted-foreground">Please contact an administrator to assign you a role.</p>
+          <p className="text-sm text-muted-foreground">Or sign out and create a new account with a role.</p>
+          <Button onClick={() => {
+            supabase.auth.signOut();
+            window.location.href = "/auth";
+          }}>
+            Sign Out
+          </Button>
         </div>
       </div>
     );
