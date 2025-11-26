@@ -52,7 +52,9 @@ const DesignerDashboard = () => {
 
       // Upload all files and create submissions
       for (const file of files) {
-        const fileName = `${teamName}_Task_${selectedTask.task_number}_${file.name}`;
+        // Sanitize file name to remove special characters
+        const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const fileName = `${teamName}_Task_${selectedTask.task_number}_${sanitizedFileName}`;
         const filePath = `${user!.id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
