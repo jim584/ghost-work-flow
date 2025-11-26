@@ -136,6 +136,7 @@ const DesignerDashboard = () => {
       if (statusError) throw statusError;
 
       queryClient.invalidateQueries({ queryKey: ["designer-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["designer-submissions"] });
       toast({ 
         title: "All designs uploaded successfully",
         description: `${files.length} file(s) submitted for review`
