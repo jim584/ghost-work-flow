@@ -29,8 +29,8 @@ const Dashboard = () => {
           <h2 className="text-2xl font-bold text-foreground">No Role Assigned</h2>
           <p className="text-muted-foreground">Please contact an administrator to assign you a role.</p>
           <p className="text-sm text-muted-foreground">Or sign out and create a new account with a role.</p>
-          <Button onClick={() => {
-            supabase.auth.signOut();
+          <Button onClick={async () => {
+            await supabase.auth.signOut();
             window.location.href = "/auth";
           }}>
             Sign Out

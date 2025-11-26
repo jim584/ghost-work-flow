@@ -18,11 +18,21 @@ const Auth = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Listen for auth state changes to handle sign out properly
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        navigate("/dashboard");
+      }
+    });
+
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         navigate("/dashboard");
       }
     });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -71,12 +81,10 @@ const Auth = () => {
     }
 
     if (data.user) {
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert([{
-          user_id: data.user.id,
-          role: role as "admin" | "project_manager" | "designer",
-        }]);
+      // Use RPC to set role (bypasses RLS)
+      const { error: roleError } = await supabase.rpc('set_user_role', {
+        role_name: role as "admin" | "project_manager" | "designer",
+      });
 
       if (roleError) {
         toast({
