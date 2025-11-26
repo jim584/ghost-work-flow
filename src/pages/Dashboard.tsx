@@ -30,7 +30,15 @@ const Dashboard = () => {
           <p className="text-muted-foreground">Please contact an administrator to assign you a role.</p>
           <p className="text-sm text-muted-foreground">Or sign out and create a new account with a role.</p>
           <Button onClick={async () => {
-            await supabase.auth.signOut();
+            try {
+              await supabase.auth.signOut();
+            } catch (error) {
+              console.log("Sign out error (clearing anyway):", error);
+            }
+            // Force clear all auth data
+            localStorage.clear();
+            sessionStorage.clear();
+            // Force redirect
             window.location.href = "/auth";
           }}>
             Sign Out
