@@ -57,6 +57,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -502,13 +503,41 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
             <Input
               id="attachment"
               type="file"
-              onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setAttachmentFile(file);
+                
+                // Create preview for images
+                if (file && file.type.startsWith('image/')) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    setAttachmentPreview(reader.result as string);
+                  };
+                  reader.readAsDataURL(file);
+                } else {
+                  setAttachmentPreview(null);
+                }
+              }}
               accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip"
             />
             {attachmentFile && (
-              <p className="text-xs text-muted-foreground">
-                Selected: {attachmentFile.name}
-              </p>
+              <div className="flex items-center gap-3 p-2 bg-muted/50 rounded">
+                {attachmentPreview && (
+                  <img 
+                    src={attachmentPreview} 
+                    alt="Preview" 
+                    className="w-16 h-16 object-cover rounded border"
+                  />
+                )}
+                <div className="flex-1">
+                  <p className="text-xs font-medium">
+                    {attachmentFile.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {(attachmentFile.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+              </div>
             )}
             <p className="text-xs text-muted-foreground">
               Upload reference files, logos, brand guidelines, or any supporting documents

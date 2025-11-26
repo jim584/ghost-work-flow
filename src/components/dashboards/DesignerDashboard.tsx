@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { FilePreview } from "@/components/FilePreview";
 
 const DesignerDashboard = () => {
   const { user, signOut } = useAuth();
@@ -19,6 +20,7 @@ const DesignerDashboard = () => {
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<{[key: number]: string}>({});
   const [uploading, setUploading] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
@@ -342,48 +344,49 @@ const DesignerDashboard = () => {
                         <h4 className="text-sm font-semibold mb-3">Your Uploaded Files:</h4>
                         <div className="space-y-2">
                           {taskSubmissions.map((submission) => (
-                            <div
-                              key={submission.id}
-                              className="flex items-center justify-between bg-background p-3 rounded-md"
-                            >
-                              <div className="flex-1">
+                            <div key={submission.id} className="flex items-center gap-3 justify-between p-3 bg-background rounded-md">
+                              <FilePreview 
+                                filePath={submission.file_path}
+                                fileName={submission.file_name}
+                              />
+                              <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium">{submission.file_name}</p>
-                                  <Badge 
-                                    variant={
-                                      submission.revision_status === "approved" ? "default" :
-                                      submission.revision_status === "needs_revision" ? "destructive" : 
-                                      "secondary"
-                                    }
-                                    className="text-xs"
-                                  >
-                                    {submission.revision_status?.replace("_", " ")}
-                                  </Badge>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  Uploaded: {new Date(submission.submitted_at || "").toLocaleString()}
-                                </p>
-                                 {submission.revision_notes && (
-                                   <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
-                                     <span className="font-medium text-destructive">Revision requested:</span>
-                                     <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
-                                     {submission.revision_reference_file_path && (
-                                       <Button
-                                         size="sm"
-                                         variant="outline"
-                                         className="mt-2"
-                                         onClick={() => handleDownload(
-                                           submission.revision_reference_file_path!, 
-                                           submission.revision_reference_file_name!
-                                         )}
-                                       >
-                                         <Download className="h-3 w-3 mr-1" />
-                                         Download Reference File
-                                       </Button>
-                                     )}
-                                   </div>
-                                 )}
-                              </div>
+                                  <p className="text-sm font-medium truncate">{submission.file_name}</p>
+                                    <Badge
+                                      variant={
+                                        submission.revision_status === "approved" ? "default" :
+                                        submission.revision_status === "needs_revision" ? "destructive" : 
+                                        "secondary"
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {submission.revision_status?.replace("_", " ")}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Uploaded: {new Date(submission.submitted_at || "").toLocaleString()}
+                                  </p>
+                                   {submission.revision_notes && (
+                                     <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
+                                       <span className="font-medium text-destructive">Revision requested:</span>
+                                       <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
+                                       {submission.revision_reference_file_path && (
+                                         <Button
+                                           size="sm"
+                                           variant="outline"
+                                           className="mt-2"
+                                           onClick={() => handleDownload(
+                                             submission.revision_reference_file_path!, 
+                                             submission.revision_reference_file_name!
+                                           )}
+                                         >
+                                           <Download className="h-3 w-3 mr-1" />
+                                           Download Reference File
+                                         </Button>
+                                        )}
+                                      </div>
+                                    )}
+                                 </div>
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -432,6 +435,22 @@ const DesignerDashboard = () => {
                 multiple
                 onChange={(e) => {
                   const newFiles = Array.from(e.target.files || []);
+                  const currentLength = files.length;
+                  
+                  // Create previews for image files
+                  newFiles.forEach((file, index) => {
+                    if (file.type.startsWith('image/')) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setFilePreviews(prev => ({
+                          ...prev,
+                          [currentLength + index]: reader.result as string
+                        }));
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  });
+                  
                   setFiles(prev => [...prev, ...newFiles]);
                   e.target.value = '';
                 }}
@@ -442,16 +461,35 @@ const DesignerDashboard = () => {
                   <p className="text-sm font-medium text-muted-foreground">
                     {files.length} file(s) selected:
                   </p>
-                  <div className="max-h-32 overflow-y-auto space-y-1">
+                  <div className="max-h-64 overflow-y-auto space-y-2">
                     {files.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1">
-                        <span className="truncate flex-1">{file.name}</span>
+                      <div key={index} className="flex items-center gap-3 bg-muted/50 rounded p-2">
+                        {filePreviews[index] && (
+                          <img 
+                            src={filePreviews[index]} 
+                            alt={file.name} 
+                            className="w-12 h-12 object-cover rounded border"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {(file.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           className="h-6 w-6 p-0 ml-2"
-                          onClick={() => setFiles(prev => prev.filter((_, i) => i !== index))}
+                          onClick={() => {
+                            setFiles(prev => prev.filter((_, i) => i !== index));
+                            setFilePreviews(prev => {
+                              const newPreviews = { ...prev };
+                              delete newPreviews[index];
+                              return newPreviews;
+                            });
+                          }}
                         >
                           ×
                         </Button>
