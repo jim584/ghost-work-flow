@@ -473,11 +473,11 @@ const DesignerDashboard = () => {
       </Dialog>
 
       <Dialog open={!!viewDetailsTask} onOpenChange={() => setViewDetailsTask(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh]">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Task Details - #{viewDetailsTask?.task_number}</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[calc(90vh-8rem)] pr-4">
+          <ScrollArea className="max-h-[70vh] pr-4">
             <div className="space-y-6">
               {/* Basic Information */}
               <div className="space-y-3">
