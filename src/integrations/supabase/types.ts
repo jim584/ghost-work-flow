@@ -70,6 +70,8 @@ export type Database = {
       tasks: {
         Row: {
           additional_details: string | null
+          attachment_file_name: string | null
+          attachment_file_path: string | null
           brand_colors: string | null
           business_name: string | null
           created_at: string | null
@@ -106,6 +108,8 @@ export type Database = {
         }
         Insert: {
           additional_details?: string | null
+          attachment_file_name?: string | null
+          attachment_file_path?: string | null
           brand_colors?: string | null
           business_name?: string | null
           created_at?: string | null
@@ -142,6 +146,8 @@ export type Database = {
         }
         Update: {
           additional_details?: string | null
+          attachment_file_name?: string | null
+          attachment_file_path?: string | null
           brand_colors?: string | null
           business_name?: string | null
           created_at?: string | null

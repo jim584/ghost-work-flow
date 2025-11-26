@@ -56,6 +56,8 @@ const PLATFORMS = ["Instagram", "Facebook", "TikTok", "LinkedIn", "Pinterest", "
 export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -90,16 +92,40 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
 
   const createTask = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("tasks").insert({
-        ...formData,
-        project_manager_id: userId,
-        status: "pending",
-      });
-      if (error) throw error;
+      setUploading(true);
+      try {
+        let attachmentFilePath = null;
+        let attachmentFileName = null;
+
+        // Upload attachment file if provided
+        if (attachmentFile) {
+          const sanitizedFileName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          attachmentFileName = `task_attachment_${Date.now()}_${sanitizedFileName}`;
+          attachmentFilePath = `${userId}/task_attachments/${attachmentFileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("design-files")
+            .upload(attachmentFilePath, attachmentFile);
+
+          if (uploadError) throw uploadError;
+        }
+
+        const { error } = await supabase.from("tasks").insert({
+          ...formData,
+          project_manager_id: userId,
+          status: "pending",
+          attachment_file_path: attachmentFilePath,
+          attachment_file_name: attachmentFileName,
+        });
+        if (error) throw error;
+      } finally {
+        setUploading(false);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       toast({ title: "Task created successfully" });
+      setAttachmentFile(null);
       onSuccess();
     },
     onError: (error: any) => {
@@ -492,14 +518,32 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
               rows={3}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="attachment">Attachment (Optional)</Label>
+            <Input
+              id="attachment"
+              type="file"
+              onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+              accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip"
+            />
+            {attachmentFile && (
+              <p className="text-xs text-muted-foreground">
+                Selected: {attachmentFile.name}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Upload reference files, logos, brand guidelines, or any supporting documents
+            </p>
+          </div>
         </div>
 
         <Button
           onClick={() => createTask.mutate()}
-          disabled={!formData.title || !formData.team_id || !formData.website_url || createTask.isPending}
+          disabled={!formData.title || !formData.team_id || !formData.website_url || uploading}
           className="w-full"
         >
-          {createTask.isPending ? "Creating..." : "Create Task"}
+          {uploading ? "Creating & Uploading..." : "Create Task"}
         </Button>
       </div>
     </ScrollArea>

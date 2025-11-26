@@ -289,6 +289,17 @@ const PMDashboard = () => {
                             </span>
                           )}
                         </div>
+                        {task.attachment_file_path && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-2"
+                            onClick={() => handleDownload(task.attachment_file_path!, task.attachment_file_name!)}
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Download Task Attachment
+                          </Button>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className={getStatusColor(task.status)}>
