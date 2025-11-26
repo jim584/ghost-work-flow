@@ -69,37 +69,112 @@ export type Database = {
       }
       tasks: {
         Row: {
+          additional_details: string | null
+          brand_colors: string | null
+          business_name: string | null
           created_at: string | null
+          cta: string | null
+          deadline: string | null
           description: string | null
+          design_style: string | null
+          fonts: string | null
+          headline_main_text: string | null
           id: string
+          industry: string | null
+          logo_url: string | null
+          notes_extra_instructions: string | null
+          objective: string | null
+          platforms: string[] | null
+          post_type: string | null
+          post_type_required: string | null
+          pricing: string | null
+          product_service_description: string | null
+          product_service_images: string | null
+          product_service_name: string | null
           project_manager_id: string
           status: Database["public"]["Enums"]["task_status"]
+          supporting_text: string | null
+          target_audience_age: string | null
+          target_audience_interest: string | null
+          target_audience_location: string | null
+          target_audience_other: string | null
           task_number: number
           team_id: string
           title: string
           updated_at: string | null
+          website_url: string | null
         }
         Insert: {
+          additional_details?: string | null
+          brand_colors?: string | null
+          business_name?: string | null
           created_at?: string | null
+          cta?: string | null
+          deadline?: string | null
           description?: string | null
+          design_style?: string | null
+          fonts?: string | null
+          headline_main_text?: string | null
           id?: string
+          industry?: string | null
+          logo_url?: string | null
+          notes_extra_instructions?: string | null
+          objective?: string | null
+          platforms?: string[] | null
+          post_type?: string | null
+          post_type_required?: string | null
+          pricing?: string | null
+          product_service_description?: string | null
+          product_service_images?: string | null
+          product_service_name?: string | null
           project_manager_id: string
           status?: Database["public"]["Enums"]["task_status"]
+          supporting_text?: string | null
+          target_audience_age?: string | null
+          target_audience_interest?: string | null
+          target_audience_location?: string | null
+          target_audience_other?: string | null
           task_number?: number
           team_id: string
           title: string
           updated_at?: string | null
+          website_url?: string | null
         }
         Update: {
+          additional_details?: string | null
+          brand_colors?: string | null
+          business_name?: string | null
           created_at?: string | null
+          cta?: string | null
+          deadline?: string | null
           description?: string | null
+          design_style?: string | null
+          fonts?: string | null
+          headline_main_text?: string | null
           id?: string
+          industry?: string | null
+          logo_url?: string | null
+          notes_extra_instructions?: string | null
+          objective?: string | null
+          platforms?: string[] | null
+          post_type?: string | null
+          post_type_required?: string | null
+          pricing?: string | null
+          product_service_description?: string | null
+          product_service_images?: string | null
+          product_service_name?: string | null
           project_manager_id?: string
           status?: Database["public"]["Enums"]["task_status"]
+          supporting_text?: string | null
+          target_audience_age?: string | null
+          target_audience_interest?: string | null
+          target_audience_location?: string | null
+          target_audience_other?: string | null
           task_number?: number
           team_id?: string
           title?: string
           updated_at?: string | null
+          website_url?: string | null
         }
         Relationships: [
           {
