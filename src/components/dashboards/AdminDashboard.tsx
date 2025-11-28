@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, UserCheck } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -28,7 +28,6 @@ const AdminDashboard = () => {
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [newUserData, setNewUserData] = useState({ email: "", password: "", full_name: "", team_name: "" });
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [reassignDialog, setReassignDialog] = useState<{ open: boolean; taskId: string; currentTeamId: string } | null>(null);
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -88,23 +87,6 @@ const AdminDashboard = () => {
     },
   });
 
-  const { data: designerTeams } = useQuery({
-    queryKey: ["designer-teams"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("teams")
-        .select(`
-          id,
-          name,
-          team_members(user_id)
-        `)
-        .order("name");
-      
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const createUser = useMutation({
     mutationFn: async (userData: { email: string; password: string; full_name: string; team_name: string }) => {
       const { data, error } = await supabase.auth.signUp({
@@ -161,29 +143,6 @@ const AdminDashboard = () => {
       toast({
         variant: "destructive",
         title: "Error assigning role",
-        description: error.message,
-      });
-    },
-  });
-
-  const reassignTask = useMutation({
-    mutationFn: async ({ taskId, newTeamId }: { taskId: string; newTeamId: string }) => {
-      const { error } = await supabase
-        .from("tasks")
-        .update({ team_id: newTeamId })
-        .eq("id", taskId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
-      toast({ title: "Task reassigned successfully" });
-      setReassignDialog(null);
-    },
-    onError: (error: any) => {
-      toast({
-        variant: "destructive",
-        title: "Error reassigning task",
         description: error.message,
       });
     },
@@ -482,14 +441,6 @@ const AdminDashboard = () => {
                           >
                             <FileText className="h-3 w-3 mr-1" />
                             View Details
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setReassignDialog({ open: true, taskId: task.id, currentTeamId: task.team_id })}
-                          >
-                            <UserCheck className="h-3 w-3 mr-1" />
-                            Reassign Designer
                           </Button>
                           {task.attachment_file_path && (
                             <Button
@@ -886,42 +837,6 @@ const AdminDashboard = () => {
                 {createUser.isPending ? "Creating..." : "Create User"}
               </Button>
             </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reassign Task Dialog */}
-      <Dialog open={reassignDialog?.open || false} onOpenChange={(open) => !open && setReassignDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reassign Task to Different Designer</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Designer Team</Label>
-              <Select
-                onValueChange={(teamId) => {
-                  if (reassignDialog) {
-                    reassignTask.mutate({ taskId: reassignDialog.taskId, newTeamId: teamId });
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a designer team..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {designerTeams?.map((team) => (
-                    <SelectItem 
-                      key={team.id} 
-                      value={team.id}
-                      disabled={reassignDialog?.currentTeamId === team.id}
-                    >
-                      {team.name} {reassignDialog?.currentTeamId === team.id && "(Current)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
     </div>
