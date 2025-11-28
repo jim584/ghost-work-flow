@@ -285,6 +285,10 @@ const PMDashboard = () => {
     }
   };
 
+  const isLogoOrder = (task: any) => {
+    return !!(task?.logo_type || task?.logo_style || task?.tagline || task?.number_of_concepts);
+  };
+
   const filteredTasks = tasks?.filter((task) => {
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
@@ -741,32 +745,79 @@ const PMDashboard = () => {
                 </div>
               </div>
 
-              {/* Post Details */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg border-b pb-2">Post Details</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Post Type</Label>
-                    <p className="font-medium">{viewDetailsTask?.post_type || "N/A"}</p>
+              {/* Logo Details - Only for Logo Orders */}
+              {isLogoOrder(viewDetailsTask) && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Logo Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Logo Type</Label>
+                      <p className="font-medium">{viewDetailsTask?.logo_type || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Logo Style</Label>
+                      <p className="font-medium">{viewDetailsTask?.logo_style || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Number of Concepts</Label>
+                      <p className="font-medium">{viewDetailsTask?.number_of_concepts || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Number of Revisions</Label>
+                      <p className="font-medium">{viewDetailsTask?.number_of_revisions || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">File Formats Needed</Label>
+                      <p className="font-medium">{viewDetailsTask?.file_formats_needed || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Usage Type</Label>
+                      <p className="font-medium">{viewDetailsTask?.usage_type || "N/A"}</p>
+                    </div>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Objective</Label>
-                    <p className="font-medium">{viewDetailsTask?.objective || "N/A"}</p>
+                    <Label className="text-muted-foreground">Tagline</Label>
+                    <p className="font-medium">{viewDetailsTask?.tagline || "N/A"}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Post Type Required</Label>
-                    <p className="font-medium">{viewDetailsTask?.post_type_required || "N/A"}</p>
+                    <Label className="text-muted-foreground">Competitors/Inspiration</Label>
+                    <p className="font-medium">{viewDetailsTask?.competitors_inspiration || "N/A"}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Platforms</Label>
-                    <p className="font-medium">{viewDetailsTask?.platforms?.join(", ") || "N/A"}</p>
+                    <Label className="text-muted-foreground">Description</Label>
+                    <p className="font-medium">{viewDetailsTask?.description || "N/A"}</p>
                   </div>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Description</Label>
-                  <p className="font-medium">{viewDetailsTask?.description || "N/A"}</p>
+              )}
+
+              {/* Post Details - Only for Social Media Posts */}
+              {!isLogoOrder(viewDetailsTask) && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Post Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Post Type</Label>
+                      <p className="font-medium">{viewDetailsTask?.post_type || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Objective</Label>
+                      <p className="font-medium">{viewDetailsTask?.objective || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Post Type Required</Label>
+                      <p className="font-medium">{viewDetailsTask?.post_type_required || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Platforms</Label>
+                      <p className="font-medium">{viewDetailsTask?.platforms?.join(", ") || "N/A"}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Description</Label>
+                    <p className="font-medium">{viewDetailsTask?.description || "N/A"}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Product/Service Information */}
               <div className="space-y-3">
@@ -806,24 +857,26 @@ const PMDashboard = () => {
                 </div>
               </div>
 
-              {/* Content */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg border-b pb-2">Content</h3>
+              {/* Content - Only for Social Media Posts */}
+              {!isLogoOrder(viewDetailsTask) && (
                 <div className="space-y-3">
-                  <div>
-                    <Label className="text-muted-foreground">Headline/Main Text</Label>
-                    <p className="font-medium">{viewDetailsTask?.headline_main_text || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Supporting Text</Label>
-                    <p className="font-medium">{viewDetailsTask?.supporting_text || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Call to Action</Label>
-                    <p className="font-medium">{viewDetailsTask?.cta || "N/A"}</p>
+                  <h3 className="font-semibold text-lg border-b pb-2">Content</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-muted-foreground">Headline/Main Text</Label>
+                      <p className="font-medium">{viewDetailsTask?.headline_main_text || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Supporting Text</Label>
+                      <p className="font-medium">{viewDetailsTask?.supporting_text || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Call to Action</Label>
+                      <p className="font-medium">{viewDetailsTask?.cta || "N/A"}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Target Audience */}
               <div className="space-y-3">
