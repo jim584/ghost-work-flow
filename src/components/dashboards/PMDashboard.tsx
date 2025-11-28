@@ -40,7 +40,7 @@ const PMDashboard = () => {
   const [revisionNotes, setRevisionNotes] = useState("");
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [uploadingRevision, setUploadingRevision] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>("priority");
 
   const { data: teams } = useQuery({
     queryKey: ["teams"],
@@ -218,10 +218,50 @@ const PMDashboard = () => {
     },
   });
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const stats = {
+    recently_delivered: tasks?.filter(t => 
+      submissions?.some(s => s.task_id === t.id && s.revision_status === 'pending_review')
+    ).length || 0,
+    delayed: tasks?.filter(t => 
+      t.deadline && new Date(t.deadline) < today && 
+      !['completed', 'approved'].includes(t.status)
+    ).length || 0,
+    pending: tasks?.filter(t => t.status === 'pending').length || 0,
+    in_progress: tasks?.filter(t => t.status === 'in_progress').length || 0,
+    needs_revision: tasks?.filter(t =>
+      submissions?.some(s => s.task_id === t.id && s.revision_status === 'needs_revision')
+    ).length || 0,
     total: tasks?.length || 0,
-    in_progress: tasks?.filter((t) => t.status === "in_progress").length || 0,
-    completed: tasks?.filter((t) => t.status === "completed").length || 0,
+  };
+
+  const getTaskCategory = (task: any, submissions: any[]) => {
+    const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
+    const hasPendingReview = taskSubmissions.some(s => s.revision_status === 'pending_review');
+    const hasNeedsRevision = taskSubmissions.some(s => s.revision_status === 'needs_revision');
+    const isDelayed = task.deadline && new Date(task.deadline) < today && 
+                     !['completed', 'approved'].includes(task.status);
+    
+    if (hasPendingReview) return 'recently_delivered';
+    if (isDelayed) return 'delayed';
+    if (hasNeedsRevision) return 'needs_revision';
+    if (task.status === 'pending') return 'pending';
+    if (task.status === 'in_progress') return 'in_progress';
+    return 'other';
+  };
+
+  const getCategoryPriority = (category: string) => {
+    const priorities: Record<string, number> = {
+      recently_delivered: 1,
+      delayed: 2,
+      pending: 3,
+      in_progress: 4,
+      needs_revision: 5,
+      other: 6,
+    };
+    return priorities[category] || 99;
   };
 
   const getStatusColor = (status: string) => {
@@ -241,7 +281,34 @@ const PMDashboard = () => {
 
   const filteredTasks = tasks?.filter((task) => {
     if (!statusFilter) return true;
+    if (statusFilter === 'priority') {
+      const category = getTaskCategory(task, submissions || []);
+      return ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision'].includes(category);
+    }
     return task.status === statusFilter;
+  }).sort((a, b) => {
+    if (statusFilter === 'priority') {
+      const categoryA = getTaskCategory(a, submissions || []);
+      const categoryB = getTaskCategory(b, submissions || []);
+      const priorityDiff = getCategoryPriority(categoryA) - getCategoryPriority(categoryB);
+      
+      if (priorityDiff !== 0) return priorityDiff;
+      
+      // Within same category, sort by date
+      if (categoryA === 'recently_delivered') {
+        const submissionA = submissions?.filter(s => s.task_id === a.id).sort((x, y) => 
+          new Date(y.submitted_at!).getTime() - new Date(x.submitted_at!).getTime()
+        )[0];
+        const submissionB = submissions?.filter(s => s.task_id === b.id).sort((x, y) => 
+          new Date(y.submitted_at!).getTime() - new Date(x.submitted_at!).getTime()
+        )[0];
+        return new Date(submissionB?.submitted_at || 0).getTime() - new Date(submissionA?.submitted_at || 0).getTime();
+      }
+      if (categoryA === 'delayed') {
+        return new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime();
+      }
+    }
+    return new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime();
   });
 
   return (
@@ -257,41 +324,74 @@ const PMDashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="grid gap-6 md:grid-cols-3 mb-8">
-          <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${!statusFilter ? 'ring-2 ring-primary' : ''}`}
+        <div className="flex justify-between items-center mb-4">
+          <Button
+            variant={statusFilter === 'priority' ? 'default' : 'outline'}
+            onClick={() => setStatusFilter('priority')}
+          >
+            Priority View
+          </Button>
+          <Button
+            variant={!statusFilter ? 'default' : 'outline'}
             onClick={() => setStatusFilter(null)}
           >
+            All Tasks
+          </Button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-5 mb-8">
+          <Card className="border-l-4 border-l-green-500">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
+              <CardTitle className="text-sm font-medium">Recently Delivered</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.recently_delivered}</div>
+              <p className="text-xs text-muted-foreground">Awaiting review</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-l-4 border-l-red-500">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Delayed Orders</CardTitle>
+              <Clock className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.delayed}</div>
+              <p className="text-xs text-muted-foreground">Past deadline</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
               <FolderKanban className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
+              <div className="text-2xl font-bold">{stats.pending}</div>
+              <p className="text-xs text-muted-foreground">Not started</p>
             </CardContent>
           </Card>
-          <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'in_progress' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter('in_progress')}
-          >
+          
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">In Progress</CardTitle>
               <Clock className="h-4 w-4 text-warning" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.in_progress}</div>
+              <p className="text-xs text-muted-foreground">Being worked on</p>
             </CardContent>
           </Card>
-          <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'completed' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter('completed')}
-          >
+          
+          <Card className="border-l-4 border-l-orange-500">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-success" />
+              <CardTitle className="text-sm font-medium">Needs Revision</CardTitle>
+              <FileText className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.completed}</div>
+              <div className="text-2xl font-bold">{stats.needs_revision}</div>
+              <p className="text-xs text-muted-foreground">Requires changes</p>
             </CardContent>
           </Card>
         </div>
@@ -377,9 +477,30 @@ const PMDashboard = () => {
               {filteredTasks?.map((task) => {
                 const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
                 const isExpanded = expandedTaskId === task.id;
+                const category = getTaskCategory(task, submissions || []);
+                
+                const getBorderClass = () => {
+                  if (category === 'recently_delivered') return 'border-l-4 border-l-green-500 bg-green-50/10';
+                  if (category === 'delayed') return 'border-l-4 border-l-red-500 bg-red-50/10';
+                  if (category === 'needs_revision') return 'border-l-4 border-l-orange-500 bg-orange-50/10';
+                  return '';
+                };
+
+                const getCategoryBadge = () => {
+                  if (category === 'recently_delivered') {
+                    return <Badge className="bg-green-500 text-white">Awaiting Review</Badge>;
+                  }
+                  if (category === 'delayed') {
+                    return <Badge className="bg-red-500 text-white">DELAYED</Badge>;
+                  }
+                  if (category === 'needs_revision') {
+                    return <Badge className="bg-orange-500 text-white">Needs Revision</Badge>;
+                  }
+                  return null;
+                };
                 
                 return (
-                  <div key={task.id} className="border rounded-lg">
+                  <div key={task.id} className={`border rounded-lg ${getBorderClass()}`}>
                     <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                       <div className="space-y-1 flex-1">
                         <div className="flex items-center gap-3">
@@ -428,6 +549,7 @@ const PMDashboard = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        {getCategoryBadge()}
                         <Badge className={getStatusColor(task.status)}>
                           {task.status.replace("_", " ")}
                         </Badge>
