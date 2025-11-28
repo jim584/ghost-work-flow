@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
+import { differenceInHours } from "date-fns";
 
 const DesignerDashboard = () => {
   const { user, signOut } = useAuth();
@@ -174,11 +175,22 @@ const DesignerDashboard = () => {
     return taskSubmissions.some(s => s.revision_status === "needs_revision");
   }) || [];
 
+  const isTaskDelayed = (task: any) => {
+    const createdAt = new Date(task.created_at);
+    const hoursSinceCreation = differenceInHours(new Date(), createdAt);
+    // Task is delayed if it's been more than 24 hours and still pending or needs revision
+    const needsRevision = tasksNeedingRevision.some(t => t.id === task.id);
+    return hoursSinceCreation > 24 && (task.status === "pending" || needsRevision);
+  };
+
+  const delayedTasks = tasks?.filter(isTaskDelayed) || [];
+
   const stats = {
     total: tasks?.length || 0,
     pending: tasks?.filter((t) => t.status === "pending").length || 0,
     in_progress: tasks?.filter((t) => t.status === "in_progress").length || 0,
     needs_revision: tasksNeedingRevision.length,
+    delayed: delayedTasks.length,
   };
 
   const getStatusColor = (status: string) => {
@@ -201,11 +213,21 @@ const DesignerDashboard = () => {
       // Default view: show pending tasks or tasks needing revision
       return task.status === "pending" || tasksNeedingRevision.some(t => t.id === task.id);
     }
+    if (statusFilter === "delayed") {
+      return isTaskDelayed(task);
+    }
     if (!statusFilter) return true; // Show all when Total Tasks is clicked
     if (statusFilter === "needs_revision") {
       return tasksNeedingRevision.some(t => t.id === task.id);
     }
     return task.status === statusFilter;
+  }).sort((a, b) => {
+    // Sort delayed tasks to the top
+    const aDelayed = isTaskDelayed(a);
+    const bDelayed = isTaskDelayed(b);
+    if (aDelayed && !bDelayed) return -1;
+    if (!aDelayed && bDelayed) return 1;
+    return 0;
   });
 
   return (
@@ -221,6 +243,30 @@ const DesignerDashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {stats.delayed > 0 && (
+          <Card className="mb-6 border-destructive bg-destructive/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-destructive" />
+                <div>
+                  <h3 className="font-semibold text-destructive">Urgent: {stats.delayed} Delayed Order{stats.delayed > 1 ? 's' : ''}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {stats.delayed} task{stats.delayed > 1 ? 's have' : ' has'} been pending for more than 24 hours. Please prioritize {stats.delayed > 1 ? 'these orders' : 'this order'} urgently.
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => setStatusFilter("delayed")}
+                >
+                  View Delayed Tasks
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
         {statusFilter !== "pending_or_revision" && (
           <div className="mb-4">
             <Button
@@ -296,11 +342,14 @@ const DesignerDashboard = () => {
                 const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
                 const isExpanded = expandedTaskId === task.id;
                 const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
+                const isDelayed = isTaskDelayed(task);
+                const createdAt = new Date(task.created_at);
+                const hoursSinceCreation = differenceInHours(new Date(), createdAt);
                 
                 return (
                   <div 
                     key={task.id} 
-                    className={`border rounded-lg ${hasRevision ? 'border-destructive border-2 bg-destructive/5' : ''}`}
+                    className={`border rounded-lg ${hasRevision ? 'border-destructive border-2 bg-destructive/5' : ''} ${isDelayed ? 'border-destructive border-2 bg-destructive/10' : ''}`}
                   >
                     <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                       <div className="space-y-1 flex-1">
@@ -309,6 +358,12 @@ const DesignerDashboard = () => {
                             #{task.task_number}
                           </span>
                           <h3 className="font-semibold">{task.title}</h3>
+                          {isDelayed && (
+                            <Badge variant="destructive" className="gap-1 animate-pulse">
+                              <AlertTriangle className="h-3 w-3" />
+                              DELAYED {hoursSinceCreation}h
+                            </Badge>
+                          )}
                           {hasRevision && (
                             <Badge variant="destructive" className="gap-1">
                               <AlertCircle className="h-3 w-3" />
