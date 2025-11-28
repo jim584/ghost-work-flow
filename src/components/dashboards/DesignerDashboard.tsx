@@ -24,7 +24,7 @@ const DesignerDashboard = () => {
   const [uploading, setUploading] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>("pending_or_revision");
 
   const { data: tasks } = useQuery({
     queryKey: ["designer-tasks", user?.id],
@@ -197,7 +197,11 @@ const DesignerDashboard = () => {
   };
 
   const filteredTasks = tasks?.filter((task) => {
-    if (!statusFilter) return true;
+    if (statusFilter === "pending_or_revision") {
+      // Default view: show pending tasks or tasks needing revision
+      return task.status === "pending" || tasksNeedingRevision.some(t => t.id === task.id);
+    }
+    if (!statusFilter) return true; // Show all when Total Tasks is clicked
     if (statusFilter === "needs_revision") {
       return tasksNeedingRevision.some(t => t.id === task.id);
     }
@@ -219,7 +223,7 @@ const DesignerDashboard = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="grid gap-6 md:grid-cols-4 mb-8">
           <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${!statusFilter ? 'ring-2 ring-primary' : ''}`}
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === null ? 'ring-2 ring-primary' : ''}`}
             onClick={() => setStatusFilter(null)}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
