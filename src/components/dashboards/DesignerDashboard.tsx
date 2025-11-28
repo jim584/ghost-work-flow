@@ -471,24 +471,32 @@ const DesignerDashboard = () => {
                             <FileText className="h-3 w-3 mr-1" />
                             View Details
                           </Button>
-                          {task.attachment_file_path && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDownload(task.attachment_file_path!, task.attachment_file_name!)}
-                            >
-                              <Download className="h-3 w-3 mr-1" />
-                              Download Attachment
-                            </Button>
-                          )}
                         </div>
                         {task.attachment_file_path && (
-                          <div className="mt-3 p-2 bg-muted/30 rounded border">
-                            <p className="text-xs text-muted-foreground mb-2">Task Attachment:</p>
-                            <FilePreview 
-                              filePath={task.attachment_file_path}
-                              fileName={task.attachment_file_name!}
-                            />
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs text-muted-foreground">Task Attachments ({task.attachment_file_path.split('|||').length}):</p>
+                            {task.attachment_file_path.split('|||').map((filePath: string, index: number) => {
+                              const fileName = task.attachment_file_name?.split('|||')[index] || `attachment_${index + 1}`;
+                              return (
+                                <div key={index} className="p-2 bg-muted/30 rounded border">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <FilePreview 
+                                      filePath={filePath.trim()}
+                                      fileName={fileName.trim()}
+                                      className="w-10 h-10"
+                                    />
+                                    <span className="text-xs flex-1 truncate">{fileName.trim()}</span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                    >
+                                      <Download className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
