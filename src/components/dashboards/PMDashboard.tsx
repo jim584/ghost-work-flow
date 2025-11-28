@@ -508,7 +508,7 @@ const PMDashboard = () => {
 
                 const getCategoryBadge = () => {
                   if (category === 'recently_delivered') {
-                    return <Badge className="bg-green-500 text-white">Awaiting Review</Badge>;
+                    return <Badge className="bg-green-500 text-white">Delivered - Awaiting Review</Badge>;
                   }
                   if (category === 'delayed') {
                     return <Badge className="bg-red-500 text-white">DELAYED</Badge>;
