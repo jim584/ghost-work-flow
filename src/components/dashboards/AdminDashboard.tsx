@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,8 @@ const AdminDashboard = () => {
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [newUserData, setNewUserData] = useState({ email: "", password: "", full_name: "", team_name: "" });
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [editTeamDialog, setEditTeamDialog] = useState<{ open: boolean; teamId: string; currentName: string } | null>(null);
+  const [newTeamName, setNewTeamName] = useState("");
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -87,6 +89,19 @@ const AdminDashboard = () => {
     },
   });
 
+  const { data: teams } = useQuery({
+    queryKey: ["admin-teams"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("*")
+        .order("name");
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const createUser = useMutation({
     mutationFn: async (userData: { email: string; password: string; full_name: string; team_name: string }) => {
       const { data, error } = await supabase.auth.signUp({
@@ -143,6 +158,31 @@ const AdminDashboard = () => {
       toast({
         variant: "destructive",
         title: "Error assigning role",
+        description: error.message,
+      });
+    },
+  });
+
+  const updateTeamName = useMutation({
+    mutationFn: async ({ teamId, newName }: { teamId: string; newName: string }) => {
+      const { error } = await supabase
+        .from("teams")
+        .update({ name: newName })
+        .eq("id", teamId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-teams"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+      toast({ title: "Team name updated successfully" });
+      setEditTeamDialog(null);
+      setNewTeamName("");
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error updating team name",
         description: error.message,
       });
     },
@@ -300,6 +340,40 @@ const AdminDashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         {showUserManagement ? (
+          <div className="space-y-6">
+            {/* Teams Management Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Teams Management</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {teams?.map((team) => (
+                    <div key={team.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="space-y-1">
+                        <p className="font-medium">{team.name}</p>
+                        {team.description && (
+                          <p className="text-sm text-muted-foreground">{team.description}</p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditTeamDialog({ open: true, teamId: team.id, currentName: team.name });
+                          setNewTeamName(team.name);
+                        }}
+                      >
+                        <Edit2 className="h-3 w-3 mr-1" />
+                        Edit Name
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* User Management Section */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>User Management</CardTitle>
@@ -344,6 +418,7 @@ const AdminDashboard = () => {
               </div>
             </CardContent>
           </Card>
+          </div>
         ) : (
           <>
         <div className="grid gap-6 md:grid-cols-4 mb-8">
@@ -837,6 +912,48 @@ const AdminDashboard = () => {
                 {createUser.isPending ? "Creating..." : "Create User"}
               </Button>
             </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Team Name Dialog */}
+      <Dialog open={editTeamDialog?.open || false} onOpenChange={(open) => !open && setEditTeamDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Team Name</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="team-name">Team Name</Label>
+              <Input
+                id="team-name"
+                type="text"
+                placeholder="Enter new team name"
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditTeamDialog(null);
+                  setNewTeamName("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (editTeamDialog && newTeamName.trim()) {
+                    updateTeamName.mutate({ teamId: editTeamDialog.teamId, newName: newTeamName.trim() });
+                  }
+                }}
+                disabled={!newTeamName.trim() || updateTeamName.isPending}
+              >
+                {updateTeamName.isPending ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
