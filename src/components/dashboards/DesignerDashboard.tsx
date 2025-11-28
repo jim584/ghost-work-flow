@@ -548,13 +548,14 @@ const DesignerDashboard = () => {
                                   <p className="text-sm font-medium truncate">{submission.file_name}</p>
                                     <Badge
                                       variant={
+                                        hasRevision ? "destructive" :
                                         submission.revision_status === "approved" ? "default" :
                                         submission.revision_status === "needs_revision" ? "destructive" : 
                                         "secondary"
                                       }
                                       className="text-xs"
                                     >
-                                      {submission.revision_status?.replace("_", " ")}
+                                      {hasRevision ? "needs revision" : submission.revision_status?.replace("_", " ")}
                                     </Badge>
                                   </div>
                                   <p className="text-xs text-muted-foreground">
