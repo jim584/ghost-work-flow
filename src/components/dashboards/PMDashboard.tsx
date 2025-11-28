@@ -914,7 +914,7 @@ const PMDashboard = () => {
                 id="revision-file"
                 type="file"
                 multiple
-                onChange={(e) => setRevisionFiles(Array.from(e.target.files || []))}
+                onChange={(e) => setRevisionFiles(prev => [...prev, ...Array.from(e.target.files || [])])}
                 accept="image/*,.pdf,.ai,.psd,.fig,.sketch,audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.mp4,.mov,.avi,.mkv,.webm"
               />
               {revisionFiles.length > 0 && (

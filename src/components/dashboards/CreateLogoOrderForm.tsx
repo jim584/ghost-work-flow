@@ -254,8 +254,10 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
               type="file"
               multiple
               onChange={(e) => {
-                const files = Array.from(e.target.files || []);
-                setAttachmentFiles(files);
+                const newFiles = Array.from(e.target.files || []);
+                setAttachmentFiles(prev => [...prev, ...newFiles]);
+                // Reset input to allow selecting the same file again
+                e.target.value = '';
               }}
               accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip,audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.mp4,.mov,.avi,.mkv,.webm"
             />
