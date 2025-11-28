@@ -99,6 +99,23 @@ const DesignerDashboard = () => {
       const teamName = selectedTask.teams.name.replace(/\s+/g, "_");
       let uploadedCount = 0;
 
+      // Check if this is a revision upload
+      const taskSubmissions = submissions?.filter(s => s.task_id === selectedTask.id) || [];
+      const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
+
+      // If uploading revision, mark old "needs_revision" submissions as "revised"
+      if (hasRevision) {
+        const revisionsToUpdate = taskSubmissions.filter(s => s.revision_status === "needs_revision");
+        for (const submission of revisionsToUpdate) {
+          const { error: updateError } = await supabase
+            .from("design_submissions")
+            .update({ revision_status: "revised" })
+            .eq("id", submission.id);
+          
+          if (updateError) throw updateError;
+        }
+      }
+
       // Upload all files and create submissions
       for (const file of files) {
         // Sanitize file name to remove special characters
@@ -130,22 +147,25 @@ const DesignerDashboard = () => {
         });
       }
 
-      // Update task status after all files are uploaded
-      const { error: statusError } = await supabase
-        .from("tasks")
-        .update({ status: "completed" })
-        .eq("id", selectedTask.id);
+      // Update task status after all files are uploaded (only if not a revision)
+      if (!hasRevision) {
+        const { error: statusError } = await supabase
+          .from("tasks")
+          .update({ status: "completed" })
+          .eq("id", selectedTask.id);
 
-      if (statusError) throw statusError;
+        if (statusError) throw statusError;
+      }
 
       queryClient.invalidateQueries({ queryKey: ["designer-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["designer-submissions"] });
       toast({ 
-        title: "All designs uploaded successfully",
+        title: hasRevision ? "Revision uploaded successfully" : "All designs uploaded successfully",
         description: `${files.length} file(s) submitted for review`
       });
       setSelectedTask(null);
       setFiles([]);
+      setFilePreviews({});
     } catch (error: any) {
       toast({
         variant: "destructive",
