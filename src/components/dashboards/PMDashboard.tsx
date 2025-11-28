@@ -637,9 +637,9 @@ const PMDashboard = () => {
                                     {submission.revision_status?.replace("_", " ")}
                                   </Badge>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                  Submitted: {new Date(submission.submitted_at || "").toLocaleString()}
-                                </p>
+                                 <p className="text-xs text-muted-foreground">
+                                   Delivered: {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
+                                 </p>
                                 {submission.revision_notes && (
                                   <p className="text-xs text-muted-foreground mt-1">
                                     <span className="font-medium">Revision notes:</span> {submission.revision_notes}
