@@ -625,7 +625,7 @@ const PMDashboard = () => {
                                 >
                                   <Download className="h-4 w-4" />
                                 </Button>
-                                {submission.revision_status !== "approved" && (
+                                {submission.revision_status !== "approved" && submission.revision_status !== "needs_revision" && (
                                   <Button
                                     size="sm"
                                     variant="default"
