@@ -210,8 +210,8 @@ const DesignerDashboard = () => {
 
   const filteredTasks = tasks?.filter((task) => {
     if (statusFilter === "pending_or_revision") {
-      // Default view: show pending tasks or tasks needing revision
-      return task.status === "pending" || tasksNeedingRevision.some(t => t.id === task.id);
+      // Default view: show pending, in progress, or tasks needing revision
+      return task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id);
     }
     if (statusFilter === "delayed") {
       return isTaskDelayed(task);
@@ -276,7 +276,7 @@ const DesignerDashboard = () => {
               className="gap-2"
             >
               <Clock className="h-4 w-4" />
-              Back to Default View (Pending & Needs Revision)
+              Back to Default View (Pending, In Progress & Needs Revision)
             </Button>
           </div>
         )}
