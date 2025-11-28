@@ -119,6 +119,8 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
 
         if (error) throw error;
 
+        queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+        
         toast({
           title: "Logo order created successfully!",
           description: "The design team will be notified.",
