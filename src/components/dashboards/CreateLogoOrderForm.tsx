@@ -257,7 +257,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
                 const files = Array.from(e.target.files || []);
                 setAttachmentFiles(files);
               }}
-              accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip"
+              accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip,audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.mp4,.mov,.avi,.mkv,.webm"
             />
             {attachmentFiles.length > 0 && (
               <div className="space-y-2">
@@ -294,7 +294,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Upload existing logos, sketches, or reference materials (multiple files allowed)
+              Upload existing logos, sketches, audio, video, or reference materials (multiple files allowed)
             </p>
           </div>
         </div>
