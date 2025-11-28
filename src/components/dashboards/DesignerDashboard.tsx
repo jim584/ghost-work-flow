@@ -565,7 +565,14 @@ const DesignerDashboard = () => {
                                    </p>
                                    {submission.revision_notes && (
                                      <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
-                                       <span className="font-medium text-destructive">Revision requested:</span>
+                                       <div className="flex items-center justify-between mb-1">
+                                         <span className="font-medium text-destructive">Revision requested:</span>
+                                         {submission.reviewed_at && (
+                                           <span className="text-xs text-muted-foreground">
+                                             {format(new Date(submission.reviewed_at), 'MMM d, yyyy h:mm a')}
+                                           </span>
+                                         )}
+                                       </div>
                                        <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
                                        {submission.revision_reference_file_path && (
                                          <Button
