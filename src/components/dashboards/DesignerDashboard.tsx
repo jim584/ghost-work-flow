@@ -24,6 +24,7 @@ const DesignerDashboard = () => {
   const [uploading, setUploading] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const { data: tasks } = useQuery({
     queryKey: ["designer-tasks", user?.id],
@@ -195,6 +196,14 @@ const DesignerDashboard = () => {
     }
   };
 
+  const filteredTasks = tasks?.filter((task) => {
+    if (!statusFilter) return true;
+    if (statusFilter === "needs_revision") {
+      return tasksNeedingRevision.some(t => t.id === task.id);
+    }
+    return task.status === statusFilter;
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
@@ -209,7 +218,10 @@ const DesignerDashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         <div className="grid gap-6 md:grid-cols-4 mb-8">
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${!statusFilter ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter(null)}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
               <FolderKanban className="h-4 w-4 text-muted-foreground" />
@@ -218,7 +230,10 @@ const DesignerDashboard = () => {
               <div className="text-2xl font-bold">{stats.total}</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('pending')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pending</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -227,7 +242,10 @@ const DesignerDashboard = () => {
               <div className="text-2xl font-bold">{stats.pending}</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'in_progress' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('in_progress')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">In Progress</CardTitle>
               <Clock className="h-4 w-4 text-warning" />
@@ -236,7 +254,10 @@ const DesignerDashboard = () => {
               <div className="text-2xl font-bold">{stats.in_progress}</div>
             </CardContent>
           </Card>
-          <Card className="border-destructive">
+          <Card 
+            className={`border-destructive cursor-pointer transition-all hover:shadow-md ${statusFilter === 'needs_revision' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('needs_revision')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Needs Revision</CardTitle>
               <AlertCircle className="h-4 w-4 text-destructive" />
@@ -253,7 +274,7 @@ const DesignerDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {tasks?.map((task) => {
+              {filteredTasks?.map((task) => {
                 const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
                 const isExpanded = expandedTaskId === task.id;
                 const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
