@@ -65,8 +65,7 @@ const LOOK_AND_FEEL = [
 export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrderFormProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -83,22 +82,25 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
     mutationFn: async () => {
       setUploading(true);
       try {
-        let attachmentFilePath = null;
-        let attachmentFileName = null;
+        let attachmentFilePaths: string[] = [];
+        let attachmentFileNames: string[] = [];
 
-        // Upload attachment file if provided
-        if (attachmentFile) {
-          const sanitizedFileName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-          const filePath = `${userId}/logo_order_attachments/logo_attachment_${Date.now()}_${sanitizedFileName}`;
+        // Upload attachment files if provided
+        if (attachmentFiles.length > 0) {
+          for (const file of attachmentFiles) {
+            const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+            const fileName = `logo_attachment_${Date.now()}_${sanitizedFileName}`;
+            const filePath = `${userId}/logo_order_attachments/${fileName}`;
 
-          const { error: uploadError } = await supabase.storage
-            .from("design-files")
-            .upload(filePath, attachmentFile);
+            const { error: uploadError } = await supabase.storage
+              .from("design-files")
+              .upload(filePath, file);
 
-          if (uploadError) throw uploadError;
+            if (uploadError) throw uploadError;
 
-          attachmentFilePath = filePath;
-          attachmentFileName = `logo_attachment_${Date.now()}_${sanitizedFileName}`;
+            attachmentFilePaths.push(filePath);
+            attachmentFileNames.push(fileName);
+          }
         }
 
         const { error } = await supabase.from("tasks").insert({
@@ -112,8 +114,8 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           logo_style: formData.look_and_feel,
           brand_colors: formData.color_combination,
           notes_extra_instructions: formData.notes,
-          attachment_file_path: attachmentFilePath,
-          attachment_file_name: attachmentFileName,
+          attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
+          attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
           status: "pending",
         });
 
@@ -250,47 +252,49 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
             <Input
               id="attachment"
               type="file"
+              multiple
               onChange={(e) => {
-                const file = e.target.files?.[0] || null;
-                setAttachmentFile(file);
-                
-                if (file && file.type.startsWith('image/')) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    setAttachmentPreview(reader.result as string);
-                  };
-                  reader.readAsDataURL(file);
-                } else {
-                  setAttachmentPreview(null);
-                }
+                const files = Array.from(e.target.files || []);
+                setAttachmentFiles(files);
               }}
               accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip"
             />
-            {attachmentFile && (
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded border">
-                {attachmentPreview ? (
-                  <img 
-                    src={attachmentPreview} 
-                    alt="Preview" 
-                    className="w-16 h-16 object-cover rounded border border-border"
-                  />
-                ) : (
-                  <div className="w-16 h-16 flex items-center justify-center bg-secondary rounded border border-border">
-                    <FileIcon className="h-8 w-8 text-muted-foreground" />
+            {attachmentFiles.length > 0 && (
+              <div className="space-y-2">
+                {attachmentFiles.map((file, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 bg-muted/50 rounded border">
+                    {file.type.startsWith('image/') ? (
+                      <img 
+                        src={URL.createObjectURL(file)} 
+                        alt="Preview" 
+                        className="w-16 h-16 object-cover rounded border border-border"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 flex items-center justify-center bg-secondary rounded border border-border">
+                        <FileIcon className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setAttachmentFiles(files => files.filter((_, i) => i !== index))}
+                    >
+                      Remove
+                    </Button>
                   </div>
-                )}
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    {attachmentFile.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {(attachmentFile.size / 1024).toFixed(1)} KB
-                  </p>
-                </div>
+                ))}
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Upload existing logos, sketches, or reference materials
+              Upload existing logos, sketches, or reference materials (multiple files allowed)
             </p>
           </div>
         </div>
