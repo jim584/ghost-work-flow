@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
+import { format } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -535,6 +536,9 @@ const PMDashboard = () => {
                           <h3 className="font-semibold">{task.title}</h3>
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
+                        <div className="text-sm text-muted-foreground">
+                          Created: <span className="font-medium">{format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
+                        </div>
                         <div className="text-sm text-muted-foreground">
                           Team: <span className="font-medium">{task.teams?.name}</span>
                           {taskSubmissions.length > 0 && (

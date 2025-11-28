@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
-import { differenceInHours } from "date-fns";
+import { differenceInHours, format } from "date-fns";
 
 const DesignerDashboard = () => {
   const { user, signOut } = useAuth();
@@ -451,6 +451,9 @@ const DesignerDashboard = () => {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
+                        <div className="text-sm text-muted-foreground">
+                          Created: <span className="font-medium">{format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
+                        </div>
                         <div className="text-sm text-muted-foreground">
                           Team: <span className="font-medium">{task.teams?.name}</span>
                           {taskSubmissions.length > 0 && (
