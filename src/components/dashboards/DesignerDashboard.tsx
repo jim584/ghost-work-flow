@@ -499,6 +499,17 @@ const DesignerDashboard = () => {
                             Upload
                           </Button>
                         )}
+                        {hasRevision && (
+                          <Button 
+                            size="sm" 
+                            variant="default"
+                            className="bg-orange-600 hover:bg-orange-700"
+                            onClick={() => setSelectedTask(task)}
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload Revision
+                          </Button>
+                        )}
                       </div>
                     </div>
                     
