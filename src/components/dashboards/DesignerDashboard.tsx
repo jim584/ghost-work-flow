@@ -490,8 +490,8 @@ const DesignerDashboard = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className={getStatusColor(task.status)}>
-                          {task.status.replace("_", " ")}
+                        <Badge className={hasRevision ? "bg-destructive text-destructive-foreground" : getStatusColor(task.status)}>
+                          {hasRevision ? "Revision Needed" : task.status.replace("_", " ")}
                         </Badge>
                         {taskSubmissions.length > 0 && (
                           <Button
