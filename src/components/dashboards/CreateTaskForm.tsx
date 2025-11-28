@@ -513,7 +513,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
                 const files = Array.from(e.target.files || []);
                 setAttachmentFiles(files);
               }}
-              accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip"
+              accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip,audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.mp4,.mov,.avi,.mkv,.webm"
             />
             {attachmentFiles.length > 0 && (
               <div className="space-y-2">
@@ -550,7 +550,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Upload reference files, logos, brand guidelines, or any supporting documents (multiple files allowed)
+              Upload reference files, logos, brand guidelines, audio, video, or any supporting documents (multiple files allowed)
             </p>
           </div>
         </div>
