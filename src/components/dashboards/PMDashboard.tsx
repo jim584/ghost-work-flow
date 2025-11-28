@@ -640,11 +640,19 @@ const PMDashboard = () => {
                                  <p className="text-xs text-muted-foreground">
                                    Delivered: {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
                                  </p>
-                                {submission.revision_notes && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    <span className="font-medium">Revision notes:</span> {submission.revision_notes}
-                                  </p>
-                                )}
+                                 {submission.revision_notes && (
+                                   <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
+                                     <div className="flex items-center justify-between mb-1">
+                                       <span className="font-medium text-destructive">Revision notes:</span>
+                                       {submission.reviewed_at && (
+                                         <span className="text-xs text-muted-foreground">
+                                           {format(new Date(submission.reviewed_at), 'MMM d, yyyy h:mm a')}
+                                         </span>
+                                       )}
+                                     </div>
+                                     <p className="text-muted-foreground">{submission.revision_notes}</p>
+                                   </div>
+                                 )}
                               </div>
                               <div className="flex items-center gap-2">
                                 <Button
