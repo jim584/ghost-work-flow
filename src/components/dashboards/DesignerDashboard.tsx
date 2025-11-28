@@ -221,6 +221,20 @@ const DesignerDashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {statusFilter !== "pending_or_revision" && (
+          <div className="mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setStatusFilter("pending_or_revision")}
+              className="gap-2"
+            >
+              <Clock className="h-4 w-4" />
+              Back to Default View (Pending & Needs Revision)
+            </Button>
+          </div>
+        )}
+        
         <div className="grid gap-6 md:grid-cols-4 mb-8">
           <Card 
             className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === null ? 'ring-2 ring-primary' : ''}`}
