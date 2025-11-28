@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Image, Palette } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,7 @@ const DesignerDashboard = () => {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>("pending_or_revision");
+  const [taskTypeFilter, setTaskTypeFilter] = useState<string | null>(null);
 
   const { data: tasks } = useQuery({
     queryKey: ["designer-tasks", user?.id],
@@ -185,12 +186,23 @@ const DesignerDashboard = () => {
 
   const delayedTasks = tasks?.filter(isTaskDelayed) || [];
 
+  const getTaskType = (task: any): 'logo' | 'social_media' | 'unknown' => {
+    if (task.logo_type) return 'logo';
+    if (task.post_type) return 'social_media';
+    return 'unknown';
+  };
+
+  const logoTasks = tasks?.filter(t => getTaskType(t) === 'logo') || [];
+  const socialMediaTasks = tasks?.filter(t => getTaskType(t) === 'social_media') || [];
+
   const stats = {
     total: tasks?.length || 0,
     pending: tasks?.filter((t) => t.status === "pending").length || 0,
     in_progress: tasks?.filter((t) => t.status === "in_progress").length || 0,
     needs_revision: tasksNeedingRevision.length,
     delayed: delayedTasks.length,
+    logo: logoTasks.length,
+    social_media: socialMediaTasks.length,
   };
 
   const getStatusColor = (status: string) => {
@@ -209,6 +221,12 @@ const DesignerDashboard = () => {
   };
 
   const filteredTasks = tasks?.filter((task) => {
+    // Apply task type filter first
+    if (taskTypeFilter) {
+      const taskType = getTaskType(task);
+      if (taskType !== taskTypeFilter) return false;
+    }
+
     if (statusFilter === "pending_or_revision") {
       // Default view: show pending, in progress, or tasks needing revision
       return task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id);
@@ -280,6 +298,34 @@ const DesignerDashboard = () => {
             </Button>
           </div>
         )}
+
+        <div className="mb-6 flex gap-2">
+          <Button
+            variant={taskTypeFilter === null ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTaskTypeFilter(null)}
+          >
+            All Task Types
+          </Button>
+          <Button
+            variant={taskTypeFilter === "logo" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTaskTypeFilter("logo")}
+            className="gap-2"
+          >
+            <Palette className="h-4 w-4" />
+            Logo Orders ({stats.logo})
+          </Button>
+          <Button
+            variant={taskTypeFilter === "social_media" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTaskTypeFilter("social_media")}
+            className="gap-2"
+          >
+            <Image className="h-4 w-4" />
+            Social Media Posts ({stats.social_media})
+          </Button>
+        </div>
         
         <div className="grid gap-6 md:grid-cols-4 mb-8">
           <Card 
@@ -345,6 +391,7 @@ const DesignerDashboard = () => {
                 const isDelayed = isTaskDelayed(task);
                 const createdAt = new Date(task.created_at);
                 const hoursSinceCreation = differenceInHours(new Date(), createdAt);
+                const taskType = getTaskType(task);
                 
                 return (
                   <div 
@@ -357,6 +404,18 @@ const DesignerDashboard = () => {
                           <span className="font-mono text-sm text-muted-foreground">
                             #{task.task_number}
                           </span>
+                          {taskType === 'logo' && (
+                            <Badge variant="secondary" className="gap-1 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200">
+                              <Palette className="h-3 w-3" />
+                              Logo Order
+                            </Badge>
+                          )}
+                          {taskType === 'social_media' && (
+                            <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                              <Image className="h-3 w-3" />
+                              Social Media Post
+                            </Badge>
+                          )}
                           <h3 className="font-semibold">{task.title}</h3>
                           {isDelayed && (
                             <Badge variant="destructive" className="gap-1 animate-pulse">
