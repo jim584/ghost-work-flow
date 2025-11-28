@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { format } from "date-fns";
 
 const AdminDashboard = () => {
   const { signOut } = useAuth();
@@ -493,6 +494,9 @@ const AdminDashboard = () => {
                           <h3 className="font-semibold">{task.title}</h3>
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
+                        <div className="text-sm text-muted-foreground mb-1">
+                          Created: <span className="font-medium">{format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
+                        </div>
                         <div className="flex items-center gap-3 text-sm">
                           <span className="text-muted-foreground">
                             Team: <span className="font-medium">{task.teams?.name}</span>
