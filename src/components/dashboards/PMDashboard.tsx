@@ -286,7 +286,7 @@ const PMDashboard = () => {
   };
 
   const isLogoOrder = (task: any) => {
-    return !!(task?.logo_type || task?.logo_style || task?.tagline || task?.number_of_concepts);
+    return task?.post_type === "Logo Design";
   };
 
   const filteredTasks = tasks?.filter((task) => {
