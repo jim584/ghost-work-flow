@@ -207,7 +207,7 @@ const DesignerDashboard = () => {
   const delayedTasks = tasks?.filter(isTaskDelayed) || [];
 
   const getTaskType = (task: any): 'logo' | 'social_media' | 'unknown' => {
-    if (task.logo_type) return 'logo';
+    if (task.post_type === "Logo Design") return 'logo';
     if (task.post_type) return 'social_media';
     return 'unknown';
   };
