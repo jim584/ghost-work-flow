@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { FilePreview } from "@/components/FilePreview";
 import { format } from "date-fns";
 
 const AdminDashboard = () => {
@@ -31,6 +33,7 @@ const AdminDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
   const [editTeamDialog, setEditTeamDialog] = useState<{ open: boolean; teamId: string; currentName: string } | null>(null);
   const [newTeamName, setNewTeamName] = useState("");
+  const [viewMode, setViewMode] = useState<'tasks' | 'portfolio'>('tasks');
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -352,6 +355,27 @@ const AdminDashboard = () => {
     }
   };
 
+  const tasksByIndustry = useMemo(() => {
+    const grouped: Record<string, any[]> = {};
+    
+    tasks?.forEach(task => {
+      if (task.industry) {
+        const hasDeliveredSubmissions = submissions?.some(
+          s => s.task_id === task.id && ['approved', 'pending_review'].includes(s.revision_status || '')
+        );
+        
+        if (hasDeliveredSubmissions) {
+          if (!grouped[task.industry]) {
+            grouped[task.industry] = [];
+          }
+          grouped[task.industry].push(task);
+        }
+      }
+    });
+    
+    return grouped;
+  }, [tasks, submissions]);
+
   const filteredTasks = tasks?.filter((task) => {
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
@@ -495,20 +519,39 @@ const AdminDashboard = () => {
         ) : (
           <>
         <div className="flex justify-between items-center mb-4">
-          <Button
-            variant={statusFilter === 'priority' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('priority')}
-          >
-            Priority View
-          </Button>
-          <Button
-            variant={!statusFilter ? 'default' : 'outline'}
-            onClick={() => setStatusFilter(null)}
-          >
-            All Tasks
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant={viewMode === 'tasks' ? 'default' : 'outline'}
+              onClick={() => setViewMode('tasks')}
+            >
+              Tasks View
+            </Button>
+            <Button
+              variant={viewMode === 'portfolio' ? 'default' : 'outline'}
+              onClick={() => setViewMode('portfolio')}
+            >
+              Industry Portfolio
+            </Button>
+          </div>
+          {viewMode === 'tasks' && (
+            <div className="flex gap-2">
+              <Button
+                variant={statusFilter === 'priority' ? 'default' : 'outline'}
+                onClick={() => setStatusFilter('priority')}
+              >
+                Priority View
+              </Button>
+              <Button
+                variant={!statusFilter ? 'default' : 'outline'}
+                onClick={() => setStatusFilter(null)}
+              >
+                All Tasks
+              </Button>
+            </div>
+          )}
         </div>
 
+        {viewMode === 'tasks' && (
         <div className="grid gap-4 md:grid-cols-5 mb-8">
           <Card 
             className={`border-l-4 border-l-green-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'recently_delivered' ? 'ring-2 ring-green-500' : ''}`}
@@ -580,7 +623,9 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
         </div>
+        )}
 
+        {viewMode === 'tasks' && (
         <Card>
           <CardHeader>
             <CardTitle>All Tasks</CardTitle>
@@ -769,6 +814,105 @@ const AdminDashboard = () => {
             </div>
           </CardContent>
         </Card>
+        )}
+
+        {viewMode === 'portfolio' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Industry Portfolio - Delivered Logo Designs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {Object.keys(tasksByIndustry).length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No delivered logo designs available
+                </p>
+              ) : (
+                <Accordion type="single" collapsible className="w-full">
+                  {Object.entries(tasksByIndustry)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([industry, industryTasks]) => {
+                      const deliveredCount = industryTasks.length;
+                      
+                      return (
+                        <AccordionItem key={industry} value={industry}>
+                          <AccordionTrigger className="text-left">
+                            <div className="flex items-center justify-between w-full pr-4">
+                              <span className="font-semibold text-lg">{industry}</span>
+                              <Badge variant="secondary">{deliveredCount} design{deliveredCount !== 1 ? 's' : ''}</Badge>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-4">
+                              {industryTasks.map((task) => {
+                                const approvedSubmissions = submissions?.filter(
+                                  s => s.task_id === task.id && ['approved', 'pending_review'].includes(s.revision_status || '')
+                                );
+                                
+                                return approvedSubmissions?.map((submission) => (
+                                  <Card key={submission.id} className="overflow-hidden">
+                                    <CardContent className="p-4 space-y-3">
+                                      <FilePreview 
+                                        filePath={submission.file_path}
+                                        fileName={submission.file_name}
+                                        className="w-full h-48"
+                                      />
+                                      
+                                      <div className="space-y-2">
+                                        <div>
+                                          <p className="text-xs text-muted-foreground">Business Name</p>
+                                          <p className="font-semibold">{task.business_name || 'N/A'}</p>
+                                        </div>
+                                        
+                                        <div>
+                                          <p className="text-xs text-muted-foreground">Order Title</p>
+                                          <p className="text-sm font-medium">{task.title}</p>
+                                        </div>
+                                        
+                                        <div>
+                                          <p className="text-xs text-muted-foreground">Designer</p>
+                                          <p className="text-sm">{submission.profiles?.full_name || submission.profiles?.email}</p>
+                                        </div>
+                                        
+                                        <div>
+                                          <p className="text-xs text-muted-foreground">Delivered</p>
+                                          <p className="text-sm">
+                                            {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy') : 'N/A'}
+                                          </p>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2">
+                                          <Badge 
+                                            variant={submission.revision_status === 'approved' ? 'default' : 'secondary'}
+                                            className="text-xs"
+                                          >
+                                            {submission.revision_status?.replace('_', ' ')}
+                                          </Badge>
+                                        </div>
+                                        
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="w-full"
+                                          onClick={() => handleDownload(submission.file_path, submission.file_name)}
+                                        >
+                                          <Download className="h-3 w-3 mr-2" />
+                                          Download
+                                        </Button>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ));
+                              })}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    })}
+                </Accordion>
+              )}
+            </CardContent>
+          </Card>
+        )}
         </>
         )}
       </main>
