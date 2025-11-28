@@ -560,9 +560,9 @@ const DesignerDashboard = () => {
                                       {submission.revision_status?.replace("_", " ")}
                                     </Badge>
                                   </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Uploaded: {new Date(submission.submitted_at || "").toLocaleString()}
-                                  </p>
+                                   <p className="text-xs text-muted-foreground">
+                                     Delivered: {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
+                                   </p>
                                    {submission.revision_notes && (
                                      <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
                                        <span className="font-medium text-destructive">Revision requested:</span>
