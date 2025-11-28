@@ -285,6 +285,11 @@ const PMDashboard = () => {
       const category = getTaskCategory(task, submissions || []);
       return ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision'].includes(category);
     }
+    // Handle specific category filters
+    if (['recently_delivered', 'delayed', 'needs_revision'].includes(statusFilter)) {
+      const category = getTaskCategory(task, submissions || []);
+      return category === statusFilter;
+    }
     return task.status === statusFilter;
   }).sort((a, b) => {
     if (statusFilter === 'priority') {
@@ -340,7 +345,10 @@ const PMDashboard = () => {
         </div>
 
         <div className="grid gap-4 md:grid-cols-5 mb-8">
-          <Card className="border-l-4 border-l-green-500">
+          <Card 
+            className={`border-l-4 border-l-green-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'recently_delivered' ? 'ring-2 ring-green-500' : ''}`}
+            onClick={() => setStatusFilter('recently_delivered')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Recently Delivered</CardTitle>
               <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -351,7 +359,10 @@ const PMDashboard = () => {
             </CardContent>
           </Card>
           
-          <Card className="border-l-4 border-l-red-500">
+          <Card 
+            className={`border-l-4 border-l-red-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'delayed' ? 'ring-2 ring-red-500' : ''}`}
+            onClick={() => setStatusFilter('delayed')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Delayed Orders</CardTitle>
               <Clock className="h-4 w-4 text-red-500" />
@@ -362,7 +373,10 @@ const PMDashboard = () => {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('pending')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pending</CardTitle>
               <FolderKanban className="h-4 w-4 text-muted-foreground" />
@@ -373,7 +387,10 @@ const PMDashboard = () => {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'in_progress' ? 'ring-2 ring-warning' : ''}`}
+            onClick={() => setStatusFilter('in_progress')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">In Progress</CardTitle>
               <Clock className="h-4 w-4 text-warning" />
@@ -384,7 +401,10 @@ const PMDashboard = () => {
             </CardContent>
           </Card>
           
-          <Card className="border-l-4 border-l-orange-500">
+          <Card 
+            className={`border-l-4 border-l-orange-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'needs_revision' ? 'ring-2 ring-orange-500' : ''}`}
+            onClick={() => setStatusFilter('needs_revision')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Needs Revision</CardTitle>
               <FileText className="h-4 w-4 text-orange-500" />
