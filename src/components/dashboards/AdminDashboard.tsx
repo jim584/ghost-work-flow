@@ -27,6 +27,7 @@ const AdminDashboard = () => {
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [newUserData, setNewUserData] = useState({ email: "", password: "", full_name: "", team_name: "" });
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -270,6 +271,11 @@ const AdminDashboard = () => {
     }
   };
 
+  const filteredTasks = tasks?.filter((task) => {
+    if (!statusFilter) return true;
+    return task.status === statusFilter;
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
@@ -341,7 +347,10 @@ const AdminDashboard = () => {
         ) : (
           <>
         <div className="grid gap-6 md:grid-cols-4 mb-8">
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${!statusFilter ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter(null)}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
               <FolderKanban className="h-4 w-4 text-muted-foreground" />
@@ -350,7 +359,10 @@ const AdminDashboard = () => {
               <div className="text-2xl font-bold">{stats.total}</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'in_progress' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('in_progress')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">In Progress</CardTitle>
               <Clock className="h-4 w-4 text-warning" />
@@ -359,7 +371,10 @@ const AdminDashboard = () => {
               <div className="text-2xl font-bold">{stats.in_progress}</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'completed' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('completed')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Completed</CardTitle>
               <CheckCircle2 className="h-4 w-4 text-primary" />
@@ -368,7 +383,10 @@ const AdminDashboard = () => {
               <div className="text-2xl font-bold">{stats.completed}</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'approved' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('approved')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Approved</CardTitle>
               <CheckCircle2 className="h-4 w-4 text-success" />
@@ -385,7 +403,7 @@ const AdminDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {tasks?.map((task) => {
+              {filteredTasks?.map((task) => {
                 const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
                 const isExpanded = expandedTaskId === task.id;
                 

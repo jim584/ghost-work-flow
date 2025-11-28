@@ -40,6 +40,7 @@ const PMDashboard = () => {
   const [revisionNotes, setRevisionNotes] = useState("");
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [uploadingRevision, setUploadingRevision] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const { data: teams } = useQuery({
     queryKey: ["teams"],
@@ -238,6 +239,11 @@ const PMDashboard = () => {
     }
   };
 
+  const filteredTasks = tasks?.filter((task) => {
+    if (!statusFilter) return true;
+    return task.status === statusFilter;
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
@@ -252,7 +258,10 @@ const PMDashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         <div className="grid gap-6 md:grid-cols-3 mb-8">
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${!statusFilter ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter(null)}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
               <FolderKanban className="h-4 w-4 text-muted-foreground" />
@@ -261,7 +270,10 @@ const PMDashboard = () => {
               <div className="text-2xl font-bold">{stats.total}</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'in_progress' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('in_progress')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">In Progress</CardTitle>
               <Clock className="h-4 w-4 text-warning" />
@@ -270,7 +282,10 @@ const PMDashboard = () => {
               <div className="text-2xl font-bold">{stats.in_progress}</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'completed' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('completed')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Completed</CardTitle>
               <CheckCircle2 className="h-4 w-4 text-success" />
@@ -359,7 +374,7 @@ const PMDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {tasks?.map((task) => {
+              {filteredTasks?.map((task) => {
                 const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
                 const isExpanded = expandedTaskId === task.id;
                 
