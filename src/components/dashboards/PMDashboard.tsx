@@ -38,7 +38,7 @@ const PMDashboard = () => {
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
   const [revisionNotes, setRevisionNotes] = useState("");
-  const [revisionFile, setRevisionFile] = useState<File | null>(null);
+  const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
 
@@ -128,23 +128,28 @@ const PMDashboard = () => {
   });
 
   const handleRequestRevision = useMutation({
-    mutationFn: async ({ submissionId, notes, file }: { submissionId: string; notes: string; file: File | null }) => {
+    mutationFn: async ({ submissionId, notes, files }: { submissionId: string; notes: string; files: File[] }) => {
       setUploadingRevision(true);
       try {
-        let referenceFilePath = null;
-        let referenceFileName = null;
+        let referenceFilePaths: string[] = [];
+        let referenceFileNames: string[] = [];
 
-        // Upload reference file if provided
-        if (file) {
-          const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-          referenceFileName = `revision_ref_${Date.now()}_${sanitizedFileName}`;
-          referenceFilePath = `${user!.id}/revision_references/${referenceFileName}`;
+        // Upload reference files if provided
+        if (files.length > 0) {
+          for (const file of files) {
+            const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+            const fileName = `revision_ref_${Date.now()}_${sanitizedFileName}`;
+            const filePath = `${user!.id}/revision_references/${fileName}`;
 
-          const { error: uploadError } = await supabase.storage
-            .from("design-files")
-            .upload(referenceFilePath, file);
+            const { error: uploadError } = await supabase.storage
+              .from("design-files")
+              .upload(filePath, file);
 
-          if (uploadError) throw uploadError;
+            if (uploadError) throw uploadError;
+
+            referenceFilePaths.push(filePath);
+            referenceFileNames.push(fileName);
+          }
         }
 
         const { error } = await supabase
@@ -152,8 +157,8 @@ const PMDashboard = () => {
           .update({
             revision_status: "needs_revision",
             revision_notes: notes,
-            revision_reference_file_path: referenceFilePath,
-            revision_reference_file_name: referenceFileName,
+            revision_reference_file_path: referenceFilePaths.length > 0 ? referenceFilePaths.join("|||") : null,
+            revision_reference_file_name: referenceFileNames.length > 0 ? referenceFileNames.join("|||") : null,
             reviewed_at: new Date().toISOString(),
             reviewed_by: user!.id,
           })
@@ -169,7 +174,7 @@ const PMDashboard = () => {
       toast({ title: "Revision requested" });
       setRevisionDialog(null);
       setRevisionNotes("");
-      setRevisionFile(null);
+      setRevisionFiles([]);
     },
     onError: (error: any) => {
       toast({
@@ -882,7 +887,7 @@ const PMDashboard = () => {
         if (!open) {
           setRevisionDialog(null);
           setRevisionNotes("");
-          setRevisionFile(null);
+          setRevisionFiles([]);
         }
       }}>
         <DialogContent>
@@ -904,27 +909,39 @@ const PMDashboard = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="revision-file">Reference File (optional)</Label>
+              <Label htmlFor="revision-file">Reference Files (optional)</Label>
               <Input
                 id="revision-file"
                 type="file"
-                onChange={(e) => setRevisionFile(e.target.files?.[0] || null)}
+                multiple
+                onChange={(e) => setRevisionFiles(Array.from(e.target.files || []))}
                 accept="image/*,.pdf,.ai,.psd,.fig,.sketch"
               />
-              {revisionFile && (
-                <p className="text-xs text-muted-foreground">
-                  Selected: {revisionFile.name}
-                </p>
+              {revisionFiles.length > 0 && (
+                <div className="space-y-1">
+                  {revisionFiles.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{file.name}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setRevisionFiles(files => files.filter((_, i) => i !== index))}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Upload an annotated image or reference file to clarify the changes needed
+                Upload annotated images or reference files to clarify the changes needed (multiple files allowed)
               </p>
             </div>
             <Button
               onClick={() => revisionDialog && handleRequestRevision.mutate({ 
                 submissionId: revisionDialog.submissionId, 
                 notes: revisionNotes,
-                file: revisionFile
+                files: revisionFiles
               })}
               disabled={!revisionNotes.trim() || uploadingRevision}
               className="w-full"

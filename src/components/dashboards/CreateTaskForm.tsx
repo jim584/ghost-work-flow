@@ -57,8 +57,7 @@ const PLATFORMS = ["Instagram", "Facebook", "TikTok", "LinkedIn", "Pinterest", "
 export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -94,28 +93,33 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
     mutationFn: async () => {
       setUploading(true);
       try {
-        let attachmentFilePath = null;
-        let attachmentFileName = null;
+        let attachmentFilePaths: string[] = [];
+        let attachmentFileNames: string[] = [];
 
-        // Upload attachment file if provided
-        if (attachmentFile) {
-          const sanitizedFileName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-          attachmentFileName = `task_attachment_${Date.now()}_${sanitizedFileName}`;
-          attachmentFilePath = `${userId}/task_attachments/${attachmentFileName}`;
+        // Upload attachment files if provided
+        if (attachmentFiles.length > 0) {
+          for (const file of attachmentFiles) {
+            const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+            const fileName = `task_attachment_${Date.now()}_${sanitizedFileName}`;
+            const filePath = `${userId}/task_attachments/${fileName}`;
 
-          const { error: uploadError } = await supabase.storage
-            .from("design-files")
-            .upload(attachmentFilePath, attachmentFile);
+            const { error: uploadError } = await supabase.storage
+              .from("design-files")
+              .upload(filePath, file);
 
-          if (uploadError) throw uploadError;
+            if (uploadError) throw uploadError;
+
+            attachmentFilePaths.push(filePath);
+            attachmentFileNames.push(fileName);
+          }
         }
 
         const { error } = await supabase.from("tasks").insert({
           ...formData,
           project_manager_id: userId,
           status: "pending",
-          attachment_file_path: attachmentFilePath,
-          attachment_file_name: attachmentFileName,
+          attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
+          attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
         });
         if (error) throw error;
       } finally {
@@ -125,7 +129,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       toast({ title: "Task created successfully" });
-      setAttachmentFile(null);
+      setAttachmentFiles([]);
       onSuccess();
     },
     onError: (error: any) => {
@@ -500,52 +504,53 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="attachment">Attachment (Optional)</Label>
+            <Label htmlFor="attachment">Attachments (Optional)</Label>
             <Input
               id="attachment"
               type="file"
+              multiple
               onChange={(e) => {
-                const file = e.target.files?.[0] || null;
-                setAttachmentFile(file);
-                
-                // Create preview for images
-                if (file && file.type.startsWith('image/')) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    setAttachmentPreview(reader.result as string);
-                  };
-                  reader.readAsDataURL(file);
-                } else {
-                  setAttachmentPreview(null);
-                }
+                const files = Array.from(e.target.files || []);
+                setAttachmentFiles(files);
               }}
               accept="image/*,.pdf,.doc,.docx,.ai,.psd,.fig,.sketch,.zip"
             />
-            {attachmentFile && (
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded border">
-                {attachmentPreview ? (
-                  <img 
-                    src={attachmentPreview} 
-                    alt="Preview" 
-                    className="w-16 h-16 object-cover rounded border border-border"
-                  />
-                ) : (
-                  <div className="w-16 h-16 flex items-center justify-center bg-secondary rounded border border-border">
-                    <FileIcon className="h-8 w-8 text-muted-foreground" />
+            {attachmentFiles.length > 0 && (
+              <div className="space-y-2">
+                {attachmentFiles.map((file, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 bg-muted/50 rounded border">
+                    {file.type.startsWith('image/') ? (
+                      <img 
+                        src={URL.createObjectURL(file)} 
+                        alt="Preview" 
+                        className="w-16 h-16 object-cover rounded border border-border"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 flex items-center justify-center bg-secondary rounded border border-border">
+                        <FileIcon className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setAttachmentFiles(files => files.filter((_, i) => i !== index))}
+                    >
+                      Remove
+                    </Button>
                   </div>
-                )}
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    {attachmentFile.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {(attachmentFile.size / 1024).toFixed(1)} KB
-                  </p>
-                </div>
+                ))}
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Upload reference files, logos, brand guidelines, or any supporting documents
+              Upload reference files, logos, brand guidelines, or any supporting documents (multiple files allowed)
             </p>
           </div>
         </div>
