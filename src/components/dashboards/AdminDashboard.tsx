@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -238,6 +238,52 @@ const AdminDashboard = () => {
       toast({
         variant: "destructive",
         title: "Error updating team name",
+        description: error.message,
+      });
+    },
+  });
+
+  const resetUserPassword = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-user-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ userId }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to generate password reset link");
+      }
+
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Password Reset Link Generated",
+        description: "Copy and send this link to the user",
+      });
+      
+      // Copy link to clipboard
+      navigator.clipboard.writeText(data.resetLink);
+      toast({
+        title: "Link Copied",
+        description: "Password reset link copied to clipboard",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
         description: error.message,
       });
     },
@@ -545,21 +591,32 @@ const AdminDashboard = () => {
                         {currentRole && <Badge variant="outline">{currentRole}</Badge>}
                         {!currentRole && <Badge variant="outline">No role assigned</Badge>}
                       </div>
-                      <Select
-                        value={currentRole || undefined}
-                        onValueChange={(role: "admin" | "project_manager" | "designer") => 
-                          assignRole.mutate({ userId: user.id, role })
-                        }
-                      >
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue placeholder="Assign role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="designer">Designer</SelectItem>
-                          <SelectItem value="project_manager">Project Manager</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => resetUserPassword.mutate(user.id)}
+                          disabled={resetUserPassword.isPending}
+                        >
+                          <KeyRound className="h-3 w-3 mr-1" />
+                          Reset Password
+                        </Button>
+                        <Select
+                          value={currentRole || undefined}
+                          onValueChange={(role: "admin" | "project_manager" | "designer") => 
+                            assignRole.mutate({ userId: user.id, role })
+                          }
+                        >
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Assign role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="designer">Designer</SelectItem>
+                            <SelectItem value="project_manager">Project Manager</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   );
                 })}
