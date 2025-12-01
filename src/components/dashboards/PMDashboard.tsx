@@ -153,6 +153,13 @@ const PMDashboard = () => {
           }
         }
 
+        // Get submission details to find task
+        const { data: submission } = await supabase
+          .from("design_submissions")
+          .select("task_id, tasks(title)")
+          .eq("id", submissionId)
+          .single();
+
         const { error } = await supabase
           .from("design_submissions")
           .update({
@@ -166,13 +173,43 @@ const PMDashboard = () => {
           .eq("id", submissionId);
         
         if (error) throw error;
+
+        return { submission, notes };
       } finally {
         setUploadingRevision(false);
       }
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["design-submissions"] });
       toast({ title: "Revision requested" });
+
+      // Send email notification to designers
+      if (data?.submission?.task_id) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-task-notification`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({
+                  taskId: data.submission.task_id,
+                  notificationType: "revision_requested",
+                  taskTitle: (data.submission.tasks as any)?.title || "Task",
+                  revisionNotes: data.notes,
+                }),
+              }
+            );
+          }
+        } catch (emailError) {
+          console.error("Failed to send notification email:", emailError);
+        }
+      }
+
       setRevisionDialog(null);
       setRevisionNotes("");
       setRevisionFiles([]);
