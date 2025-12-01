@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
 import { differenceInHours, format } from "date-fns";
 import { useDesignerNotifications } from "@/hooks/useDesignerNotifications";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const DesignerDashboard = () => {
   const { user, signOut } = useAuth();
@@ -294,10 +295,13 @@ const DesignerDashboard = () => {
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Designer Dashboard</h1>
-          <Button onClick={signOut} variant="outline" size="sm">
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <NotificationBell userId={user!.id} />
+            <Button onClick={signOut} variant="outline" size="sm">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
