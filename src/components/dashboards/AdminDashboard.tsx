@@ -55,6 +55,7 @@ const AdminDashboard = () => {
   const [passwordResetDialog, setPasswordResetDialog] = useState<{ open: boolean; userId: string; userName: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -515,6 +516,20 @@ const AdminDashboard = () => {
   }, [tasks, submissions]);
 
   const filteredTasks = tasks?.filter((task) => {
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        task.title?.toLowerCase().includes(query) ||
+        task.task_number?.toString().includes(query) ||
+        task.business_name?.toLowerCase().includes(query) ||
+        task.description?.toLowerCase().includes(query) ||
+        `#${task.task_number}`.includes(query);
+      
+      if (!matchesSearch) return false;
+    }
+    
+    // Status filter
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
       const category = getTaskCategory(task, submissions || []);
@@ -670,6 +685,16 @@ const AdminDashboard = () => {
           </div>
         ) : (
           <>
+            <div className="mb-6">
+              <Input
+                type="text"
+                placeholder="Search by task #, title, business name, or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="max-w-md"
+              />
+            </div>
+            
         <div className="flex justify-between items-center mb-4">
           <div className="flex gap-2">
             <Button
@@ -701,8 +726,8 @@ const AdminDashboard = () => {
               </Button>
             </div>
           )}
-        </div>
-
+          </div>
+        
         {viewMode === 'tasks' && (
         <div className="grid gap-4 md:grid-cols-5 mb-8">
           <Card 
