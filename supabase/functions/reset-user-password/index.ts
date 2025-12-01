@@ -41,16 +41,25 @@ serve(async (req) => {
       throw new Error("Only admins can reset user passwords");
     }
 
-    const { userId } = await req.json();
+    const { userId, redirectTo } = await req.json();
 
     if (!userId) {
       throw new Error("User ID is required");
     }
 
-    // Generate password reset link
+    // Get user email
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (userError || !userData.user?.email) {
+      throw new Error("User not found");
+    }
+
+    // Generate password reset link with custom redirect
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
-      email: (await supabaseAdmin.auth.admin.getUserById(userId)).data.user?.email || "",
+      email: userData.user.email,
+      options: {
+        redirectTo: redirectTo || `${Deno.env.get("SUPABASE_URL")}/auth/v1/verify`,
+      },
     });
 
     if (error) throw error;

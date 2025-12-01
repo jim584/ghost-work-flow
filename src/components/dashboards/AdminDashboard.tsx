@@ -248,6 +248,8 @@ const AdminDashboard = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
+      const redirectTo = `${window.location.origin}/auth`;
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-user-password`,
         {
@@ -256,7 +258,7 @@ const AdminDashboard = () => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ userId }),
+          body: JSON.stringify({ userId, redirectTo }),
         }
       );
 
