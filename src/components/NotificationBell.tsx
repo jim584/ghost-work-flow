@@ -62,6 +62,34 @@ export function NotificationBell({ userId }: { userId: string }) {
     enabled: !!userId,
   });
 
+  // Play sound and show toasts for unread notifications on initial load
+  useEffect(() => {
+    if (!notifications || notifications.length === 0) return;
+
+    // Get unread notifications
+    const unreadNotifications = notifications.filter(n => !n.is_read);
+    
+    if (unreadNotifications.length > 0) {
+      console.log(`Found ${unreadNotifications.length} unread notification(s) on login`);
+      
+      // Play sound once for all unread notifications
+      playNotificationSound();
+      
+      // Show toast for the most recent unread notification
+      const mostRecent = unreadNotifications[0];
+      toast({
+        title: `🔔 ${mostRecent.title}`,
+        description: unreadNotifications.length > 1 
+          ? `${mostRecent.message} (and ${unreadNotifications.length - 1} more)`
+          : mostRecent.message,
+        className: mostRecent.type === 'task_delayed' 
+          ? 'border-destructive bg-destructive/5' 
+          : 'border-primary bg-primary/5',
+        duration: 6000,
+      });
+    }
+  }, [notifications?.length]); // Only run when notification count changes
+
   // Subscribe to realtime notifications
   useEffect(() => {
     if (!userId) return;
