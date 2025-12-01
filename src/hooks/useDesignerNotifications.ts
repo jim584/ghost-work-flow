@@ -32,8 +32,9 @@ export const useDesignerNotifications = (userId: string | undefined, userTeams: 
           console.log('🆕 New task notification received:', payload);
           playNotificationSound();
           toast({
-            title: '🆕 New Task Assigned',
+            title: '🔔 New Task Assigned',
             description: `Task: ${payload.new.title}`,
+            className: "border-primary bg-primary/5",
           });
         }
       )
@@ -57,8 +58,9 @@ export const useDesignerNotifications = (userId: string | undefined, userTeams: 
           if (payload.new.revision_status === 'revision_requested') {
             playNotificationSound();
             toast({
-              title: '🔄 Revision Requested',
+              title: '🔔 Revision Requested',
               description: payload.new.revision_notes || 'Please check the task details',
+              className: "border-warning bg-warning/5",
             });
           }
         }
@@ -89,7 +91,7 @@ export const useDesignerNotifications = (userId: string | undefined, userTeams: 
             playNotificationSound();
             const daysOverdue = Math.floor((now.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24));
             toast({
-              title: '⚠️ Task Overdue',
+              title: '🔔 Task Overdue - URGENT',
               description: `${payload.new.title} is ${daysOverdue} day(s) overdue`,
               variant: 'destructive',
             });
