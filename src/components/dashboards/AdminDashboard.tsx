@@ -52,6 +52,9 @@ const AdminDashboard = () => {
   const [editTeamDialog, setEditTeamDialog] = useState<{ open: boolean; teamId: string; currentName: string } | null>(null);
   const [newTeamName, setNewTeamName] = useState("");
   const [viewMode, setViewMode] = useState<'tasks' | 'portfolio'>('tasks');
+  const [passwordResetDialog, setPasswordResetDialog] = useState<{ open: boolean; userId: string; userName: string } | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
 
   const { data: tasks } = useQuery({
     queryKey: ["admin-tasks"],
@@ -243,12 +246,13 @@ const AdminDashboard = () => {
     },
   });
 
-  const resetUserPassword = useMutation({
-    mutationFn: async (userId: string) => {
+  const setUserPassword = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      // Validate password
+      passwordSchema.parse(password);
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
-
-      const redirectTo = `${window.location.origin}/auth`;
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-user-password`,
@@ -258,36 +262,36 @@ const AdminDashboard = () => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ userId, redirectTo }),
+          body: JSON.stringify({ userId, newPassword: password }),
         }
       );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to generate password reset link");
+        throw new Error(error.error || "Failed to set password");
       }
 
       return await response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast({
-        title: "Password Reset Link Generated",
-        description: "Copy and send this link to the user",
+        title: "Password Updated",
+        description: "User password has been successfully updated",
       });
-      
-      // Copy link to clipboard
-      navigator.clipboard.writeText(data.resetLink);
-      toast({
-        title: "Link Copied",
-        description: "Password reset link copied to clipboard",
-      });
+      setPasswordResetDialog(null);
+      setNewPassword("");
+      setNewPasswordError(null);
     },
     onError: (error: any) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      if (error instanceof z.ZodError) {
+        setNewPasswordError(error.errors[0].message);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message,
+        });
+      }
     },
   });
 
@@ -597,11 +601,14 @@ const AdminDashboard = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => resetUserPassword.mutate(user.id)}
-                          disabled={resetUserPassword.isPending}
+                          onClick={() => setPasswordResetDialog({ 
+                            open: true, 
+                            userId: user.id, 
+                            userName: user.full_name || user.email 
+                          })}
                         >
                           <KeyRound className="h-3 w-3 mr-1" />
-                          Reset Password
+                          Set Password
                         </Button>
                         <Select
                           value={currentRole || undefined}
@@ -1399,6 +1406,75 @@ const AdminDashboard = () => {
                 {updateTeamName.isPending ? "Saving..." : "Save"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Set Password Dialog */}
+      <Dialog open={passwordResetDialog?.open || false} onOpenChange={(open) => {
+        if (!open) {
+          setPasswordResetDialog(null);
+          setNewPassword("");
+          setNewPasswordError(null);
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary" />
+              Set Password for {passwordResetDialog?.userName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Password must be 8+ characters with uppercase, lowercase, number, and special character.
+              </AlertDescription>
+            </Alert>
+            
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password *</Label>
+              <Input
+                id="new-password"
+                type="password"
+                placeholder="Enter new password"
+                value={newPassword}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  setNewPasswordError(null);
+                }}
+              />
+              {newPasswordError && (
+                <p className="text-sm text-destructive">{newPasswordError}</p>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPasswordResetDialog(null);
+                setNewPassword("");
+                setNewPasswordError(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (passwordResetDialog && newPassword) {
+                  setUserPassword.mutate({ 
+                    userId: passwordResetDialog.userId, 
+                    password: newPassword 
+                  });
+                }
+              }}
+              disabled={!newPassword || setUserPassword.isPending}
+            >
+              {setUserPassword.isPending ? "Setting..." : "Set Password"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
