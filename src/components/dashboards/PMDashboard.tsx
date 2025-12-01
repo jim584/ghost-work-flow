@@ -328,20 +328,17 @@ const PMDashboard = () => {
   };
 
   const filteredTasks = tasks?.filter((task) => {
-    // Search filter
+    // Search filter - if searching, show all matching tasks regardless of status
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const matchesSearch = 
-        task.title?.toLowerCase().includes(query) ||
+      return task.title?.toLowerCase().includes(query) ||
         task.task_number?.toString().includes(query) ||
         task.business_name?.toLowerCase().includes(query) ||
         task.description?.toLowerCase().includes(query) ||
         `#${task.task_number}`.includes(query);
-      
-      if (!matchesSearch) return false;
     }
     
-    // Status filter
+    // Status filter (only applied when not searching)
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
       const category = getTaskCategory(task, submissions || []);
