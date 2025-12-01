@@ -264,25 +264,23 @@ const DesignerDashboard = () => {
   };
 
   const filteredTasks = tasks?.filter((task) => {
-    // Search filter
+    // Search filter - if searching, show all matching tasks regardless of status/type
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const matchesSearch = 
-        task.title?.toLowerCase().includes(query) ||
+      return task.title?.toLowerCase().includes(query) ||
         task.task_number?.toString().includes(query) ||
         task.business_name?.toLowerCase().includes(query) ||
         task.description?.toLowerCase().includes(query) ||
         `#${task.task_number}`.includes(query);
-      
-      if (!matchesSearch) return false;
     }
     
-    // Task type filter
+    // Task type filter (only applied when not searching)
     if (taskTypeFilter) {
       const taskType = getTaskType(task);
       if (taskType !== taskTypeFilter) return false;
     }
 
+    // Status filter (only applied when not searching)
     if (statusFilter === "pending_or_revision") {
       // Default view: show pending, in progress, or tasks needing revision
       return task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id);
