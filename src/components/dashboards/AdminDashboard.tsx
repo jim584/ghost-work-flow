@@ -366,6 +366,13 @@ const AdminDashboard = () => {
         if (uploadError) throw uploadError;
       }
 
+      // Get submission details to find task
+      const { data: submission } = await supabase
+        .from("design_submissions")
+        .select("task_id, tasks(title)")
+        .eq("id", revisionDialog.submissionId)
+        .single();
+
       const { error } = await supabase
         .from("design_submissions")
         .update({
@@ -381,6 +388,34 @@ const AdminDashboard = () => {
 
       queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
       toast({ title: "Revision requested successfully" });
+
+      // Send email notification to designers
+      if (submission?.task_id) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-task-notification`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({
+                  taskId: submission.task_id,
+                  notificationType: "revision_requested",
+                  taskTitle: (submission.tasks as any)?.title || "Task",
+                  revisionNotes: revisionNotes,
+                }),
+              }
+            );
+          }
+        } catch (emailError) {
+          console.error("Failed to send notification email:", emailError);
+        }
+      }
+
       setRevisionDialog(null);
       setRevisionNotes("");
       setRevisionFile(null);

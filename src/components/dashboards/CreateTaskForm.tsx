@@ -126,10 +126,48 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
         setUploading(false);
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       toast({ title: "Task created successfully" });
       setAttachmentFiles([]);
+      
+      // Send email notification to designers
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Get the newly created task ID - we need to fetch it since insert doesn't return it
+          const { data: tasks } = await supabase
+            .from("tasks")
+            .select("id")
+            .eq("project_manager_id", userId)
+            .eq("team_id", formData.team_id)
+            .eq("title", formData.title)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (tasks && tasks.length > 0) {
+            await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-task-notification`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({
+                  taskId: tasks[0].id,
+                  notificationType: "new_task",
+                  taskTitle: formData.title,
+                }),
+              }
+            );
+          }
+        }
+      } catch (emailError) {
+        console.error("Failed to send notification email:", emailError);
+        // Don't show error to user since task was created successfully
+      }
+      
       onSuccess();
     },
     onError: (error: any) => {
