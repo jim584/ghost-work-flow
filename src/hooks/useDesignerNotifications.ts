@@ -2,6 +2,20 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+const createNotification = async (userId: string, type: string, title: string, message: string, taskId: string | null = null) => {
+  try {
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      type,
+      title,
+      message,
+      task_id: taskId,
+    });
+  } catch (error) {
+    console.error('Failed to create notification:', error);
+  }
+};
+
 export const useDesignerNotifications = (userId: string | undefined, userTeams: string[]) => {
   const { toast } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -28,9 +42,21 @@ export const useDesignerNotifications = (userId: string | undefined, userTeams: 
           table: 'tasks',
           filter: `team_id=in.(${userTeams.join(',')})`,
         },
-        (payload) => {
+        async (payload) => {
           console.log('🆕 New task notification received:', payload);
           playNotificationSound();
+          
+          // Create notification in database
+          if (userId) {
+            await createNotification(
+              userId,
+              'new_task',
+              'New Task Assigned',
+              `Task: ${payload.new.title}`,
+              payload.new.id
+            );
+          }
+          
           toast({
             title: '🔔 New Task Assigned',
             description: `Task: ${payload.new.title}`,
@@ -57,6 +83,18 @@ export const useDesignerNotifications = (userId: string | undefined, userTeams: 
           console.log('🔄 Submission update received:', payload);
           if (payload.new.revision_status === 'revision_requested') {
             playNotificationSound();
+            
+            // Create notification in database (async in background)
+            if (userId) {
+              createNotification(
+                userId,
+                'revision_requested',
+                'Revision Requested',
+                payload.new.revision_notes || 'Please check the task details',
+                payload.new.task_id
+              );
+            }
+            
             toast({
               title: '🔔 Revision Requested',
               description: payload.new.revision_notes || 'Please check the task details',
@@ -80,7 +118,7 @@ export const useDesignerNotifications = (userId: string | undefined, userTeams: 
           table: 'tasks',
           filter: `team_id=in.(${userTeams.join(',')})`,
         },
-        (payload) => {
+        async (payload) => {
           const deadline = new Date(payload.new.deadline);
           const now = new Date();
           const isDelayed = deadline < now && 
@@ -90,6 +128,18 @@ export const useDesignerNotifications = (userId: string | undefined, userTeams: 
             console.log('⚠️ Task delayed notification received:', payload);
             playNotificationSound();
             const daysOverdue = Math.floor((now.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24));
+            
+            // Create notification in database
+            if (userId) {
+              await createNotification(
+                userId,
+                'task_delayed',
+                'Task Overdue - URGENT',
+                `${payload.new.title} is ${daysOverdue} day(s) overdue`,
+                payload.new.id
+              );
+            }
+            
             toast({
               title: '🔔 Task Overdue - URGENT',
               description: `${payload.new.title} is ${daysOverdue} day(s) overdue`,
