@@ -42,6 +42,7 @@ const PMDashboard = () => {
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: teams } = useQuery({
     queryKey: ["teams"],
@@ -327,6 +328,20 @@ const PMDashboard = () => {
   };
 
   const filteredTasks = tasks?.filter((task) => {
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        task.title?.toLowerCase().includes(query) ||
+        task.task_number?.toString().includes(query) ||
+        task.business_name?.toLowerCase().includes(query) ||
+        task.description?.toLowerCase().includes(query) ||
+        `#${task.task_number}`.includes(query);
+      
+      if (!matchesSearch) return false;
+    }
+    
+    // Status filter
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
       const category = getTaskCategory(task, submissions || []);
@@ -376,6 +391,16 @@ const PMDashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        <div className="mb-6">
+          <Input
+            type="text"
+            placeholder="Search by task #, title, business name, or description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="max-w-md"
+          />
+        </div>
+        
         <div className="flex justify-between items-center mb-4">
           <Button
             variant={statusFilter === 'priority' ? 'default' : 'outline'}

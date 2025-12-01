@@ -30,6 +30,7 @@ const DesignerDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>("pending_or_revision");
   const [taskTypeFilter, setTaskTypeFilter] = useState<string | null>(null);
   const [userTeams, setUserTeams] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -263,7 +264,20 @@ const DesignerDashboard = () => {
   };
 
   const filteredTasks = tasks?.filter((task) => {
-    // Apply task type filter first
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        task.title?.toLowerCase().includes(query) ||
+        task.task_number?.toString().includes(query) ||
+        task.business_name?.toLowerCase().includes(query) ||
+        task.description?.toLowerCase().includes(query) ||
+        `#${task.task_number}`.includes(query);
+      
+      if (!matchesSearch) return false;
+    }
+    
+    // Task type filter
     if (taskTypeFilter) {
       const taskType = getTaskType(task);
       if (taskType !== taskTypeFilter) return false;
@@ -330,6 +344,16 @@ const DesignerDashboard = () => {
           </Card>
         )}
         
+        <div className="mb-6">
+          <Input
+            type="text"
+            placeholder="Search by task #, title, business name, or description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="max-w-md"
+          />
+        </div>
+
         {statusFilter !== "pending_or_revision" && (
           <div className="mb-4">
             <Button
