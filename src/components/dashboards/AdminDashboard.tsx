@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2 } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FilePreview } from "@/components/FilePreview";
 import { format } from "date-fns";
+import { z } from "zod";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+// Password validation schema
+const passwordSchema = z.string()
+  .min(8, { message: "Password must be at least 8 characters" })
+  .max(128, { message: "Password must be less than 128 characters" })
+  .regex(/[A-Z]/, { message: "Must contain uppercase letter" })
+  .regex(/[a-z]/, { message: "Must contain lowercase letter" })
+  .regex(/[0-9]/, { message: "Must contain number" })
+  .regex(/[^A-Za-z0-9]/, { message: "Must contain special character" });
 
 const AdminDashboard = () => {
   const { signOut } = useAuth();
@@ -29,7 +40,14 @@ const AdminDashboard = () => {
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
-  const [newUserData, setNewUserData] = useState({ email: "", password: "", full_name: "", team_name: "" });
+  const [newUserData, setNewUserData] = useState({ 
+    email: "", 
+    password: "", 
+    full_name: "", 
+    team_name: "", 
+    role: "designer" as "admin" | "project_manager" | "designer" 
+  });
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
   const [editTeamDialog, setEditTeamDialog] = useState<{ open: boolean; teamId: string; currentName: string } | null>(null);
   const [newTeamName, setNewTeamName] = useState("");
@@ -107,7 +125,16 @@ const AdminDashboard = () => {
   });
 
   const createUser = useMutation({
-    mutationFn: async (userData: { email: string; password: string; full_name: string; team_name: string }) => {
+    mutationFn: async (userData: { 
+      email: string; 
+      password: string; 
+      full_name: string; 
+      team_name: string;
+      role: "admin" | "project_manager" | "designer";
+    }) => {
+      // Validate password
+      passwordSchema.parse(userData.password);
+      
       const { data, error } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
@@ -119,8 +146,10 @@ const AdminDashboard = () => {
       });
       if (error) throw error;
       
-      // Update profile with team_name if user was created successfully
-      if (data.user && userData.team_name) {
+      if (!data.user) throw new Error("User creation failed");
+      
+      // Update profile with team_name if provided
+      if (userData.team_name) {
         const { error: profileError } = await supabase
           .from('profiles')
           .update({ team_name: userData.team_name })
@@ -129,20 +158,42 @@ const AdminDashboard = () => {
         if (profileError) throw profileError;
       }
       
+      // Assign role using admin function
+      const { error: roleError } = await supabase.rpc('admin_set_user_role', {
+        target_user_id: data.user.id,
+        role_name: userData.role,
+      });
+      
+      if (roleError) throw roleError;
+      
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-      toast({ title: "User created successfully" });
+      toast({ 
+        title: "User created successfully",
+        description: "The user can now sign in with their credentials."
+      });
       setShowAddUserDialog(false);
-      setNewUserData({ email: "", password: "", full_name: "", team_name: "" });
+      setNewUserData({ 
+        email: "", 
+        password: "", 
+        full_name: "", 
+        team_name: "", 
+        role: "designer" 
+      });
+      setPasswordError(null);
     },
     onError: (error: any) => {
-      toast({
-        variant: "destructive",
-        title: "Error creating user",
-        description: error.message,
-      });
+      if (error instanceof z.ZodError) {
+        setPasswordError(error.errors[0].message);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error creating user",
+          description: error.message,
+        });
+      }
     },
   });
 
@@ -1131,43 +1182,85 @@ const AdminDashboard = () => {
 
       {/* Add User Dialog */}
       <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Add New User
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Password must be 8+ characters with uppercase, lowercase, number, and special character.
+              </AlertDescription>
+            </Alert>
+            
             <div className="space-y-2">
-              <Label htmlFor="new-user-email">Email</Label>
+              <Label htmlFor="new-user-role">Role *</Label>
+              <Select
+                value={newUserData.role}
+                onValueChange={(value: "admin" | "project_manager" | "designer") => 
+                  setNewUserData({ ...newUserData, role: value })
+                }
+              >
+                <SelectTrigger id="new-user-role">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="designer">Designer</SelectItem>
+                  <SelectItem value="project_manager">Project Manager</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="new-user-email">Email *</Label>
               <Input
                 id="new-user-email"
                 type="email"
                 placeholder="user@example.com"
                 value={newUserData.email}
                 onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
+                required
               />
             </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="new-user-password">Password</Label>
+              <Label htmlFor="new-user-password">Password *</Label>
               <Input
                 id="new-user-password"
                 type="password"
                 placeholder="••••••••"
                 value={newUserData.password}
-                onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
+                onChange={(e) => {
+                  setNewUserData({ ...newUserData, password: e.target.value });
+                  setPasswordError(null);
+                }}
+                className={passwordError ? "border-destructive" : ""}
+                required
+              />
+              {passwordError && (
+                <p className="text-sm text-destructive">{passwordError}</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="new-user-name">Full Name</Label>
+              <Input
+                id="new-user-name"
+                type="text"
+                placeholder="John Doe"
+                value={newUserData.full_name}
+                onChange={(e) => setNewUserData({ ...newUserData, full_name: e.target.value })}
               />
             </div>
+            
+            {newUserData.role === "designer" && (
               <div className="space-y-2">
-                <Label htmlFor="new-user-name">Full Name (Optional)</Label>
-                <Input
-                  id="new-user-name"
-                  type="text"
-                  placeholder="John Doe"
-                  value={newUserData.full_name}
-                  onChange={(e) => setNewUserData({ ...newUserData, full_name: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-user-team-name">Team Name (For Designers Only)</Label>
+                <Label htmlFor="new-user-team-name">Team Name</Label>
                 <Input
                   id="new-user-team-name"
                   type="text"
@@ -1176,27 +1269,36 @@ const AdminDashboard = () => {
                   onChange={(e) => setNewUserData({ ...newUserData, team_name: e.target.value })}
                 />
                 <p className="text-xs text-muted-foreground">
-                  This will be the team name shown to project managers when assigning tasks
+                  Team name shown to project managers when assigning tasks
                 </p>
               </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowAddUserDialog(false);
-                  setNewUserData({ email: "", password: "", full_name: "", team_name: "" });
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => createUser.mutate(newUserData)}
-                disabled={!newUserData.email || !newUserData.password || createUser.isPending}
-              >
-                {createUser.isPending ? "Creating..." : "Create User"}
-              </Button>
-            </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddUserDialog(false);
+                setNewUserData({ 
+                  email: "", 
+                  password: "", 
+                  full_name: "", 
+                  team_name: "", 
+                  role: "designer" 
+                });
+                setPasswordError(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createUser.mutate(newUserData)}
+              disabled={!newUserData.email || !newUserData.password || createUser.isPending}
+            >
+              {createUser.isPending ? "Creating..." : "Create User"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
