@@ -29,6 +29,7 @@ serve(async (req) => {
     const { data: delayedTasks, error: tasksError } = await supabaseAdmin
       .from("tasks")
       .select("id, title, deadline, team_id, teams(name)")
+      .not("deadline", "is", null)
       .lt("deadline", today.toISOString())
       .in("status", ["pending", "in_progress"]);
 
