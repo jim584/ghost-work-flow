@@ -147,7 +147,7 @@ serve(async (req) => {
 
       try {
         const emailResponse = await resend.emails.send({
-          from: "Task Manager <onboarding@resend.dev>",
+          from: "Task Manager <notifications@send.researchteq.com>",
           to: [designerEmail],
           subject: subject,
           html: htmlContent,
