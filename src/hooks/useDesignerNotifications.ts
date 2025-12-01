@@ -4,15 +4,24 @@ import { useToast } from '@/hooks/use-toast';
 
 const createNotification = async (userId: string, type: string, title: string, message: string, taskId: string | null = null) => {
   try {
-    await supabase.from('notifications').insert({
+    console.log('Creating notification:', { userId, type, title, message, taskId });
+    const { data, error } = await supabase.from('notifications').insert({
       user_id: userId,
       type,
       title,
       message,
       task_id: taskId,
-    });
+    }).select();
+    
+    if (error) {
+      console.error('Failed to create notification - error:', error);
+      throw error;
+    }
+    
+    console.log('Notification created successfully:', data);
+    return data;
   } catch (error) {
-    console.error('Failed to create notification:', error);
+    console.error('Failed to create notification - exception:', error);
   }
 };
 
@@ -64,8 +73,13 @@ export const useDesignerNotifications = (userId: string | undefined, userTeams: 
           });
         }
       )
-      .subscribe((status) => {
-        console.log('Tasks channel subscription status:', status);
+      .subscribe((status, error) => {
+        console.log('Tasks channel subscription status:', status, 'error:', error);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to new task notifications');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Channel error:', error);
+        }
       });
 
     // Subscribe to design submissions for revision requests

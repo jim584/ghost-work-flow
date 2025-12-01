@@ -98,6 +98,35 @@ serve(async (req) => {
         // Calculate how many days overdue
         const daysOverdue = Math.floor((today.getTime() - new Date(task.deadline!).getTime()) / (1000 * 60 * 60 * 24));
 
+        // Get designer user IDs who have the designer role
+        const { data: designerRoles } = await supabaseAdmin
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", "designer")
+          .in("user_id", teamMembers.map(m => m.user_id));
+
+        const designerUserIds = new Set(designerRoles?.map(r => r.user_id) || []);
+
+        // Create in-app notifications for all designers
+        for (const member of teamMembers) {
+          if (designerUserIds.has(member.user_id)) {
+            try {
+              await supabaseAdmin
+                .from("notifications")
+                .insert({
+                  user_id: member.user_id,
+                  type: "task_delayed",
+                  title: "Task Overdue - URGENT",
+                  message: `${task.title} is ${daysOverdue} day(s) overdue`,
+                  task_id: task.id,
+                });
+              console.log(`Created in-app notification for user ${member.user_id}`);
+            } catch (notifError) {
+              console.error(`Failed to create in-app notification:`, notifError);
+            }
+          }
+        }
+
         // Send email to each designer
         for (const member of teamMembers) {
           const designerEmail = (member as any).profiles?.email;
