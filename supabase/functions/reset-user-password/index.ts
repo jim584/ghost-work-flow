@@ -41,19 +41,38 @@ serve(async (req) => {
       throw new Error("Only admins can reset user passwords");
     }
 
-    const { userId, redirectTo } = await req.json();
+    const { userId, redirectTo, newPassword } = await req.json();
 
     if (!userId) {
       throw new Error("User ID is required");
     }
 
-    // Get user email
+    // If newPassword is provided, directly update the password
+    if (newPassword) {
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Password updated successfully"
+        }),
+        { 
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200 
+        }
+      );
+    }
+
+    // Otherwise, generate password reset link
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
     if (userError || !userData.user?.email) {
       throw new Error("User not found");
     }
 
-    // Generate password reset link with custom redirect
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email: userData.user.email,
