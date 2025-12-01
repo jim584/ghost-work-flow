@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { Database } from "@/integrations/supabase/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
 import { differenceInHours, format } from "date-fns";
+import { useDesignerNotifications } from "@/hooks/useDesignerNotifications";
 
 const DesignerDashboard = () => {
   const { user, signOut } = useAuth();
@@ -27,6 +28,26 @@ const DesignerDashboard = () => {
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>("pending_or_revision");
   const [taskTypeFilter, setTaskTypeFilter] = useState<string | null>(null);
+  const [userTeams, setUserTeams] = useState<string[]>([]);
+
+  // Fetch user's team IDs for notifications
+  useEffect(() => {
+    const fetchTeams = async () => {
+      if (!user?.id) return;
+      const { data: teamMembers } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("user_id", user.id);
+      
+      if (teamMembers) {
+        setUserTeams(teamMembers.map(tm => tm.team_id));
+      }
+    };
+    fetchTeams();
+  }, [user?.id]);
+
+  // Enable sound notifications
+  useDesignerNotifications(user?.id, userTeams);
 
   const { data: tasks } = useQuery({
     queryKey: ["designer-tasks", user?.id],
