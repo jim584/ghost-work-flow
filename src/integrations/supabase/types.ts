@@ -101,6 +101,35 @@ export type Database = {
         }
         Relationships: []
       }
+      task_delay_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          notification_sent_at: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notification_sent_at?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notification_sent_at?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_delay_notifications_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           additional_details: string | null
