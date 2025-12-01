@@ -52,14 +52,54 @@ serve(async (req) => {
 
     const teamName = team?.name || "Your Team";
 
-    // Get designers from the team
+    // Get designers from the team - query separately to avoid RLS issues
     const { data: teamMembers, error: teamError } = await supabaseClient
       .from("team_members")
-      .select("user_id, profiles(email, full_name)")
+      .select("user_id")
       .eq("team_id", task.team_id);
 
-    if (teamError || !teamMembers || teamMembers.length === 0) {
-      console.log("No designers found for this team");
+    if (teamError) {
+      console.error("Error fetching team members:", teamError);
+      throw new Error("Failed to fetch team members");
+    }
+
+    if (!teamMembers || teamMembers.length === 0) {
+      console.log("No team members found for this team");
+      return new Response(
+        JSON.stringify({ success: true, message: "No team members to notify" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    // Get profiles for these users
+    const userIds = teamMembers.map(m => m.user_id);
+    const { data: profiles, error: profilesError } = await supabaseClient
+      .from("profiles")
+      .select("id, email, full_name")
+      .in("id", userIds);
+
+    if (profilesError) {
+      console.error("Error fetching profiles:", profilesError);
+      throw new Error("Failed to fetch profiles");
+    }
+
+    // Get user roles to filter designers
+    const { data: userRoles, error: rolesError } = await supabaseClient
+      .from("user_roles")
+      .select("user_id, role")
+      .in("user_id", userIds)
+      .eq("role", "designer");
+
+    if (rolesError) {
+      console.error("Error fetching user roles:", rolesError);
+      throw new Error("Failed to fetch user roles");
+    }
+
+    const designerIds = new Set(userRoles?.map(r => r.user_id) || []);
+    const designers = profiles?.filter(p => designerIds.has(p.id)) || [];
+
+    if (designers.length === 0) {
+      console.log("No designers found in this team");
       return new Response(
         JSON.stringify({ success: true, message: "No designers to notify" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
@@ -67,9 +107,9 @@ serve(async (req) => {
     }
 
     // Send email to each designer
-    const emailPromises = teamMembers.map(async (member: any) => {
-      const designerEmail = member.profiles?.email;
-      const designerName = member.profiles?.full_name || designerEmail;
+    const emailPromises = designers.map(async (designer) => {
+      const designerEmail = designer.email;
+      const designerName = designer.full_name || designerEmail;
 
       if (!designerEmail) return null;
 
@@ -124,13 +164,13 @@ serve(async (req) => {
     const results = await Promise.all(emailPromises);
     const successCount = results.filter(r => r !== null).length;
 
-    console.log(`Sent ${successCount} out of ${teamMembers.length} notifications`);
+    console.log(`Sent ${successCount} out of ${designers.length} notifications`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: `Notifications sent to ${successCount} designer(s)`,
-        totalDesigners: teamMembers.length 
+        totalDesigners: designers.length 
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
