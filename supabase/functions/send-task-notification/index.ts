@@ -22,20 +22,38 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
+    const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      }
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      throw new Error("Unauthorized");
+    // Check if called with service role (for database triggers)
+    const authHeader = req.headers.get("Authorization");
+    const isServiceRole = authHeader?.includes(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+    
+    let supabaseClient;
+    
+    if (isServiceRole) {
+      // Use admin client for service role calls (from database triggers)
+      supabaseClient = supabaseAdmin;
+      console.log("Service role authentication detected");
+    } else {
+      // Regular user authentication
+      supabaseClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        {
+          global: {
+            headers: { Authorization: authHeader! },
+          },
+        }
+      );
+      
+      // Verify user is authenticated
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+      if (authError || !user) {
+        throw new Error("Unauthorized");
+      }
     }
 
     const { taskId, notificationType, taskTitle, revisionNotes }: NotificationRequest = await req.json();
