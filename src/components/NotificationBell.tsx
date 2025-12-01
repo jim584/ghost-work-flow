@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 interface Notification {
   id: string;
@@ -27,6 +28,22 @@ interface Notification {
 export function NotificationBell({ userId }: { userId: string }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize audio for notifications
+  useEffect(() => {
+    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTgIGWi77eafTRAMUKfj8LZjHAY4kdfy');
+  }, []);
+
+  const playNotificationSound = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(err => {
+        console.log('Audio play failed:', err);
+      });
+    }
+  };
 
   // Fetch notifications
   const { data: notifications = [] } = useQuery({
@@ -59,17 +76,34 @@ export function NotificationBell({ userId }: { userId: string }) {
           table: 'notifications',
           filter: `user_id=eq.${userId}`,
         },
-        () => {
+        (payload) => {
+          console.log('🔔 New notification received:', payload);
+          
+          // Play sound
+          playNotificationSound();
+          
+          // Show toast notification
+          const notification = payload.new as Notification;
+          toast({
+            title: `🔔 ${notification.title}`,
+            description: notification.message,
+            className: notification.type === 'task_delayed' 
+              ? 'border-destructive bg-destructive/5' 
+              : 'border-primary bg-primary/5',
+          });
+          
           // Refetch notifications when new one arrives
           queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Notification bell subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, queryClient]);
+  }, [userId, queryClient, toast]);
 
   // Mark notification as read
   const markAsReadMutation = useMutation({
