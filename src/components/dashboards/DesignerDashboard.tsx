@@ -922,6 +922,59 @@ const DesignerDashboard = () => {
                 </div>
               </div>
 
+              {/* Additional Notes/Instructions */}
+              {viewDetailsTask?.notes_extra_instructions && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Additional Notes & Instructions</h3>
+                  <div className="p-3 bg-muted/30 rounded">
+                    <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.notes_extra_instructions}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Logo-Specific Details */}
+              {viewDetailsTask?.post_type === "Logo Design" && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Logo Specifications</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Logo Type</Label>
+                      <p className="font-medium">{viewDetailsTask?.logo_type || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Logo Style</Label>
+                      <p className="font-medium">{viewDetailsTask?.logo_style || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Tagline</Label>
+                      <p className="font-medium">{viewDetailsTask?.tagline || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Number of Concepts</Label>
+                      <p className="font-medium">{viewDetailsTask?.number_of_concepts || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Number of Revisions</Label>
+                      <p className="font-medium">{viewDetailsTask?.number_of_revisions || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">File Formats Needed</Label>
+                      <p className="font-medium">{viewDetailsTask?.file_formats_needed || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Usage Type</Label>
+                      <p className="font-medium">{viewDetailsTask?.usage_type || "N/A"}</p>
+                    </div>
+                  </div>
+                  {viewDetailsTask?.competitors_inspiration && (
+                    <div>
+                      <Label className="text-muted-foreground">Competitors/Inspiration</Label>
+                      <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.competitors_inspiration}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Attachment */}
               {viewDetailsTask?.attachment_file_path && (
                 <div className="space-y-3">
