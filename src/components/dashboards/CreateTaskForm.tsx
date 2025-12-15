@@ -59,11 +59,11 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
   const queryClient = useQueryClient();
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    team_id: "",
     business_name: "",
     industry: "",
     website_url: "",
@@ -88,6 +88,22 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
     platforms: [] as string[],
     deadline: "",
   });
+
+  const handleTeamToggle = (teamId: string) => {
+    setSelectedTeamIds(prev =>
+      prev.includes(teamId)
+        ? prev.filter(id => id !== teamId)
+        : [...prev, teamId]
+    );
+  };
+
+  const handleSelectAllTeams = () => {
+    if (selectedTeamIds.length === teams?.length) {
+      setSelectedTeamIds([]);
+    } else {
+      setSelectedTeamIds(teams?.map(t => t.id) || []);
+    }
+  };
 
   const createTask = useMutation({
     mutationFn: async () => {
@@ -114,13 +130,17 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
           }
         }
 
-        const { error } = await supabase.from("tasks").insert({
+        // Create a task for each selected team
+        const tasksToInsert = selectedTeamIds.map(teamId => ({
           ...formData,
+          team_id: teamId,
           project_manager_id: userId,
-          status: "pending",
+          status: "pending" as const,
           attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
           attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
-        });
+        }));
+
+        const { error } = await supabase.from("tasks").insert(tasksToInsert);
         if (error) throw error;
       } finally {
         setUploading(false);
@@ -128,45 +148,10 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
-      toast({ title: "Task created successfully" });
+      const taskCount = selectedTeamIds.length;
+      toast({ title: taskCount > 1 ? `${taskCount} tasks created successfully` : "Task created successfully" });
       setAttachmentFiles([]);
-      
-      // Send email notification to designers
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          // Get the newly created task ID - we need to fetch it since insert doesn't return it
-          const { data: tasks } = await supabase
-            .from("tasks")
-            .select("id")
-            .eq("project_manager_id", userId)
-            .eq("team_id", formData.team_id)
-            .eq("title", formData.title)
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          if (tasks && tasks.length > 0) {
-            await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-task-notification`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${session.access_token}`,
-                },
-                body: JSON.stringify({
-                  taskId: tasks[0].id,
-                  notificationType: "new_task",
-                  taskTitle: formData.title,
-                }),
-              }
-            );
-          }
-        }
-      } catch (emailError) {
-        console.error("Failed to send notification email:", emailError);
-        // Don't show error to user since task was created successfully
-      }
+      setSelectedTeamIds([]);
       
       onSuccess();
     },
@@ -211,19 +196,32 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="team">Assign to Team *</Label>
-            <Select value={formData.team_id} onValueChange={(value) => handleChange("team_id", value)}>
-              <SelectTrigger id="team">
-                <SelectValue placeholder="Select a team" />
-              </SelectTrigger>
-              <SelectContent>
+            <Label>Assign to Team(s) *</Label>
+            <div className="space-y-2 p-3 border rounded-md">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAllTeams}
+                className="mb-2"
+              >
+                {selectedTeamIds.length === teams?.length ? "Deselect All" : "Select All"}
+              </Button>
+              <div className="grid grid-cols-2 gap-2">
                 {teams?.map((team) => (
-                  <SelectItem key={team.id} value={team.id}>
-                    {team.name}
-                  </SelectItem>
+                  <div key={team.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`team-${team.id}`}
+                      checked={selectedTeamIds.includes(team.id)}
+                      onCheckedChange={() => handleTeamToggle(team.id)}
+                    />
+                    <Label htmlFor={`team-${team.id}`} className="cursor-pointer text-sm">
+                      {team.name}
+                    </Label>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -597,10 +595,10 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
 
         <Button
           onClick={() => createTask.mutate()}
-          disabled={!formData.title || !formData.team_id || !formData.website_url || uploading}
+          disabled={!formData.title || selectedTeamIds.length === 0 || !formData.website_url || uploading}
           className="w-full"
         >
-          {uploading ? "Creating & Uploading..." : "Create Task"}
+          {uploading ? "Creating & Uploading..." : selectedTeamIds.length > 1 ? `Create ${selectedTeamIds.length} Tasks` : "Create Task"}
         </Button>
       </div>
     </ScrollArea>
