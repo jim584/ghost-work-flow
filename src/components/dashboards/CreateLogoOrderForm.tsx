@@ -71,6 +71,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
   const [formData, setFormData] = useState({
     logo_name: "",
     team_id: "",
+    deadline: "",
     industry: "",
     primary_focus: "",
     color_combination: "",
@@ -114,6 +115,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           logo_style: formData.look_and_feel,
           brand_colors: formData.color_combination,
           notes_extra_instructions: formData.notes,
+          deadline: formData.deadline || null,
           attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
           attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
           status: "pending",
@@ -175,6 +177,18 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="deadline">Deadline *</Label>
+            <Input
+              id="deadline"
+              type="date"
+              value={formData.deadline}
+              onChange={(e) => handleChange("deadline", e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              required
+            />
           </div>
 
           <div className="space-y-2">
@@ -303,7 +317,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
 
         <Button
           onClick={() => createLogoOrder.mutate()}
-          disabled={!formData.logo_name || !formData.team_id || !formData.industry || uploading}
+          disabled={!formData.logo_name || !formData.team_id || !formData.industry || !formData.deadline || uploading}
           className="w-full"
         >
           {uploading ? "Creating Logo Order..." : "Create Logo Order"}
