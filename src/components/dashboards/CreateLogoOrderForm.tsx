@@ -75,7 +75,9 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
     industry: "",
     primary_focus: "",
     color_combination: "",
+    color_combination_custom: "",
     look_and_feel: "",
+    look_and_feel_custom: "",
     notes: "",
   });
 
@@ -120,6 +122,14 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           }
         }
 
+        // Combine select values with custom text
+        const colorCombination = [formData.color_combination, formData.color_combination_custom]
+          .filter(Boolean)
+          .join(" - ") || null;
+        const lookAndFeel = [formData.look_and_feel, formData.look_and_feel_custom]
+          .filter(Boolean)
+          .join(" - ") || null;
+
         // Create a task for each selected team
         const tasksToInsert = selectedTeamIds.map(teamId => ({
           title: formData.logo_name,
@@ -129,8 +139,8 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           business_name: formData.logo_name,
           industry: formData.industry,
           post_type: "Logo Design",
-          logo_style: formData.look_and_feel,
-          brand_colors: formData.color_combination,
+          logo_style: lookAndFeel,
+          brand_colors: colorCombination,
           notes_extra_instructions: formData.notes,
           deadline: formData.deadline || null,
           attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
@@ -268,6 +278,12 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
                 ))}
               </SelectContent>
             </Select>
+            <Input
+              id="color_combination_custom"
+              value={formData.color_combination_custom}
+              onChange={(e) => handleChange("color_combination_custom", e.target.value)}
+              placeholder="Or specify custom colors (e.g., Blue and Gold)"
+            />
           </div>
 
           <div className="space-y-2">
@@ -284,6 +300,12 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
                 ))}
               </SelectContent>
             </Select>
+            <Input
+              id="look_and_feel_custom"
+              value={formData.look_and_feel_custom}
+              onChange={(e) => handleChange("look_and_feel_custom", e.target.value)}
+              placeholder="Or describe custom style (e.g., Minimalist with bold typography)"
+            />
           </div>
 
           <div className="space-y-2">
