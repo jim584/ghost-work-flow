@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { File as FileIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -67,10 +67,10 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
   const queryClient = useQueryClient();
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     logo_name: "",
-    team_id: "",
     deadline: "",
     industry: "",
     primary_focus: "",
@@ -78,6 +78,22 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
     look_and_feel: "",
     notes: "",
   });
+
+  const handleTeamToggle = (teamId: string) => {
+    setSelectedTeamIds(prev => 
+      prev.includes(teamId) 
+        ? prev.filter(id => id !== teamId)
+        : [...prev, teamId]
+    );
+  };
+
+  const handleSelectAllTeams = () => {
+    if (selectedTeamIds.length === teams?.length) {
+      setSelectedTeamIds([]);
+    } else {
+      setSelectedTeamIds(teams?.map(t => t.id) || []);
+    }
+  };
 
   const createLogoOrder = useMutation({
     mutationFn: async () => {
@@ -104,10 +120,11 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           }
         }
 
-        const { error } = await supabase.from("tasks").insert({
+        // Create a task for each selected team
+        const tasksToInsert = selectedTeamIds.map(teamId => ({
           title: formData.logo_name,
           description: formData.primary_focus,
-          team_id: formData.team_id,
+          team_id: teamId,
           project_manager_id: userId,
           business_name: formData.logo_name,
           industry: formData.industry,
@@ -118,8 +135,10 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           deadline: formData.deadline || null,
           attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
           attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
-          status: "pending",
-        });
+          status: "pending" as const,
+        }));
+
+        const { error } = await supabase.from("tasks").insert(tasksToInsert);
 
         if (error) throw error;
 
@@ -127,7 +146,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
         
         toast({
           title: "Logo order created successfully!",
-          description: "The design team will be notified.",
+          description: `${selectedTeamIds.length} team(s) will be notified.`,
         });
         
         onSuccess();
@@ -164,19 +183,36 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="team_id">Assign to Team *</Label>
-            <Select value={formData.team_id} onValueChange={(value) => handleChange("team_id", value)}>
-              <SelectTrigger id="team_id">
-                <SelectValue placeholder="Select team" />
-              </SelectTrigger>
-              <SelectContent>
-                {teams?.map((team) => (
-                  <SelectItem key={team.id} value={team.id}>
+            <div className="flex items-center justify-between">
+              <Label>Assign to Team(s) *</Label>
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="sm"
+                onClick={handleSelectAllTeams}
+              >
+                {selectedTeamIds.length === teams?.length ? "Deselect All" : "Select All"}
+              </Button>
+            </div>
+            <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+              {teams?.map((team) => (
+                <div key={team.id} className="flex items-center space-x-2">
+                  <Checkbox 
+                    id={`team-${team.id}`}
+                    checked={selectedTeamIds.includes(team.id)}
+                    onCheckedChange={() => handleTeamToggle(team.id)}
+                  />
+                  <Label htmlFor={`team-${team.id}`} className="cursor-pointer font-normal">
                     {team.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  </Label>
+                </div>
+              ))}
+            </div>
+            {selectedTeamIds.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {selectedTeamIds.length} team(s) selected
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -317,10 +353,10 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
 
         <Button
           onClick={() => createLogoOrder.mutate()}
-          disabled={!formData.logo_name || !formData.team_id || !formData.industry || !formData.deadline || uploading}
+          disabled={!formData.logo_name || selectedTeamIds.length === 0 || !formData.industry || !formData.deadline || uploading}
           className="w-full"
         >
-          {uploading ? "Creating Logo Order..." : "Create Logo Order"}
+          {uploading ? "Creating Logo Order..." : `Create Logo Order${selectedTeamIds.length > 1 ? ` (${selectedTeamIds.length} teams)` : ''}`}
         </Button>
       </div>
     </ScrollArea>
