@@ -806,6 +806,10 @@ const DesignerDashboard = () => {
                     <h3 className="font-semibold text-lg border-b pb-2">Logo Specifications</h3>
                     <div className="space-y-3">
                       <div>
+                        <Label className="text-muted-foreground">Primary Focus</Label>
+                        <p className="font-medium">{viewDetailsTask?.description || "N/A"}</p>
+                      </div>
+                      <div>
                         <Label className="text-muted-foreground">Color Combination</Label>
                         <p className="font-medium">{viewDetailsTask?.brand_colors || "N/A"}</p>
                       </div>
