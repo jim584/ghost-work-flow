@@ -780,22 +780,26 @@ const DesignerDashboard = () => {
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Basic Information</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Title</Label>
-                    <p className="font-medium">{viewDetailsTask?.title}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Business Name</Label>
-                    <p className="font-medium">{viewDetailsTask?.business_name || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Industry</Label>
-                    <p className="font-medium">{viewDetailsTask?.industry || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Website</Label>
-                    <p className="font-medium text-primary break-all">{viewDetailsTask?.website_url || "N/A"}</p>
-                  </div>
+                  {viewDetailsTask?.post_type !== "Logo Design" && (
+                    <>
+                      <div>
+                        <Label className="text-muted-foreground">Title</Label>
+                        <p className="font-medium">{viewDetailsTask?.title}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Business Name</Label>
+                        <p className="font-medium">{viewDetailsTask?.business_name || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Industry</Label>
+                        <p className="font-medium">{viewDetailsTask?.industry || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Website</Label>
+                        <p className="font-medium text-primary break-all">{viewDetailsTask?.website_url || "N/A"}</p>
+                      </div>
+                    </>
+                  )}
                   <div>
                     <Label className="text-muted-foreground">Deadline</Label>
                     <p className="font-medium">{viewDetailsTask?.deadline ? new Date(viewDetailsTask.deadline).toLocaleDateString() : "N/A"}</p>
