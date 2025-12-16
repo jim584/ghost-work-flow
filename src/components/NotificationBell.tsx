@@ -30,10 +30,21 @@ export function NotificationBell({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const originalTitleRef = useRef<string>(document.title);
+  const titleIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize audio for notifications
   useEffect(() => {
     audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTgIGWi77eafTRAMUKfj8LZjHAY4kdfy');
+    originalTitleRef.current = document.title;
+    
+    return () => {
+      // Cleanup title interval on unmount
+      if (titleIntervalRef.current) {
+        clearInterval(titleIntervalRef.current);
+        document.title = originalTitleRef.current;
+      }
+    };
   }, []);
 
   const playNotificationSound = () => {
@@ -44,6 +55,42 @@ export function NotificationBell({ userId }: { userId: string }) {
       });
     }
   };
+
+  // Flash browser tab title for attention
+  const flashTabTitle = (message: string) => {
+    // Clear any existing interval
+    if (titleIntervalRef.current) {
+      clearInterval(titleIntervalRef.current);
+    }
+    
+    let isOriginal = true;
+    titleIntervalRef.current = setInterval(() => {
+      document.title = isOriginal ? `🔔 ${message}` : originalTitleRef.current;
+      isOriginal = !isOriginal;
+    }, 1000);
+    
+    // Stop flashing after 10 seconds
+    setTimeout(() => {
+      if (titleIntervalRef.current) {
+        clearInterval(titleIntervalRef.current);
+        titleIntervalRef.current = null;
+      }
+    }, 10000);
+  };
+
+  // Stop flashing when user focuses the tab
+  useEffect(() => {
+    const handleFocus = () => {
+      if (titleIntervalRef.current) {
+        clearInterval(titleIntervalRef.current);
+        titleIntervalRef.current = null;
+        document.title = originalTitleRef.current;
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
 
   // Fetch notifications
   const { data: notifications = [] } = useQuery({
@@ -120,6 +167,11 @@ export function NotificationBell({ userId }: { userId: string }) {
               : 'border-primary bg-primary/5',
           });
           
+          // Flash tab title if tab is not focused
+          if (!document.hasFocus()) {
+            flashTabTitle('New Notification!');
+          }
+          
           // Refetch notifications when new one arrives
           queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
         }
@@ -165,6 +217,15 @@ export function NotificationBell({ userId }: { userId: string }) {
   });
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  // Update tab title with unread count
+  useEffect(() => {
+    if (unreadCount > 0 && !titleIntervalRef.current) {
+      document.title = `(${unreadCount}) ${originalTitleRef.current}`;
+    } else if (unreadCount === 0 && !titleIntervalRef.current) {
+      document.title = originalTitleRef.current;
+    }
+  }, [unreadCount]);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
