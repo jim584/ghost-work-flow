@@ -252,13 +252,57 @@ export function NotificationBell({ userId }: { userId: string }) {
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  // Update tab title with unread count
+  // Update favicon with badge
+  const updateFaviconBadge = (count: number) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      // Draw original favicon
+      ctx.drawImage(img, 0, 0, 32, 32);
+      
+      if (count > 0) {
+        // Draw badge circle
+        const badgeSize = count > 9 ? 18 : 14;
+        const badgeX = 32 - badgeSize;
+        const badgeY = 0;
+        
+        ctx.beginPath();
+        ctx.arc(badgeX + badgeSize / 2, badgeY + badgeSize / 2, badgeSize / 2, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ef4444';
+        ctx.fill();
+        
+        // Draw count text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${count > 9 ? 10 : 11}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(count > 99 ? '99+' : count.toString(), badgeX + badgeSize / 2, badgeY + badgeSize / 2 + 1);
+      }
+      
+      // Update favicon
+      const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement || document.createElement('link');
+      link.type = 'image/x-icon';
+      link.rel = 'icon';
+      link.href = canvas.toDataURL();
+      document.head.appendChild(link);
+    };
+    img.src = '/favicon.ico';
+  };
+
+  // Update tab title and favicon with unread count
   useEffect(() => {
     if (unreadCount > 0 && !titleIntervalRef.current) {
       document.title = `(${unreadCount}) ${originalTitleRef.current}`;
     } else if (unreadCount === 0 && !titleIntervalRef.current) {
       document.title = originalTitleRef.current;
     }
+    updateFaviconBadge(unreadCount);
   }, [unreadCount]);
 
   const getNotificationIcon = (type: string) => {
