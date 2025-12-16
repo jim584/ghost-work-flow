@@ -33,10 +33,17 @@ export function NotificationBell({ userId }: { userId: string }) {
   const originalTitleRef = useRef<string>(document.title);
   const titleIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize audio for notifications
+  // Initialize audio and request notification permission
   useEffect(() => {
     audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTgIGWi77eafTRAMUKfj8LZjHAY4kdfy');
     originalTitleRef.current = document.title;
+    
+    // Request desktop notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        console.log('Desktop notification permission:', permission);
+      });
+    }
     
     return () => {
       // Cleanup title interval on unmount
@@ -53,6 +60,31 @@ export function NotificationBell({ userId }: { userId: string }) {
       audioRef.current.play().catch(err => {
         console.log('Audio play failed:', err);
       });
+    }
+  };
+
+  // Show desktop notification
+  const showDesktopNotification = (title: string, message: string, type: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const icon = type === 'task_delayed' ? '⚠️' : type === 'revision_requested' ? '🔄' : '🆕';
+      const notification = new Notification(title, {
+        body: message,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: 'design-portal-notification',
+        requireInteraction: type === 'task_delayed', // Keep delayed task notifications visible
+      });
+      
+      // Focus the tab when notification is clicked
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+      
+      // Auto-close after 8 seconds (except delayed tasks)
+      if (type !== 'task_delayed') {
+        setTimeout(() => notification.close(), 8000);
+      }
     }
   };
 
@@ -170,6 +202,8 @@ export function NotificationBell({ userId }: { userId: string }) {
           // Flash tab title if tab is not focused
           if (!document.hasFocus()) {
             flashTabTitle('New Notification!');
+            // Show desktop notification when tab is not focused
+            showDesktopNotification(notification.title, notification.message, notification.type);
           }
           
           // Refetch notifications when new one arrives
