@@ -722,6 +722,25 @@ const PMDashboard = () => {
                                        )}
                                      </div>
                                      <p className="text-muted-foreground">{submission.revision_notes}</p>
+                                     {submission.revision_reference_file_path && (
+                                       <div className="mt-2 flex flex-wrap gap-2">
+                                         {submission.revision_reference_file_path.split("|||").map((filePath, fileIndex) => {
+                                           const fileNames = submission.revision_reference_file_name?.split("|||") || [];
+                                           const fileName = fileNames[fileIndex] || `Reference ${fileIndex + 1}`;
+                                           return (
+                                             <Button
+                                               key={fileIndex}
+                                               size="sm"
+                                               variant="outline"
+                                               onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                             >
+                                               <Download className="h-3 w-3 mr-1" />
+                                               {fileNames.length > 1 ? `Reference ${fileIndex + 1}` : 'View Reference'}
+                                             </Button>
+                                           );
+                                         })}
+                                       </div>
+                                     )}
                                    </div>
                                  )}
                               </div>
