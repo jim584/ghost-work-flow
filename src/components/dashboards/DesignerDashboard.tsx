@@ -630,22 +630,37 @@ const DesignerDashboard = () => {
                                        </div>
                                        <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
                                        {submission.revision_reference_file_path && (
-                                          <div className="mt-2 flex flex-wrap gap-2">
-                                            {submission.revision_reference_file_path.split("|||").map((filePath, fileIndex) => {
-                                              const fileNames = submission.revision_reference_file_name?.split("|||") || [];
-                                              const fileName = fileNames[fileIndex] || `Reference ${fileIndex + 1}`;
-                                              return (
-                                                <Button
-                                                  key={fileIndex}
-                                                  size="sm"
-                                                  variant="outline"
-                                                  onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                                >
-                                                  <Download className="h-3 w-3 mr-1" />
-                                                  {fileNames.length > 1 ? `Reference ${fileIndex + 1}` : 'Download Reference'}
-                                                </Button>
-                                              );
-                                            })}
+                                          <div className="mt-3 space-y-2">
+                                            <span className="text-xs font-medium text-muted-foreground">Reference files:</span>
+                                            <div className="flex flex-wrap gap-3">
+                                              {submission.revision_reference_file_path.split("|||").map((filePath, fileIndex) => {
+                                                const fileNames = submission.revision_reference_file_name?.split("|||") || [];
+                                                const fileName = fileNames[fileIndex] || `Reference ${fileIndex + 1}`;
+                                                return (
+                                                  <div key={fileIndex} className="flex flex-col items-center gap-1">
+                                                    <div 
+                                                      className="cursor-pointer hover:opacity-80 transition-opacity"
+                                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                                    >
+                                                      <FilePreview 
+                                                        filePath={filePath.trim()} 
+                                                        fileName={fileName.trim()} 
+                                                        className="w-16 h-16"
+                                                      />
+                                                    </div>
+                                                    <Button
+                                                      size="sm"
+                                                      variant="ghost"
+                                                      className="h-6 px-2 text-xs"
+                                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                                    >
+                                                      <Download className="h-3 w-3 mr-1" />
+                                                      Download
+                                                    </Button>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
                                           </div>
                                          )}
                                       </div>
