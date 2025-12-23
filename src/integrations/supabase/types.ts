@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       design_submissions: {
         Row: {
+          designer_comment: string | null
           designer_id: string
           file_name: string
           file_path: string
@@ -30,6 +31,7 @@ export type Database = {
           task_id: string
         }
         Insert: {
+          designer_comment?: string | null
           designer_id: string
           file_name: string
           file_path: string
@@ -44,6 +46,7 @@ export type Database = {
           task_id: string
         }
         Update: {
+          designer_comment?: string | null
           designer_id?: string
           file_name?: string
           file_path?: string

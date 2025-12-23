@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Image, Palette } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +26,7 @@ const DesignerDashboard = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<{[key: number]: string}>({});
   const [uploading, setUploading] = useState(false);
+  const [designerComment, setDesignerComment] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>("pending_or_revision");
@@ -159,6 +161,7 @@ const DesignerDashboard = () => {
             designer_id: user!.id,
             file_path: filePath,
             file_name: fileName,
+            designer_comment: designerComment.trim() || null,
           });
 
         if (submissionError) throw submissionError;
@@ -189,6 +192,7 @@ const DesignerDashboard = () => {
       setSelectedTask(null);
       setFiles([]);
       setFilePreviews({});
+      setDesignerComment("");
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -618,6 +622,12 @@ const DesignerDashboard = () => {
                                    <p className="text-xs text-muted-foreground">
                                      Delivered: {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
                                    </p>
+                                   {submission.designer_comment && (
+                                     <div className="mt-2 p-2 bg-primary/10 rounded text-xs">
+                                       <span className="font-medium text-primary">Your comment:</span>
+                                       <p className="text-muted-foreground mt-1">{submission.designer_comment}</p>
+                                     </div>
+                                   )}
                                    {submission.revision_notes && (
                                      <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
                                        <div className="flex items-center justify-between mb-1">
@@ -777,6 +787,16 @@ const DesignerDashboard = () => {
                   </div>
                 </div>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="designer-comment">Comment (optional)</Label>
+              <Textarea
+                id="designer-comment"
+                placeholder="Add any notes or comments about your design submission..."
+                value={designerComment}
+                onChange={(e) => setDesignerComment(e.target.value)}
+                rows={3}
+              />
             </div>
             <Button
               onClick={handleFileUpload}
