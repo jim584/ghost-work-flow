@@ -711,6 +711,12 @@ const PMDashboard = () => {
                                  <p className="text-xs text-muted-foreground">
                                    Delivered: {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
                                  </p>
+                                 {submission.designer_comment && (
+                                   <div className="mt-2 p-2 bg-primary/10 rounded text-xs">
+                                     <span className="font-medium text-primary">Designer comment:</span>
+                                     <p className="text-muted-foreground mt-1">{submission.designer_comment}</p>
+                                   </div>
+                                 )}
                                  {submission.revision_notes && (
                                    <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
                                      <div className="flex items-center justify-between mb-1">
