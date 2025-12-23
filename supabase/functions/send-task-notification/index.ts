@@ -213,7 +213,7 @@ serve(async (req) => {
 
       try {
         const emailResponse = await resend.emails.send({
-          from: "Task Manager <notifications@researchteq.com>",
+          from: "Task Manager <notifications@researchteqpm.com>",
           to: [designerEmail],
           subject: subject,
           html: htmlContent,
