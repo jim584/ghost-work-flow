@@ -506,6 +506,14 @@ const AdminDashboard = () => {
     }
   };
 
+  const isLogoOrder = (task: any) => {
+    return task?.post_type === "Logo Design";
+  };
+
+  const isWebsiteOrder = (task: any) => {
+    return task?.post_type === "Website Design";
+  };
+
   const tasksByIndustry = useMemo(() => {
     const grouped: Record<string, any[]> = {};
     
@@ -1187,32 +1195,75 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Post Details */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg border-b pb-2">Post Details</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Post Type</Label>
-                    <p className="font-medium">{viewDetailsTask?.post_type || "N/A"}</p>
+              {/* Website Details - Only for Website Orders */}
+              {isWebsiteOrder(viewDetailsTask) && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Website Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Website Type</Label>
+                      <p className="font-medium">{viewDetailsTask?.website_type || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Number of Pages</Label>
+                      <p className="font-medium">{viewDetailsTask?.number_of_pages || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Domain & Hosting</Label>
+                      <p className="font-medium">{viewDetailsTask?.domain_hosting_status || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Content Provided</Label>
+                      <p className="font-medium">{viewDetailsTask?.content_provided ? "Yes" : "No"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Timeline</Label>
+                      <p className="font-medium">{viewDetailsTask?.website_deadline_type || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Design Style</Label>
+                      <p className="font-medium">{viewDetailsTask?.design_style || "N/A"}</p>
+                    </div>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Objective</Label>
-                    <p className="font-medium">{viewDetailsTask?.objective || "N/A"}</p>
+                    <Label className="text-muted-foreground">Website Features</Label>
+                    <p className="font-medium">{viewDetailsTask?.website_features || "N/A"}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Post Type Required</Label>
-                    <p className="font-medium">{viewDetailsTask?.post_type_required || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Platforms</Label>
-                    <p className="font-medium">{viewDetailsTask?.platforms?.join(", ") || "N/A"}</p>
+                    <Label className="text-muted-foreground">Design References</Label>
+                    <p className="font-medium">{viewDetailsTask?.design_references || "N/A"}</p>
                   </div>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Description</Label>
-                  <p className="font-medium">{viewDetailsTask?.description || "N/A"}</p>
+              )}
+
+              {/* Post Details - Only for Social Media Posts */}
+              {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Post Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Post Type</Label>
+                      <p className="font-medium">{viewDetailsTask?.post_type || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Objective</Label>
+                      <p className="font-medium">{viewDetailsTask?.objective || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Post Type Required</Label>
+                      <p className="font-medium">{viewDetailsTask?.post_type_required || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Platforms</Label>
+                      <p className="font-medium">{viewDetailsTask?.platforms?.join(", ") || "N/A"}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Description</Label>
+                    <p className="font-medium">{viewDetailsTask?.description || "N/A"}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Product/Service Information */}
               <div className="space-y-3">

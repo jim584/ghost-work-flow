@@ -185,6 +185,7 @@ export type Database = {
           brand_colors: string | null
           business_name: string | null
           competitors_inspiration: string | null
+          content_provided: boolean | null
           created_at: string | null
           cta: string | null
           customer_domain: string | null
@@ -193,7 +194,9 @@ export type Database = {
           customer_phone: string | null
           deadline: string | null
           description: string | null
+          design_references: string | null
           design_style: string | null
+          domain_hosting_status: string | null
           file_formats_needed: string | null
           fonts: string | null
           headline_main_text: string | null
@@ -204,6 +207,7 @@ export type Database = {
           logo_url: string | null
           notes_extra_instructions: string | null
           number_of_concepts: string | null
+          number_of_pages: string | null
           number_of_revisions: string | null
           objective: string | null
           platforms: string[] | null
@@ -226,6 +230,9 @@ export type Database = {
           title: string
           updated_at: string | null
           usage_type: string | null
+          website_deadline_type: string | null
+          website_features: string | null
+          website_type: string | null
           website_url: string | null
         }
         Insert: {
@@ -238,6 +245,7 @@ export type Database = {
           brand_colors?: string | null
           business_name?: string | null
           competitors_inspiration?: string | null
+          content_provided?: boolean | null
           created_at?: string | null
           cta?: string | null
           customer_domain?: string | null
@@ -246,7 +254,9 @@ export type Database = {
           customer_phone?: string | null
           deadline?: string | null
           description?: string | null
+          design_references?: string | null
           design_style?: string | null
+          domain_hosting_status?: string | null
           file_formats_needed?: string | null
           fonts?: string | null
           headline_main_text?: string | null
@@ -257,6 +267,7 @@ export type Database = {
           logo_url?: string | null
           notes_extra_instructions?: string | null
           number_of_concepts?: string | null
+          number_of_pages?: string | null
           number_of_revisions?: string | null
           objective?: string | null
           platforms?: string[] | null
@@ -279,6 +290,9 @@ export type Database = {
           title: string
           updated_at?: string | null
           usage_type?: string | null
+          website_deadline_type?: string | null
+          website_features?: string | null
+          website_type?: string | null
           website_url?: string | null
         }
         Update: {
@@ -291,6 +305,7 @@ export type Database = {
           brand_colors?: string | null
           business_name?: string | null
           competitors_inspiration?: string | null
+          content_provided?: boolean | null
           created_at?: string | null
           cta?: string | null
           customer_domain?: string | null
@@ -299,7 +314,9 @@ export type Database = {
           customer_phone?: string | null
           deadline?: string | null
           description?: string | null
+          design_references?: string | null
           design_style?: string | null
+          domain_hosting_status?: string | null
           file_formats_needed?: string | null
           fonts?: string | null
           headline_main_text?: string | null
@@ -310,6 +327,7 @@ export type Database = {
           logo_url?: string | null
           notes_extra_instructions?: string | null
           number_of_concepts?: string | null
+          number_of_pages?: string | null
           number_of_revisions?: string | null
           objective?: string | null
           platforms?: string[] | null
@@ -332,6 +350,9 @@ export type Database = {
           title?: string
           updated_at?: string | null
           usage_type?: string | null
+          website_deadline_type?: string | null
+          website_features?: string | null
+          website_type?: string | null
           website_url?: string | null
         }
         Relationships: [
