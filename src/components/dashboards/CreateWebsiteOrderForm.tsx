@@ -71,41 +71,13 @@ const NUMBER_OF_PAGES = [
   "20+ Pages (Enterprise)",
 ];
 
-const WEBSITE_FEATURES = [
-  "Contact Form",
-  "Image Gallery",
-  "Blog Section",
-  "E-commerce/Shop",
-  "Booking/Appointment System",
-  "User Login/Registration",
-  "Payment Integration",
-  "Social Media Integration",
-  "Newsletter Signup",
-  "Live Chat",
-  "Video Integration",
-  "Maps/Location",
-  "Testimonials/Reviews",
-  "FAQ Section",
-  "Search Functionality",
-  "Multi-language Support",
-];
-
-const DOMAIN_HOSTING_STATUS = [
-  "I have both domain and hosting",
-  "I have domain only",
-  "I have hosting only",
-  "I need both domain and hosting",
-  "Not sure - need guidance",
-];
-
-
 export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrderFormProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  
 
   const [formData, setFormData] = useState({
     business_name: "",
@@ -115,8 +87,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
     // Website specific fields
     website_type: "",
     number_of_pages: "",
-    content_provided: false,
-    domain_hosting_status: "",
     design_references: "",
     // Content fields
     supporting_text: "",
@@ -131,13 +101,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
     amount_total: "",
   });
 
-  const handleFeatureToggle = (feature: string) => {
-    setSelectedFeatures(prev =>
-      prev.includes(feature)
-        ? prev.filter(f => f !== feature)
-        : [...prev, feature]
-    );
-  };
 
   const createWebsiteOrder = useMutation({
     mutationFn: async () => {
@@ -208,9 +171,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           // Website specific fields
           website_type: formData.website_type,
           number_of_pages: formData.number_of_pages,
-          website_features: selectedFeatures.join(", "),
-          content_provided: formData.content_provided,
-          domain_hosting_status: formData.domain_hosting_status,
           design_references: formData.design_references,
           // Customer & Payment fields
           customer_name: formData.customer_name || null,
@@ -435,55 +395,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Website Features Needed</Label>
-            <div className="border rounded-md p-3 grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-              {WEBSITE_FEATURES.map((feature) => (
-                <div key={feature} className="flex items-center space-x-2">
-                  <Checkbox 
-                    id={`feature-${feature}`}
-                    checked={selectedFeatures.includes(feature)}
-                    onCheckedChange={() => handleFeatureToggle(feature)}
-                  />
-                  <Label htmlFor={`feature-${feature}`} className="cursor-pointer font-normal text-sm">
-                    {feature}
-                  </Label>
-                </div>
-              ))}
-            </div>
-            {selectedFeatures.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {selectedFeatures.length} feature(s) selected
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="domain_hosting_status">Domain & Hosting Status *</Label>
-            <Select value={formData.domain_hosting_status} onValueChange={(value) => handleChange("domain_hosting_status", value)}>
-              <SelectTrigger id="domain_hosting_status">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                {DOMAIN_HOSTING_STATUS.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Checkbox 
-              id="content_provided"
-              checked={formData.content_provided}
-              onCheckedChange={(checked) => handleChange("content_provided", checked)}
-            />
-            <Label htmlFor="content_provided" className="cursor-pointer">
-              Content (text, images) will be provided by customer
-            </Label>
-          </div>
         </div>
 
         {/* Design Preferences */}
@@ -645,7 +556,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
             !formData.industry || 
             !formData.website_type ||
             !formData.number_of_pages ||
-            !formData.domain_hosting_status ||
             uploading
           }
           className="w-full"
