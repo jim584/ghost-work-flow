@@ -439,9 +439,12 @@ const AdminDashboard = () => {
     const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
     const hasPendingReview = taskSubmissions.some(s => s.revision_status === 'pending_review');
     const hasNeedsRevision = taskSubmissions.some(s => s.revision_status === 'needs_revision');
+    const allApproved = taskSubmissions.length > 0 && taskSubmissions.every(s => s.revision_status === 'approved');
     const isDelayed = task.deadline && new Date(task.deadline) < today && 
                      !['completed', 'approved'].includes(task.status);
     
+    // If all submissions are approved, move to 'other' (out of priority view)
+    if (allApproved || task.status === 'completed' || task.status === 'approved') return 'other';
     if (hasPendingReview) return 'recently_delivered';
     if (isDelayed) return 'delayed';
     if (hasNeedsRevision) return 'needs_revision';
