@@ -98,18 +98,6 @@ const DOMAIN_HOSTING_STATUS = [
   "Not sure - need guidance",
 ];
 
-const DESIGN_STYLES = [
-  "Modern & Minimal",
-  "Bold & Creative",
-  "Corporate & Professional",
-  "Elegant & Luxury",
-  "Playful & Fun",
-  "Clean & Simple",
-  "Dark & Dramatic",
-  "Colorful & Vibrant",
-  "Vintage/Retro",
-  "Tech/Futuristic",
-];
 
 const DEADLINE_TYPES = [
   "Urgent (1-2 weeks)",
@@ -135,12 +123,9 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
     number_of_pages: "",
     content_provided: false,
     domain_hosting_status: "",
-    design_style: "",
     design_references: "",
     website_deadline_type: "",
     // Brand fields
-    brand_colors: "",
-    fonts: "",
     logo_url: "",
     // Content fields
     headline_main_text: "",
@@ -208,9 +193,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           industry: formData.industry,
           website_url: formData.website_url,
           post_type: "Website Design",
-          design_style: formData.design_style,
-          brand_colors: formData.brand_colors,
-          fonts: formData.fonts,
           logo_url: formData.logo_url,
           headline_main_text: formData.headline_main_text,
           supporting_text: formData.supporting_text,
@@ -506,42 +488,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           <h3 className="font-semibold text-lg">Design Preferences</h3>
 
           <div className="space-y-2">
-            <Label htmlFor="design_style">Design Style *</Label>
-            <Select value={formData.design_style} onValueChange={(value) => handleChange("design_style", value)}>
-              <SelectTrigger id="design_style">
-                <SelectValue placeholder="Select design style" />
-              </SelectTrigger>
-              <SelectContent>
-                {DESIGN_STYLES.map((style) => (
-                  <SelectItem key={style} value={style}>
-                    {style}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="brand_colors">Brand Colors</Label>
-            <Input
-              id="brand_colors"
-              value={formData.brand_colors}
-              onChange={(e) => handleChange("brand_colors", e.target.value)}
-              placeholder="E.g., #FF5733, Blue and Gold"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="fonts">Preferred Fonts</Label>
-            <Input
-              id="fonts"
-              value={formData.fonts}
-              onChange={(e) => handleChange("fonts", e.target.value)}
-              placeholder="E.g., Open Sans, Roboto"
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="logo_url">Logo URL or File Link</Label>
             <Input
               id="logo_url"
@@ -690,7 +636,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
             !formData.website_type ||
             !formData.number_of_pages ||
             !formData.domain_hosting_status ||
-            !formData.design_style ||
             uploading
           }
           className="w-full"
