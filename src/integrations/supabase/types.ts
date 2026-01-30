@@ -177,6 +177,9 @@ export type Database = {
       tasks: {
         Row: {
           additional_details: string | null
+          amount_paid: number | null
+          amount_pending: number | null
+          amount_total: number | null
           attachment_file_name: string | null
           attachment_file_path: string | null
           brand_colors: string | null
@@ -184,6 +187,9 @@ export type Database = {
           competitors_inspiration: string | null
           created_at: string | null
           cta: string | null
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
           deadline: string | null
           description: string | null
           design_style: string | null
@@ -223,6 +229,9 @@ export type Database = {
         }
         Insert: {
           additional_details?: string | null
+          amount_paid?: number | null
+          amount_pending?: number | null
+          amount_total?: number | null
           attachment_file_name?: string | null
           attachment_file_path?: string | null
           brand_colors?: string | null
@@ -230,6 +239,9 @@ export type Database = {
           competitors_inspiration?: string | null
           created_at?: string | null
           cta?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
           deadline?: string | null
           description?: string | null
           design_style?: string | null
@@ -269,6 +281,9 @@ export type Database = {
         }
         Update: {
           additional_details?: string | null
+          amount_paid?: number | null
+          amount_pending?: number | null
+          amount_total?: number | null
           attachment_file_name?: string | null
           attachment_file_path?: string | null
           brand_colors?: string | null
@@ -276,6 +291,9 @@ export type Database = {
           competitors_inspiration?: string | null
           created_at?: string | null
           cta?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
           deadline?: string | null
           description?: string | null
           design_style?: string | null
