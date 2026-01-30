@@ -91,6 +91,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
     customer_name: "",
     customer_email: "",
     customer_phone: "",
+    customer_domain: "",
     amount_paid: "",
     amount_pending: "",
     amount_total: "",
@@ -228,6 +229,17 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
                 placeholder="+1 234 567 890"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="customer_domain">Customer Domain</Label>
+            <Input
+              id="customer_domain"
+              type="url"
+              value={formData.customer_domain}
+              onChange={(e) => handleChange("customer_domain", e.target.value)}
+              placeholder="https://customerdomain.com"
+            />
           </div>
         </div>
 

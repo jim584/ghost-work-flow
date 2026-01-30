@@ -83,6 +83,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
     customer_name: "",
     customer_email: "",
     customer_phone: "",
+    customer_domain: "",
     amount_paid: "",
     amount_pending: "",
     amount_total: "",
@@ -157,6 +158,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           customer_name: formData.customer_name || null,
           customer_email: formData.customer_email || null,
           customer_phone: formData.customer_phone || null,
+          customer_domain: formData.customer_domain || null,
           amount_paid: formData.amount_paid ? parseFloat(formData.amount_paid) : 0,
           amount_pending: formData.amount_pending ? parseFloat(formData.amount_pending) : 0,
           amount_total: formData.amount_total ? parseFloat(formData.amount_total) : 0,
@@ -231,6 +233,17 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
                 placeholder="+1 234 567 890"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="customer_domain">Customer Domain</Label>
+            <Input
+              id="customer_domain"
+              type="url"
+              value={formData.customer_domain}
+              onChange={(e) => handleChange("customer_domain", e.target.value)}
+              placeholder="https://customerdomain.com"
+            />
           </div>
         </div>
 
