@@ -424,6 +424,7 @@ export type Database = {
         Returns: boolean
       }
       set_user_role_designer: { Args: never; Returns: undefined }
+      validate_safe_filename: { Args: { filename: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "project_manager" | "designer"
