@@ -64,6 +64,8 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
 
   const [formData, setFormData] = useState({
     business_name: "",
+    business_email: "",
+    business_phone: "",
     industry: "",
     website_url: "",
     deadline: "",
@@ -304,6 +306,30 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
               placeholder="Enter business name"
               required
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="business_email">Business Email</Label>
+              <Input
+                id="business_email"
+                type="email"
+                value={formData.business_email}
+                onChange={(e) => handleChange("business_email", e.target.value)}
+                placeholder="business@email.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="business_phone">Business Phone</Label>
+              <Input
+                id="business_phone"
+                type="tel"
+                value={formData.business_phone}
+                onChange={(e) => handleChange("business_phone", e.target.value)}
+                placeholder="+1 234 567 890"
+              />
+            </div>
           </div>
 
           <div className="p-3 bg-muted/50 rounded-md border">
