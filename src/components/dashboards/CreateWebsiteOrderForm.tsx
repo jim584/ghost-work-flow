@@ -71,6 +71,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
     deadline: "",
     // Website specific fields
     number_of_pages: "",
+    video_keywords: "",
     design_references: "",
     // Content fields
     supporting_text: "",
@@ -385,6 +386,16 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="video_keywords">Video Keywords</Label>
+            <Input
+              id="video_keywords"
+              value={formData.video_keywords}
+              onChange={(e) => handleChange("video_keywords", e.target.value)}
+              placeholder="Enter keywords for video content (e.g., professional, modern, dynamic)"
+            />
           </div>
 
         </div>
