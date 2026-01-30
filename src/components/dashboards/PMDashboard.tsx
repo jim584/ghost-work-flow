@@ -289,11 +289,14 @@ const PMDashboard = () => {
     const isDelayed = task.deadline && new Date(task.deadline) < today && 
                      !['completed', 'approved'].includes(task.status);
     
+    // Check for pending work items first - these always show in priority
+    if (hasPendingReview) return 'recently_delivered';
+    if (hasNeedsRevision) return 'needs_revision';
+    if (isDelayed) return 'delayed';
+    
     // If all submissions are approved, move to 'other' (out of priority view)
     if (allApproved || task.status === 'completed' || task.status === 'approved') return 'other';
-    if (hasPendingReview) return 'recently_delivered';
-    if (isDelayed) return 'delayed';
-    if (hasNeedsRevision) return 'needs_revision';
+    
     if (task.status === 'pending') return 'pending';
     if (task.status === 'in_progress') return 'in_progress';
     return 'other';
