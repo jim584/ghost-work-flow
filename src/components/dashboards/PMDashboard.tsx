@@ -867,6 +867,10 @@ const PMDashboard = () => {
                     <Label className="text-muted-foreground">Customer Phone</Label>
                     <p className="font-medium">{viewDetailsTask?.customer_phone || "N/A"}</p>
                   </div>
+                  <div>
+                    <Label className="text-muted-foreground">Customer Domain</Label>
+                    <p className="font-medium text-primary break-all">{viewDetailsTask?.customer_domain || "N/A"}</p>
+                  </div>
                 </div>
               </div>
 

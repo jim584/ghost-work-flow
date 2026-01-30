@@ -187,6 +187,7 @@ export type Database = {
           competitors_inspiration: string | null
           created_at: string | null
           cta: string | null
+          customer_domain: string | null
           customer_email: string | null
           customer_name: string | null
           customer_phone: string | null
@@ -239,6 +240,7 @@ export type Database = {
           competitors_inspiration?: string | null
           created_at?: string | null
           cta?: string | null
+          customer_domain?: string | null
           customer_email?: string | null
           customer_name?: string | null
           customer_phone?: string | null
@@ -291,6 +293,7 @@ export type Database = {
           competitors_inspiration?: string | null
           created_at?: string | null
           cta?: string | null
+          customer_domain?: string | null
           customer_email?: string | null
           customer_name?: string | null
           customer_phone?: string | null
