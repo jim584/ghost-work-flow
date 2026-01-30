@@ -46,23 +46,6 @@ const INDUSTRIES = [
   "Travel & Adventure",
 ];
 
-const WEBSITE_TYPES = [
-  "Business/Corporate Website",
-  "E-commerce/Online Store",
-  "Portfolio Website",
-  "Blog/Content Website",
-  "Landing Page",
-  "Educational/Course Website",
-  "Non-Profit/Charity Website",
-  "Personal Website",
-  "Restaurant/Food Service",
-  "Real Estate Website",
-  "Healthcare/Medical Website",
-  "Event/Wedding Website",
-  "Membership/Community Website",
-  "SaaS/Application Website",
-];
-
 const NUMBER_OF_PAGES = [
   "1-3 Pages (Landing/Simple)",
   "4-6 Pages (Standard)",
@@ -85,7 +68,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
     website_url: "",
     deadline: "",
     // Website specific fields
-    website_type: "",
     number_of_pages: "",
     design_references: "",
     // Content fields
@@ -169,7 +151,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
           status: "pending" as const,
           // Website specific fields
-          website_type: formData.website_type,
           number_of_pages: formData.number_of_pages,
           design_references: formData.design_references,
           // Customer & Payment fields
@@ -363,21 +344,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
         <div className="space-y-4 pt-4 border-t">
           <h3 className="font-semibold text-lg">Website Details</h3>
 
-          <div className="space-y-2">
-            <Label htmlFor="website_type">Website Type *</Label>
-            <Select value={formData.website_type} onValueChange={(value) => handleChange("website_type", value)}>
-              <SelectTrigger id="website_type">
-                <SelectValue placeholder="Select website type" />
-              </SelectTrigger>
-              <SelectContent>
-                {WEBSITE_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           <div className="space-y-2">
             <Label htmlFor="number_of_pages">Number of Pages *</Label>
@@ -554,7 +520,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
             !formData.business_name || 
             !formData.customer_name || 
             !formData.industry || 
-            !formData.website_type ||
             !formData.number_of_pages ||
             uploading
           }
