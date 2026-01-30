@@ -74,6 +74,32 @@ const AdminDashboard = () => {
     },
   });
 
+  // Fetch developer profiles for website orders (team members with developer role)
+  const { data: developerProfiles } = useQuery({
+    queryKey: ["developer-profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("team_members")
+        .select(`
+          team_id,
+          user_id,
+          profiles!team_members_user_id_fkey(id, full_name, email)
+        `);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Helper to get developer name for a team
+  const getDeveloperForTeam = (teamId: string) => {
+    const member = developerProfiles?.find(m => m.team_id === teamId);
+    if (member?.profiles) {
+      const profile = member.profiles as any;
+      return profile.full_name || profile.email || "Unknown";
+    }
+    return null;
+  };
+
   const { data: submissions } = useQuery({
     queryKey: ["admin-submissions"],
     queryFn: async () => {
@@ -867,7 +893,11 @@ const AdminDashboard = () => {
                         </div>
                         <div className="flex items-center gap-3 text-sm">
                           <span className="text-muted-foreground">
-                            Team: <span className="font-medium">{task.teams?.name}</span>
+                            {isWebsiteOrder(task) ? (
+                              <>Developer: <span className="font-medium">{getDeveloperForTeam(task.team_id) || task.teams?.name}</span></>
+                            ) : (
+                              <>Team: <span className="font-medium">{task.teams?.name}</span></>
+                            )}
                           </span>
                           {task.profiles && (
                             <span className="text-muted-foreground">
@@ -1185,8 +1215,14 @@ const AdminDashboard = () => {
                     <p className="font-medium">{viewDetailsTask?.deadline ? new Date(viewDetailsTask.deadline).toLocaleDateString() : "N/A"}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Team</Label>
-                    <p className="font-medium">{viewDetailsTask?.teams?.name}</p>
+                    <Label className="text-muted-foreground">
+                      {isWebsiteOrder(viewDetailsTask) ? "Assigned Developer" : "Team"}
+                    </Label>
+                    <p className="font-medium">
+                      {isWebsiteOrder(viewDetailsTask) 
+                        ? (getDeveloperForTeam(viewDetailsTask?.team_id) || viewDetailsTask?.teams?.name)
+                        : viewDetailsTask?.teams?.name}
+                    </p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Project Manager</Label>

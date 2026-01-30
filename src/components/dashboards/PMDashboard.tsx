@@ -54,6 +54,32 @@ const PMDashboard = () => {
     },
   });
 
+  // Fetch developer profiles for website orders (team members with developer role)
+  const { data: developerProfiles } = useQuery({
+    queryKey: ["developer-profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("team_members")
+        .select(`
+          team_id,
+          user_id,
+          profiles!team_members_user_id_fkey(id, full_name, email)
+        `);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Helper to get developer name for a team
+  const getDeveloperForTeam = (teamId: string) => {
+    const member = developerProfiles?.find(m => m.team_id === teamId);
+    if (member?.profiles) {
+      const profile = member.profiles as any;
+      return profile.full_name || profile.email || "Unknown";
+    }
+    return null;
+  };
+
   const { data: myTasks } = useQuery({
     queryKey: ["pm-tasks", user?.id],
     queryFn: async () => {
@@ -662,7 +688,15 @@ const PMDashboard = () => {
                           Created: <span className="font-medium">{format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Team: <span className="font-medium">{task.teams?.name}</span>
+                          {isWebsiteOrder(task) ? (
+                            <>
+                              Developer: <span className="font-medium">{getDeveloperForTeam(task.team_id) || task.teams?.name}</span>
+                            </>
+                          ) : (
+                            <>
+                              Team: <span className="font-medium">{task.teams?.name}</span>
+                            </>
+                          )}
                           {taskSubmissions.length > 0 && (
                             <span className="ml-2 text-primary">
                               • {taskSubmissions.length} file(s) submitted
@@ -947,8 +981,14 @@ const PMDashboard = () => {
                     <p className="font-medium">{viewDetailsTask?.deadline ? new Date(viewDetailsTask.deadline).toLocaleDateString() : "N/A"}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Team</Label>
-                    <p className="font-medium">{viewDetailsTask?.teams?.name}</p>
+                    <Label className="text-muted-foreground">
+                      {isWebsiteOrder(viewDetailsTask) ? "Assigned Developer" : "Team"}
+                    </Label>
+                    <p className="font-medium">
+                      {isWebsiteOrder(viewDetailsTask) 
+                        ? (getDeveloperForTeam(viewDetailsTask?.team_id) || viewDetailsTask?.teams?.name)
+                        : viewDetailsTask?.teams?.name}
+                    </p>
                   </div>
                 </div>
               </div>
