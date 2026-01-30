@@ -110,6 +110,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
 
@@ -125,8 +126,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
     domain_hosting_status: "",
     design_references: "",
     website_deadline_type: "",
-    // Brand fields
-    logo_url: "",
     // Content fields
     headline_main_text: "",
     supporting_text: "",
@@ -164,6 +163,21 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
 
         let attachmentFilePaths: string[] = [];
         let attachmentFileNames: string[] = [];
+        let logoFilePath: string | null = null;
+
+        // Upload logo file if provided
+        if (logoFile) {
+          const sanitizedFileName = logoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const fileName = `website_logo_${Date.now()}_${sanitizedFileName}`;
+          const filePath = `${userId}/website_logos/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("design-files")
+            .upload(filePath, logoFile);
+
+          if (uploadError) throw uploadError;
+          logoFilePath = filePath;
+        }
 
         // Upload attachment files if provided
         if (attachmentFiles.length > 0) {
@@ -193,7 +207,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           industry: formData.industry,
           website_url: formData.website_url,
           post_type: "Website Design",
-          logo_url: formData.logo_url,
+          logo_url: logoFilePath,
           headline_main_text: formData.headline_main_text,
           supporting_text: formData.supporting_text,
           notes_extra_instructions: formData.notes_extra_instructions,
@@ -488,13 +502,48 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           <h3 className="font-semibold text-lg">Design Preferences</h3>
 
           <div className="space-y-2">
-            <Label htmlFor="logo_url">Logo URL or File Link</Label>
+            <Label htmlFor="logo_file">Logo File</Label>
             <Input
-              id="logo_url"
-              value={formData.logo_url}
-              onChange={(e) => handleChange("logo_url", e.target.value)}
-              placeholder="https://drive.google.com/..."
+              id="logo_file"
+              type="file"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setLogoFile(file);
+              }}
+              accept="image/*,.ai,.psd,.svg,.eps"
             />
+            {logoFile && (
+              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded border">
+                {logoFile.type.startsWith('image/') ? (
+                  <img 
+                    src={URL.createObjectURL(logoFile)} 
+                    alt="Logo preview" 
+                    className="w-16 h-16 object-contain rounded border border-border"
+                  />
+                ) : (
+                  <div className="w-16 h-16 flex items-center justify-center bg-secondary rounded border border-border">
+                    <FileIcon className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{logoFile.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(logoFile.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  type="button"
+                  onClick={() => setLogoFile(null)}
+                >
+                  Remove
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Upload client's logo (PNG, JPG, SVG, AI, PSD, EPS)
+            </p>
           </div>
 
           <div className="space-y-2">
