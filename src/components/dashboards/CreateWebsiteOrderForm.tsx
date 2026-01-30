@@ -13,7 +13,6 @@ import { useToast } from "@/hooks/use-toast";
 
 interface CreateWebsiteOrderFormProps {
   userId: string;
-  teams: any[];
   onSuccess: () => void;
 }
 
@@ -119,12 +118,11 @@ const DEADLINE_TYPES = [
   "No Rush (2+ months)",
 ];
 
-export const CreateWebsiteOrderForm = ({ userId, teams, onSuccess }: CreateWebsiteOrderFormProps) => {
+export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrderFormProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
@@ -158,22 +156,6 @@ export const CreateWebsiteOrderForm = ({ userId, teams, onSuccess }: CreateWebsi
     amount_total: "",
   });
 
-  const handleTeamToggle = (teamId: string) => {
-    setSelectedTeamIds(prev =>
-      prev.includes(teamId)
-        ? prev.filter(id => id !== teamId)
-        : [...prev, teamId]
-    );
-  };
-
-  const handleSelectAllTeams = () => {
-    if (selectedTeamIds.length === teams?.length) {
-      setSelectedTeamIds([]);
-    } else {
-      setSelectedTeamIds(teams?.map(t => t.id) || []);
-    }
-  };
-
   const handleFeatureToggle = (feature: string) => {
     setSelectedFeatures(prev =>
       prev.includes(feature)
@@ -186,6 +168,15 @@ export const CreateWebsiteOrderForm = ({ userId, teams, onSuccess }: CreateWebsi
     mutationFn: async () => {
       setUploading(true);
       try {
+        // Get the next developer team using round-robin
+        const { data: nextTeamId, error: rpcError } = await supabase.rpc('get_next_developer_team');
+        
+        if (rpcError) throw rpcError;
+        
+        if (!nextTeamId) {
+          throw new Error("No developer teams available. Please ensure at least one developer is registered.");
+        }
+
         let attachmentFilePaths: string[] = [];
         let attachmentFileNames: string[] = [];
 
@@ -207,11 +198,11 @@ export const CreateWebsiteOrderForm = ({ userId, teams, onSuccess }: CreateWebsi
           }
         }
 
-        // Create a task for each selected team
-        const tasksToInsert = selectedTeamIds.map(teamId => ({
+        // Create a single task assigned to the next developer team
+        const taskData = {
           title: `Website: ${formData.business_name}`,
           description: formData.headline_main_text,
-          team_id: teamId,
+          team_id: nextTeamId,
           project_manager_id: userId,
           business_name: formData.business_name,
           industry: formData.industry,
@@ -244,9 +235,9 @@ export const CreateWebsiteOrderForm = ({ userId, teams, onSuccess }: CreateWebsi
           amount_paid: formData.amount_paid ? parseFloat(formData.amount_paid) : 0,
           amount_pending: formData.amount_pending ? parseFloat(formData.amount_pending) : 0,
           amount_total: formData.amount_total ? parseFloat(formData.amount_total) : 0,
-        }));
+        };
 
-        const { error } = await supabase.from("tasks").insert(tasksToInsert);
+        const { error } = await supabase.from("tasks").insert(taskData);
 
         if (error) throw error;
 
@@ -254,7 +245,7 @@ export const CreateWebsiteOrderForm = ({ userId, teams, onSuccess }: CreateWebsi
         
         toast({
           title: "Website order created successfully!",
-          description: `${selectedTeamIds.length} team(s) will be notified.`,
+          description: "Order has been automatically assigned to the next available developer.",
         });
         
         onSuccess();
@@ -389,37 +380,10 @@ export const CreateWebsiteOrderForm = ({ userId, teams, onSuccess }: CreateWebsi
             />
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Assign to Team(s) *</Label>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="sm"
-                onClick={handleSelectAllTeams}
-              >
-                {selectedTeamIds.length === teams?.length ? "Deselect All" : "Select All"}
-              </Button>
-            </div>
-            <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
-              {teams?.map((team) => (
-                <div key={team.id} className="flex items-center space-x-2">
-                  <Checkbox 
-                    id={`team-${team.id}`}
-                    checked={selectedTeamIds.includes(team.id)}
-                    onCheckedChange={() => handleTeamToggle(team.id)}
-                  />
-                  <Label htmlFor={`team-${team.id}`} className="cursor-pointer font-normal">
-                    {team.name}
-                  </Label>
-                </div>
-              ))}
-            </div>
-            {selectedTeamIds.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {selectedTeamIds.length} team(s) selected
-              </p>
-            )}
+          <div className="p-3 bg-muted/50 rounded-md border">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium">Auto-Assignment:</span> This order will be automatically assigned to the next available developer in round-robin order.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -722,7 +686,6 @@ export const CreateWebsiteOrderForm = ({ userId, teams, onSuccess }: CreateWebsi
           disabled={
             !formData.business_name || 
             !formData.customer_name || 
-            selectedTeamIds.length === 0 || 
             !formData.industry || 
             !formData.website_type ||
             !formData.number_of_pages ||
@@ -732,7 +695,7 @@ export const CreateWebsiteOrderForm = ({ userId, teams, onSuccess }: CreateWebsi
           }
           className="w-full"
         >
-          {uploading ? "Creating Website Order..." : `Create Website Order${selectedTeamIds.length > 1 ? ` (${selectedTeamIds.length} teams)` : ''}`}
+          {uploading ? "Creating Website Order..." : "Create Website Order"}
         </Button>
       </div>
     </ScrollArea>

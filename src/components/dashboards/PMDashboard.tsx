@@ -610,7 +610,6 @@ const PMDashboard = () => {
                     </DialogHeader>
                     <CreateWebsiteOrderForm 
                       userId={user!.id} 
-                      teams={teams || []} 
                       onSuccess={() => {
                         setOpen(false);
                         setTaskType(null);

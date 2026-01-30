@@ -446,6 +446,24 @@ export type Database = {
         }
         Relationships: []
       }
+      website_order_assignment: {
+        Row: {
+          id: string
+          last_assigned_index: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          last_assigned_index?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          last_assigned_index?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -458,6 +476,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      get_next_developer_team: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
