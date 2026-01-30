@@ -24,12 +24,18 @@ export const FilePreview = ({ filePath, fileName, className = "w-12 h-12" }: Fil
 
       if (isImageFile) {
         try {
-          const { data } = supabase.storage
+          // Use signed URL instead of public URL for security
+          const { data, error } = await supabase.storage
             .from("design-files")
-            .getPublicUrl(filePath);
+            .createSignedUrl(filePath, 3600); // 1 hour expiration
           
-          if (data?.publicUrl) {
-            setPreviewUrl(data.publicUrl);
+          if (error) {
+            console.error("Error creating signed URL:", error);
+            return;
+          }
+          
+          if (data?.signedUrl) {
+            setPreviewUrl(data.signedUrl);
           }
         } catch (error) {
           console.error("Error loading preview:", error);
