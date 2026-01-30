@@ -29,7 +29,7 @@ const passwordSchema = z.string()
   .regex(/[^A-Za-z0-9]/, { message: "Must contain special character" });
 
 const AdminDashboard = () => {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
@@ -330,6 +330,7 @@ const AdminDashboard = () => {
         .update({
           revision_status: "approved",
           reviewed_at: new Date().toISOString(),
+          reviewed_by: user!.id,
         })
         .eq("id", submissionId);
       if (error) throw error;
