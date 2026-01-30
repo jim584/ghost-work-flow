@@ -79,6 +79,13 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
     look_and_feel: "",
     look_and_feel_custom: "",
     notes: "",
+    // Customer & Payment fields
+    customer_name: "",
+    customer_email: "",
+    customer_phone: "",
+    amount_paid: "",
+    amount_pending: "",
+    amount_total: "",
   });
 
   const handleTeamToggle = (teamId: string) => {
@@ -146,6 +153,13 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
           attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
           status: "pending" as const,
+          // Customer & Payment fields
+          customer_name: formData.customer_name || null,
+          customer_email: formData.customer_email || null,
+          customer_phone: formData.customer_phone || null,
+          amount_paid: formData.amount_paid ? parseFloat(formData.amount_paid) : 0,
+          amount_pending: formData.amount_pending ? parseFloat(formData.amount_pending) : 0,
+          amount_total: formData.amount_total ? parseFloat(formData.amount_total) : 0,
         }));
 
         const { error } = await supabase.from("tasks").insert(tasksToInsert);
@@ -180,7 +194,96 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
   return (
     <ScrollArea className="h-[calc(100vh-200px)] pr-4">
       <div className="space-y-6">
+        {/* Customer Information */}
         <div className="space-y-4">
+          <h3 className="font-semibold text-lg">Customer Information</h3>
+          
+          <div className="space-y-2">
+            <Label htmlFor="customer_name">Customer Name *</Label>
+            <Input
+              id="customer_name"
+              value={formData.customer_name}
+              onChange={(e) => handleChange("customer_name", e.target.value)}
+              placeholder="Enter customer name"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer_email">Customer Email</Label>
+              <Input
+                id="customer_email"
+                type="email"
+                value={formData.customer_email}
+                onChange={(e) => handleChange("customer_email", e.target.value)}
+                placeholder="customer@email.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="customer_phone">Customer Phone</Label>
+              <Input
+                id="customer_phone"
+                type="tel"
+                value={formData.customer_phone}
+                onChange={(e) => handleChange("customer_phone", e.target.value)}
+                placeholder="+1 234 567 890"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Information */}
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="font-semibold text-lg">Payment Information</h3>
+          
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="amount_total">Total Amount</Label>
+              <Input
+                id="amount_total"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount_total}
+                onChange={(e) => handleChange("amount_total", e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount_paid">Amount Paid</Label>
+              <Input
+                id="amount_paid"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount_paid}
+                onChange={(e) => handleChange("amount_paid", e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount_pending">Amount Pending</Label>
+              <Input
+                id="amount_pending"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount_pending}
+                onChange={(e) => handleChange("amount_pending", e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Logo Details */}
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="font-semibold text-lg">Logo Details</h3>
+          
           <div className="space-y-2">
             <Label htmlFor="logo_name">Logo Name *</Label>
             <Input
@@ -375,7 +478,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
 
         <Button
           onClick={() => createLogoOrder.mutate()}
-          disabled={!formData.logo_name || selectedTeamIds.length === 0 || !formData.industry || !formData.deadline || uploading}
+          disabled={!formData.logo_name || !formData.customer_name || selectedTeamIds.length === 0 || !formData.industry || !formData.deadline || uploading}
           className="w-full"
         >
           {uploading ? "Creating Logo Order..." : `Create Logo Order${selectedTeamIds.length > 1 ? ` (${selectedTeamIds.length} teams)` : ''}`}

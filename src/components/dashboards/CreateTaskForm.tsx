@@ -87,6 +87,13 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
     target_audience_other: "",
     platforms: [] as string[],
     deadline: "",
+    // Customer & Payment fields
+    customer_name: "",
+    customer_email: "",
+    customer_phone: "",
+    amount_paid: "",
+    amount_pending: "",
+    amount_total: "",
   });
 
   const handleTeamToggle = (teamId: string) => {
@@ -133,6 +140,10 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
         // Create a task for each selected team
         const tasksToInsert = selectedTeamIds.map(teamId => ({
           ...formData,
+          // Convert payment amounts to numbers
+          amount_paid: formData.amount_paid ? parseFloat(formData.amount_paid) : 0,
+          amount_pending: formData.amount_pending ? parseFloat(formData.amount_pending) : 0,
+          amount_total: formData.amount_total ? parseFloat(formData.amount_total) : 0,
           team_id: teamId,
           project_manager_id: userId,
           status: "pending" as const,
@@ -180,8 +191,94 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
   return (
     <ScrollArea className="h-[70vh] pr-4">
       <div className="space-y-6">
-        {/* Basic Info */}
+        {/* Customer Information */}
         <div className="space-y-4">
+          <h3 className="font-semibold text-lg">Customer Information</h3>
+          
+          <div className="space-y-2">
+            <Label htmlFor="customer_name">Customer Name *</Label>
+            <Input
+              id="customer_name"
+              value={formData.customer_name}
+              onChange={(e) => handleChange("customer_name", e.target.value)}
+              placeholder="Enter customer name"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer_email">Customer Email</Label>
+              <Input
+                id="customer_email"
+                type="email"
+                value={formData.customer_email}
+                onChange={(e) => handleChange("customer_email", e.target.value)}
+                placeholder="customer@email.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="customer_phone">Customer Phone</Label>
+              <Input
+                id="customer_phone"
+                type="tel"
+                value={formData.customer_phone}
+                onChange={(e) => handleChange("customer_phone", e.target.value)}
+                placeholder="+1 234 567 890"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Information */}
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="font-semibold text-lg">Payment Information</h3>
+          
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="amount_total">Total Amount</Label>
+              <Input
+                id="amount_total"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount_total}
+                onChange={(e) => handleChange("amount_total", e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount_paid">Amount Paid</Label>
+              <Input
+                id="amount_paid"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount_paid}
+                onChange={(e) => handleChange("amount_paid", e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount_pending">Amount Pending</Label>
+              <Input
+                id="amount_pending"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount_pending}
+                onChange={(e) => handleChange("amount_pending", e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Basic Info */}
+        <div className="space-y-4 pt-4 border-t">
           <h3 className="font-semibold text-lg">Basic Information</h3>
           
           <div className="space-y-2">
@@ -595,7 +692,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
 
         <Button
           onClick={() => createTask.mutate()}
-          disabled={!formData.title || selectedTeamIds.length === 0 || !formData.website_url || uploading}
+          disabled={!formData.title || !formData.customer_name || selectedTeamIds.length === 0 || !formData.website_url || uploading}
           className="w-full"
         >
           {uploading ? "Creating & Uploading..." : selectedTeamIds.length > 1 ? `Create ${selectedTeamIds.length} Tasks` : "Create Task"}

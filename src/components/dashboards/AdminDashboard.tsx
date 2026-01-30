@@ -1110,6 +1110,44 @@ const AdminDashboard = () => {
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] pr-4">
             <div className="space-y-6">
+              {/* Customer Information */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg border-b pb-2">Customer Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Customer Name</Label>
+                    <p className="font-medium">{viewDetailsTask?.customer_name || "N/A"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Customer Email</Label>
+                    <p className="font-medium">{viewDetailsTask?.customer_email || "N/A"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Customer Phone</Label>
+                    <p className="font-medium">{viewDetailsTask?.customer_phone || "N/A"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Information */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg border-b pb-2">Payment Information</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Total Amount</Label>
+                    <p className="font-medium">${Number(viewDetailsTask?.amount_total || 0).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Amount Paid</Label>
+                    <p className="font-medium text-green-600">${Number(viewDetailsTask?.amount_paid || 0).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Amount Pending</Label>
+                    <p className="font-medium text-amber-600">${Number(viewDetailsTask?.amount_pending || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+
               {/* Basic Information */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Basic Information</h3>
