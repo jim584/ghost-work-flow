@@ -439,6 +439,7 @@ const AdminDashboard = () => {
     const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
     const hasPendingReview = taskSubmissions.some(s => s.revision_status === 'pending_review');
     const hasNeedsRevision = taskSubmissions.some(s => s.revision_status === 'needs_revision');
+    // Only consider all approved if there are submissions AND all are approved
     const allApproved = taskSubmissions.length > 0 && taskSubmissions.every(s => s.revision_status === 'approved');
     const isDelayed = task.deadline && new Date(task.deadline) < today && 
                      !['completed', 'approved'].includes(task.status);
@@ -448,8 +449,12 @@ const AdminDashboard = () => {
     if (hasNeedsRevision) return 'needs_revision';
     if (isDelayed) return 'delayed';
     
-    // If all submissions are approved, move to 'other' (out of priority view)
-    if (allApproved || task.status === 'completed' || task.status === 'approved') return 'other';
+    // Only move to 'other' if ALL submissions are approved (not just some)
+    // Task must have submissions AND all must be approved to leave priority
+    if (allApproved) return 'other';
+    
+    // Task status-based completion only applies if explicitly set
+    if (task.status === 'completed' || task.status === 'approved') return 'other';
     
     if (task.status === 'pending') return 'pending';
     if (task.status === 'in_progress') return 'in_progress';
