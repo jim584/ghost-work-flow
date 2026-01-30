@@ -99,13 +99,6 @@ const DOMAIN_HOSTING_STATUS = [
 ];
 
 
-const DEADLINE_TYPES = [
-  "Urgent (1-2 weeks)",
-  "Standard (3-4 weeks)",
-  "Flexible (1-2 months)",
-  "No Rush (2+ months)",
-];
-
 export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrderFormProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -125,9 +118,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
     content_provided: false,
     domain_hosting_status: "",
     design_references: "",
-    website_deadline_type: "",
     // Content fields
-    headline_main_text: "",
     supporting_text: "",
     notes_extra_instructions: "",
     // Customer & Payment fields
@@ -200,7 +191,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
         // Create a single task assigned to the next developer team
         const taskData = {
           title: `Website: ${formData.business_name}`,
-          description: formData.headline_main_text,
+          description: formData.supporting_text,
           team_id: nextTeamId,
           project_manager_id: userId,
           business_name: formData.business_name,
@@ -208,7 +199,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           website_url: formData.website_url,
           post_type: "Website Design",
           logo_url: logoFilePath,
-          headline_main_text: formData.headline_main_text,
           supporting_text: formData.supporting_text,
           notes_extra_instructions: formData.notes_extra_instructions,
           deadline: formData.deadline || null,
@@ -222,7 +212,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           content_provided: formData.content_provided,
           domain_hosting_status: formData.domain_hosting_status,
           design_references: formData.design_references,
-          website_deadline_type: formData.website_deadline_type,
           // Customer & Payment fields
           customer_name: formData.customer_name || null,
           customer_email: formData.customer_email || null,
@@ -558,19 +547,9 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           </div>
         </div>
 
-        {/* Content & Timeline */}
+        {/* Content & Deadline */}
         <div className="space-y-4 pt-4 border-t">
-          <h3 className="font-semibold text-lg">Content & Timeline</h3>
-
-          <div className="space-y-2">
-            <Label htmlFor="headline_main_text">Main Headline/Tagline</Label>
-            <Input
-              id="headline_main_text"
-              value={formData.headline_main_text}
-              onChange={(e) => handleChange("headline_main_text", e.target.value)}
-              placeholder="E.g., Your trusted partner in..."
-            />
-          </div>
+          <h3 className="font-semibold text-lg">Content & Deadline</h3>
 
           <div className="space-y-2">
             <Label htmlFor="supporting_text">Brief Description of Business</Label>
@@ -583,33 +562,15 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="deadline">Target Completion Date</Label>
-              <Input
-                id="deadline"
-                type="date"
-                value={formData.deadline}
-                onChange={(e) => handleChange("deadline", e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="website_deadline_type">Timeline Flexibility</Label>
-              <Select value={formData.website_deadline_type} onValueChange={(value) => handleChange("website_deadline_type", value)}>
-                <SelectTrigger id="website_deadline_type">
-                  <SelectValue placeholder="Select timeline" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEADLINE_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="deadline">Target Completion Date</Label>
+            <Input
+              id="deadline"
+              type="date"
+              value={formData.deadline}
+              onChange={(e) => handleChange("deadline", e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+            />
           </div>
 
           <div className="space-y-2">
