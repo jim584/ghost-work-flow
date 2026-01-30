@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2 } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2, Globe } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 import { CreateTaskForm } from "./CreateTaskForm";
 import { CreateLogoOrderForm } from "./CreateLogoOrderForm";
+import { CreateWebsiteOrderForm } from "./CreateWebsiteOrderForm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,7 +34,7 @@ const PMDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [taskType, setTaskType] = useState<"social_media" | "logo" | null>(null);
+  const [taskType, setTaskType] = useState<"social_media" | "logo" | "website" | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
@@ -357,6 +358,10 @@ const PMDashboard = () => {
     return task?.post_type === "Logo Design";
   };
 
+  const isWebsiteOrder = (task: any) => {
+    return task?.post_type === "Website Design";
+  };
+
   const filteredTasks = tasks?.filter((task) => {
     // Search filter - if searching, show all matching tasks regardless of status
     if (searchQuery.trim()) {
@@ -534,7 +539,7 @@ const PMDashboard = () => {
                     <DialogHeader>
                       <DialogTitle>Select Task Type</DialogTitle>
                     </DialogHeader>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <Button
                         variant="outline"
                         className="h-32 flex flex-col gap-2"
@@ -557,6 +562,17 @@ const PMDashboard = () => {
                           <p className="text-xs text-muted-foreground">Create logo design order</p>
                         </div>
                       </Button>
+                      <Button
+                        variant="outline"
+                        className="h-32 flex flex-col gap-2"
+                        onClick={() => setTaskType("website")}
+                      >
+                        <Globe className="h-8 w-8" />
+                        <div className="text-center">
+                          <p className="font-semibold">Website Order</p>
+                          <p className="text-xs text-muted-foreground">Create website design order</p>
+                        </div>
+                      </Button>
                     </div>
                   </div>
                 ) : taskType === "social_media" ? (
@@ -573,12 +589,26 @@ const PMDashboard = () => {
                       }}
                     />
                   </>
-                ) : (
+                ) : taskType === "logo" ? (
                   <>
                     <DialogHeader>
                       <DialogTitle>Create New Logo Order</DialogTitle>
                     </DialogHeader>
                     <CreateLogoOrderForm 
+                      userId={user!.id} 
+                      teams={teams || []} 
+                      onSuccess={() => {
+                        setOpen(false);
+                        setTaskType(null);
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Create New Website Order</DialogTitle>
+                    </DialogHeader>
+                    <CreateWebsiteOrderForm 
                       userId={user!.id} 
                       teams={teams || []} 
                       onSuccess={() => {
@@ -969,8 +999,53 @@ const PMDashboard = () => {
                 </div>
               )}
 
+              {/* Website Details - Only for Website Orders */}
+              {isWebsiteOrder(viewDetailsTask) && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Website Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Website Type</Label>
+                      <p className="font-medium">{viewDetailsTask?.website_type || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Number of Pages</Label>
+                      <p className="font-medium">{viewDetailsTask?.number_of_pages || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Domain & Hosting</Label>
+                      <p className="font-medium">{viewDetailsTask?.domain_hosting_status || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Content Provided</Label>
+                      <p className="font-medium">{viewDetailsTask?.content_provided ? "Yes" : "No"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Timeline</Label>
+                      <p className="font-medium">{viewDetailsTask?.website_deadline_type || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Design Style</Label>
+                      <p className="font-medium">{viewDetailsTask?.design_style || "N/A"}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Website Features</Label>
+                    <p className="font-medium">{viewDetailsTask?.website_features || "N/A"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Design References</Label>
+                    <p className="font-medium">{viewDetailsTask?.design_references || "N/A"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Description</Label>
+                    <p className="font-medium">{viewDetailsTask?.description || "N/A"}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Post Details - Only for Social Media Posts */}
-              {!isLogoOrder(viewDetailsTask) && (
+              {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg border-b pb-2">Post Details</h3>
                   <div className="grid grid-cols-2 gap-4">
