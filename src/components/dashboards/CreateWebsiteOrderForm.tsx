@@ -58,7 +58,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoFiles, setLogoFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   
 
@@ -102,20 +102,22 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
 
         let attachmentFilePaths: string[] = [];
         let attachmentFileNames: string[] = [];
-        let logoFilePath: string | null = null;
+        let logoFilePaths: string[] = [];
 
-        // Upload logo file if provided
-        if (logoFile) {
-          const sanitizedFileName = logoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-          const fileName = `website_logo_${Date.now()}_${sanitizedFileName}`;
-          const filePath = `${userId}/website_logos/${fileName}`;
+        // Upload logo files if provided
+        if (logoFiles.length > 0) {
+          for (const file of logoFiles) {
+            const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+            const fileName = `website_logo_${Date.now()}_${sanitizedFileName}`;
+            const filePath = `${userId}/website_logos/${fileName}`;
 
-          const { error: uploadError } = await supabase.storage
-            .from("design-files")
-            .upload(filePath, logoFile);
+            const { error: uploadError } = await supabase.storage
+              .from("design-files")
+              .upload(filePath, file);
 
-          if (uploadError) throw uploadError;
-          logoFilePath = filePath;
+            if (uploadError) throw uploadError;
+            logoFilePaths.push(filePath);
+          }
         }
 
         // Upload attachment files if provided
@@ -146,7 +148,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           industry: formData.industry,
           website_url: formData.website_url,
           post_type: "Website Design",
-          logo_url: logoFilePath,
+          logo_url: logoFilePaths.length > 0 ? logoFilePaths.join("|||") : null,
           supporting_text: formData.supporting_text,
           notes_extra_instructions: formData.notes_extra_instructions,
           deadline: formData.deadline || null,
@@ -405,47 +407,53 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           <h3 className="font-semibold text-lg">Design Preferences</h3>
 
           <div className="space-y-2">
-            <Label htmlFor="logo_file">Logo File</Label>
+            <Label htmlFor="logo_file">Logo Files</Label>
             <Input
               id="logo_file"
               type="file"
+              multiple
               onChange={(e) => {
-                const file = e.target.files?.[0] || null;
-                setLogoFile(file);
+                const newFiles = Array.from(e.target.files || []);
+                setLogoFiles(prev => [...prev, ...newFiles]);
+                e.target.value = '';
               }}
               accept="image/*,.ai,.psd,.svg,.eps"
             />
-            {logoFile && (
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded border">
-                {logoFile.type.startsWith('image/') ? (
-                  <img 
-                    src={URL.createObjectURL(logoFile)} 
-                    alt="Logo preview" 
-                    className="w-16 h-16 object-contain rounded border border-border"
-                  />
-                ) : (
-                  <div className="w-16 h-16 flex items-center justify-center bg-secondary rounded border border-border">
-                    <FileIcon className="h-8 w-8 text-muted-foreground" />
+            {logoFiles.length > 0 && (
+              <div className="space-y-2">
+                {logoFiles.map((file, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 bg-muted/50 rounded border">
+                    {file.type.startsWith('image/') ? (
+                      <img 
+                        src={URL.createObjectURL(file)} 
+                        alt="Logo preview" 
+                        className="w-16 h-16 object-contain rounded border border-border"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 flex items-center justify-center bg-secondary rounded border border-border">
+                        <FileIcon className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{file.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      onClick={() => setLogoFiles(files => files.filter((_, i) => i !== index))}
+                    >
+                      Remove
+                    </Button>
                   </div>
-                )}
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{logoFile.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(logoFile.size / 1024).toFixed(1)} KB
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  type="button"
-                  onClick={() => setLogoFile(null)}
-                >
-                  Remove
-                </Button>
+                ))}
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Upload client's logo (PNG, JPG, SVG, AI, PSD, EPS)
+              Upload client's logos (PNG, JPG, SVG, AI, PSD, EPS) - Multiple files allowed
             </p>
           </div>
 
