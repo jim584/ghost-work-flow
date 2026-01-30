@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import AdminDashboard from "@/components/dashboards/AdminDashboard";
 import PMDashboard from "@/components/dashboards/PMDashboard";
 import DesignerDashboard from "@/components/dashboards/DesignerDashboard";
+import DeveloperDashboard from "@/components/dashboards/DeveloperDashboard";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
@@ -55,6 +56,8 @@ const Dashboard = () => {
       return <PMDashboard />;
     case "designer":
       return <DesignerDashboard />;
+    case "developer":
+      return <DeveloperDashboard />;
     default:
       return <Navigate to="/auth" replace />;
   }
