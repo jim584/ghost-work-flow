@@ -143,19 +143,27 @@ serve(async (req) => {
           .map((n: string) => n.trim());
 
         if (paths.length > 0) {
-          const listItems = paths
-            .map((path: string, index: number) => {
-              const displayName = escapeHtml(names[index] || `Reference ${index + 1}`);
-              const { data } = supabaseClient.storage.from("design-files").getPublicUrl(path);
-              const url = data.publicUrl;
-
-              return `
-                <li style="margin: 6px 0;">
-                  <a href="${url}" target="_blank" rel="noopener noreferrer">${displayName}</a>
-                </li>
-              `;
-            })
-            .join("");
+          // Use signed URLs since bucket is private for security
+          const signedUrlPromises = paths.map(async (path: string, index: number) => {
+            const displayName = escapeHtml(names[index] || `Reference ${index + 1}`);
+            const { data, error } = await supabaseClient.storage
+              .from("design-files")
+              .createSignedUrl(path, 86400); // 24 hour expiration for email links
+            
+            if (error || !data?.signedUrl) {
+              console.error("Failed to create signed URL for path:", path, error);
+              return null;
+            }
+            
+            return `
+              <li style="margin: 6px 0;">
+                <a href="${data.signedUrl}" target="_blank" rel="noopener noreferrer">${displayName}</a>
+              </li>
+            `;
+          });
+          
+          const signedUrlResults = await Promise.all(signedUrlPromises);
+          const listItems = signedUrlResults.filter(Boolean).join("");
 
           revisionReferenceHtml = `
             <div style="margin: 20px 0; padding: 15px; background-color: #eef2ff; border-left: 4px solid #4f46e5;">
@@ -244,10 +252,10 @@ serve(async (req) => {
       }
     );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-    console.error("Error in send-task-notification function:", errorMessage);
+    // Log detailed error server-side only
+    console.error("Error in send-task-notification function:", error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: "Operation failed. Please try again." }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400,

@@ -95,9 +95,10 @@ serve(async (req) => {
       }
     );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+    // Log detailed error server-side only
+    console.error("Password reset error:", error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: "Operation failed. Please try again." }),
       { 
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400 
