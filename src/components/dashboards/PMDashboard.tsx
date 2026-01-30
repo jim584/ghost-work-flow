@@ -53,7 +53,7 @@ const PMDashboard = () => {
     },
   });
 
-  const { data: tasks } = useQuery({
+  const { data: myTasks } = useQuery({
     queryKey: ["pm-tasks", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -65,6 +65,25 @@ const PMDashboard = () => {
       return data;
     },
   });
+
+  // Query for all tasks (used when searching) - PMs can view via admin-like search
+  const { data: allTasks } = useQuery({
+    queryKey: ["all-tasks-search", searchQuery],
+    queryFn: async () => {
+      // Use RPC or a broader query - but PMs only have RLS for their own tasks
+      // We need to use the project_manager profile to get names
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("*, teams(name), profiles!tasks_project_manager_id_fkey(full_name, email)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!searchQuery.trim(), // Only fetch when searching
+  });
+
+  // Use allTasks when searching, otherwise use myTasks
+  const tasks = searchQuery.trim() ? allTasks : myTasks;
 
   const { data: submissions } = useQuery({
     queryKey: ["design-submissions", user?.id],
