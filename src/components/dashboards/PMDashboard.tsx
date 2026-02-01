@@ -1112,46 +1112,50 @@ const PMDashboard = () => {
                 </div>
               )}
 
-              {/* Product/Service Information */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg border-b pb-2">Product/Service Information</h3>
+              {/* Product/Service Information - Only for Social Media Posts */}
+              {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
                 <div className="space-y-3">
-                  <div>
-                    <Label className="text-muted-foreground">Name</Label>
-                    <p className="font-medium">{viewDetailsTask?.product_service_name || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Description</Label>
-                    <p className="font-medium">{viewDetailsTask?.product_service_description || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Pricing</Label>
-                    <p className="font-medium">{viewDetailsTask?.pricing || "N/A"}</p>
+                  <h3 className="font-semibold text-lg border-b pb-2">Product/Service Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-muted-foreground">Name</Label>
+                      <p className="font-medium">{viewDetailsTask?.product_service_name || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Description</Label>
+                      <p className="font-medium">{viewDetailsTask?.product_service_description || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Pricing</Label>
+                      <p className="font-medium">{viewDetailsTask?.pricing || "N/A"}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Design Requirements */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg border-b pb-2">Design Requirements</h3>
+              {/* Design Requirements - Only for Social Media Posts */}
+              {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
                 <div className="space-y-3">
-                  <div>
-                    <Label className="text-muted-foreground">Design Style</Label>
-                    <p className="font-medium">{viewDetailsTask?.design_style || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Brand Colors</Label>
-                    <p className="font-medium">{viewDetailsTask?.brand_colors || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Fonts</Label>
-                    <p className="font-medium">{viewDetailsTask?.fonts || "N/A"}</p>
+                  <h3 className="font-semibold text-lg border-b pb-2">Design Requirements</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-muted-foreground">Design Style</Label>
+                      <p className="font-medium">{viewDetailsTask?.design_style || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Brand Colors</Label>
+                      <p className="font-medium">{viewDetailsTask?.brand_colors || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Fonts</Label>
+                      <p className="font-medium">{viewDetailsTask?.fonts || "N/A"}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Content - Only for Social Media Posts */}
-              {!isLogoOrder(viewDetailsTask) && (
+              {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg border-b pb-2">Content</h3>
                   <div className="space-y-3">
@@ -1171,28 +1175,30 @@ const PMDashboard = () => {
                 </div>
               )}
 
-              {/* Target Audience */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg border-b pb-2">Target Audience</h3>
+              {/* Target Audience - Only for Social Media Posts */}
+              {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
                 <div className="space-y-3">
-                  <div>
-                    <Label className="text-muted-foreground">Age</Label>
-                    <p className="font-medium">{viewDetailsTask?.target_audience_age || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Location</Label>
-                    <p className="font-medium">{viewDetailsTask?.target_audience_location || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Interests</Label>
-                    <p className="font-medium">{viewDetailsTask?.target_audience_interest || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Other</Label>
-                    <p className="font-medium">{viewDetailsTask?.target_audience_other || "N/A"}</p>
+                  <h3 className="font-semibold text-lg border-b pb-2">Target Audience</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-muted-foreground">Age</Label>
+                      <p className="font-medium">{viewDetailsTask?.target_audience_age || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Location</Label>
+                      <p className="font-medium">{viewDetailsTask?.target_audience_location || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Interests</Label>
+                      <p className="font-medium">{viewDetailsTask?.target_audience_interest || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Other</Label>
+                      <p className="font-medium">{viewDetailsTask?.target_audience_other || "N/A"}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Additional Notes */}
               {(viewDetailsTask?.notes_extra_instructions || viewDetailsTask?.additional_details) && (
