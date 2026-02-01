@@ -742,6 +742,19 @@ const PMDashboard = () => {
                         <div className="text-sm text-muted-foreground">
                           Created: <span className="font-medium">{format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
                         </div>
+                        {(task.customer_name || task.customer_email || task.customer_phone) && (
+                          <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4">
+                            {task.customer_name && (
+                              <span>Customer: <span className="font-medium">{task.customer_name}</span></span>
+                            )}
+                            {task.customer_email && (
+                              <span>Email: <span className="font-medium">{task.customer_email}</span></span>
+                            )}
+                            {task.customer_phone && (
+                              <span>Phone: <span className="font-medium">{task.customer_phone}</span></span>
+                            )}
+                          </div>
+                        )}
                         <div className="text-sm text-muted-foreground">
                           {isWebsiteOrder(task) ? (
                             <>
