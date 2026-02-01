@@ -1056,6 +1056,35 @@ const PMDashboard = () => {
                     <Label className="text-muted-foreground">Design References</Label>
                     <p className="font-medium">{viewDetailsTask?.design_references || "N/A"}</p>
                   </div>
+                  
+                  {/* Logo Files for Website Orders */}
+                  {viewDetailsTask?.logo_url && (
+                    <div className="space-y-3">
+                      <Label className="text-muted-foreground">Logo Files</Label>
+                      <div className="space-y-3">
+                        {viewDetailsTask.logo_url.split('|||').map((filePath: string, index: number) => {
+                          const fileName = filePath.split('/').pop() || `logo_${index + 1}`;
+                          return (
+                            <div key={index} className="p-3 bg-muted/30 rounded">
+                              <FilePreview 
+                                filePath={filePath.trim()}
+                                fileName={fileName.trim()}
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="mt-3 w-full"
+                                onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                              >
+                                <Download className="h-3 w-3 mr-2" />
+                                Download {fileName.trim()}
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
