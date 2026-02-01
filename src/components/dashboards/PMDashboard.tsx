@@ -43,6 +43,7 @@ const PMDashboard = () => {
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
+  const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: teams } = useQuery({
@@ -392,11 +393,30 @@ const PMDashboard = () => {
     // Search filter - if searching, show all matching tasks regardless of status
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      return task.title?.toLowerCase().includes(query) ||
+      const matchesSearch = task.title?.toLowerCase().includes(query) ||
         task.task_number?.toString().includes(query) ||
         task.business_name?.toLowerCase().includes(query) ||
         task.description?.toLowerCase().includes(query) ||
         `#${task.task_number}`.includes(query);
+      
+      // Still apply order type filter even when searching
+      if (orderTypeFilter) {
+        const matchesOrderType = 
+          (orderTypeFilter === 'logo' && task.post_type === 'Logo Design') ||
+          (orderTypeFilter === 'social_media' && task.post_type !== 'Logo Design' && task.post_type !== 'Website Design') ||
+          (orderTypeFilter === 'website' && task.post_type === 'Website Design');
+        return matchesSearch && matchesOrderType;
+      }
+      return matchesSearch;
+    }
+    
+    // Order type filter
+    if (orderTypeFilter) {
+      const matchesOrderType = 
+        (orderTypeFilter === 'logo' && task.post_type === 'Logo Design') ||
+        (orderTypeFilter === 'social_media' && task.post_type !== 'Logo Design' && task.post_type !== 'Website Design') ||
+        (orderTypeFilter === 'website' && task.post_type === 'Website Design');
+      if (!matchesOrderType) return false;
     }
     
     // Status filter (only applied when not searching)
@@ -460,18 +480,53 @@ const PMDashboard = () => {
         </div>
         
         <div className="flex justify-between items-center mb-4">
-          <Button
-            variant={statusFilter === 'priority' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('priority')}
-          >
-            Priority View
-          </Button>
-          <Button
-            variant={!statusFilter ? 'default' : 'outline'}
-            onClick={() => setStatusFilter(null)}
-          >
-            All Tasks
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant={statusFilter === 'priority' ? 'default' : 'outline'}
+              onClick={() => setStatusFilter('priority')}
+            >
+              Priority View
+            </Button>
+            <Button
+              variant={!statusFilter ? 'default' : 'outline'}
+              onClick={() => setStatusFilter(null)}
+            >
+              All Tasks
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={!orderTypeFilter ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setOrderTypeFilter(null)}
+            >
+              All Types
+            </Button>
+            <Button
+              variant={orderTypeFilter === 'logo' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setOrderTypeFilter('logo')}
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              Logo
+            </Button>
+            <Button
+              variant={orderTypeFilter === 'social_media' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setOrderTypeFilter('social_media')}
+            >
+              <FolderKanban className="h-4 w-4 mr-1" />
+              Social Media
+            </Button>
+            <Button
+              variant={orderTypeFilter === 'website' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setOrderTypeFilter('website')}
+            >
+              <Globe className="h-4 w-4 mr-1" />
+              Website
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-5 mb-8">
