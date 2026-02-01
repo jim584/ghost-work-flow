@@ -755,6 +755,19 @@ const PMDashboard = () => {
                             )}
                           </div>
                         )}
+                        {(task.amount_total || task.amount_paid || task.amount_pending) && (
+                          <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4">
+                            {task.amount_total != null && (
+                              <span>Total: <span className="font-medium">₹{task.amount_total}</span></span>
+                            )}
+                            {task.amount_paid != null && (
+                              <span>Paid: <span className="font-medium text-green-600">₹{task.amount_paid}</span></span>
+                            )}
+                            {task.amount_pending != null && task.amount_pending > 0 && (
+                              <span>Pending: <span className="font-medium text-orange-600">₹{task.amount_pending}</span></span>
+                            )}
+                          </div>
+                        )}
                         <div className="text-sm text-muted-foreground">
                           {isWebsiteOrder(task) ? (
                             <>
