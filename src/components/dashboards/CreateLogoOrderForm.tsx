@@ -310,7 +310,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Assign to Designer Team(s) *</Label>
+              <Label>Assign to Team(s) *</Label>
               <Button 
                 type="button" 
                 variant="ghost" 

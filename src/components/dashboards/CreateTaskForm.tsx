@@ -305,7 +305,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
           </div>
 
           <div className="space-y-2">
-            <Label>Assign to Designer Team(s) *</Label>
+            <Label>Assign to Team(s) *</Label>
             <div className="space-y-2 p-3 border rounded-md">
               <Button
                 type="button"
