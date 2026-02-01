@@ -1044,41 +1044,17 @@ const PMDashboard = () => {
                   <h3 className="font-semibold text-lg border-b pb-2">Website Details</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-muted-foreground">Website Type</Label>
-                      <p className="font-medium">{viewDetailsTask?.website_type || "N/A"}</p>
-                    </div>
-                    <div>
                       <Label className="text-muted-foreground">Number of Pages</Label>
                       <p className="font-medium">{viewDetailsTask?.number_of_pages || "N/A"}</p>
                     </div>
-                    <div>
-                      <Label className="text-muted-foreground">Domain & Hosting</Label>
-                      <p className="font-medium">{viewDetailsTask?.domain_hosting_status || "N/A"}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Content Provided</Label>
-                      <p className="font-medium">{viewDetailsTask?.content_provided ? "Yes" : "No"}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Timeline</Label>
-                      <p className="font-medium">{viewDetailsTask?.website_deadline_type || "N/A"}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Design Style</Label>
-                      <p className="font-medium">{viewDetailsTask?.design_style || "N/A"}</p>
-                    </div>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Website Features</Label>
-                    <p className="font-medium">{viewDetailsTask?.website_features || "N/A"}</p>
+                    <Label className="text-muted-foreground">Supporting Text</Label>
+                    <p className="font-medium whitespace-pre-wrap">{viewDetailsTask?.supporting_text || "N/A"}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Design References</Label>
                     <p className="font-medium">{viewDetailsTask?.design_references || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Description</Label>
-                    <p className="font-medium">{viewDetailsTask?.description || "N/A"}</p>
                   </div>
                 </div>
               )}
