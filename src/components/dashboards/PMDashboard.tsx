@@ -1229,7 +1229,7 @@ const PMDashboard = () => {
                     {viewDetailsTask?.notes_extra_instructions && (
                       <div>
                         <Label className="text-muted-foreground">Extra Instructions</Label>
-                        <p className="font-medium">{viewDetailsTask.notes_extra_instructions}</p>
+                        <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.notes_extra_instructions}</p>
                       </div>
                     )}
                     {viewDetailsTask?.additional_details && (
