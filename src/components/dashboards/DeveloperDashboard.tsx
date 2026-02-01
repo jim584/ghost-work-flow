@@ -54,7 +54,7 @@ const DeveloperDashboard = () => {
 
   // Helper function to check if a task is a website order
   const isWebsiteOrder = (task: any) => {
-    return task.website_type !== null && task.website_type !== undefined;
+    return task.post_type === 'Website Design';
   };
 
   const { data: tasks } = useQuery({
