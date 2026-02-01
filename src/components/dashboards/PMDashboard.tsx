@@ -55,6 +55,45 @@ const PMDashboard = () => {
     },
   });
 
+  // Fetch designer teams only (exclude developer-only teams) for logo/social media orders
+  const { data: designerTeams } = useQuery({
+    queryKey: ["designer-teams"],
+    queryFn: async () => {
+      // Get all team members who are designers
+      const { data: designerRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "designer");
+      
+      if (rolesError) throw rolesError;
+      
+      const designerUserIds = designerRoles?.map(r => r.user_id) || [];
+      
+      if (designerUserIds.length === 0) return [];
+      
+      // Get teams that have designers
+      const { data: designerTeamMembers, error: membersError } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .in("user_id", designerUserIds);
+      
+      if (membersError) throw membersError;
+      
+      const designerTeamIds = [...new Set(designerTeamMembers?.map(m => m.team_id) || [])];
+      
+      if (designerTeamIds.length === 0) return [];
+      
+      // Get the actual team data
+      const { data: teamsData, error: teamsError } = await supabase
+        .from("teams")
+        .select("*")
+        .in("id", designerTeamIds);
+      
+      if (teamsError) throw teamsError;
+      return teamsData;
+    },
+  });
+
   // Fetch developer profiles for website orders (team members with developer role)
   const { data: developerProfiles } = useQuery({
     queryKey: ["developer-profiles"],
@@ -663,7 +702,7 @@ const PMDashboard = () => {
                     </DialogHeader>
                     <CreateTaskForm 
                       userId={user!.id} 
-                      teams={teams || []} 
+                      teams={designerTeams || []} 
                       onSuccess={() => {
                         setOpen(false);
                         setTaskType(null);
@@ -677,7 +716,7 @@ const PMDashboard = () => {
                     </DialogHeader>
                     <CreateLogoOrderForm 
                       userId={user!.id} 
-                      teams={teams || []} 
+                      teams={designerTeams || []} 
                       onSuccess={() => {
                         setOpen(false);
                         setTaskType(null);
