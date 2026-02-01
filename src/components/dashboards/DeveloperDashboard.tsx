@@ -842,23 +842,26 @@ const DeveloperDashboard = () => {
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg border-b pb-2">Logo Files</h3>
                   <div className="space-y-2">
-                    {viewDetailsTask.logo_url.split('|||').map((filePath: string, index: number) => (
-                      <div key={index} className="p-3 bg-muted/30 rounded">
-                        <FilePreview 
-                          filePath={filePath.trim()}
-                          fileName={`Logo ${index + 1}`}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-3 w-full"
-                          onClick={() => handleDownload(filePath.trim(), `logo_${index + 1}`)}
-                        >
-                          <Download className="h-3 w-3 mr-2" />
-                          Download
-                        </Button>
-                      </div>
-                    ))}
+                    {viewDetailsTask.logo_url.split('|||').map((filePath: string, index: number) => {
+                      const fileName = filePath.split('/').pop() || `logo_${index + 1}`;
+                      return (
+                        <div key={index} className="p-3 bg-muted/30 rounded">
+                          <FilePreview 
+                            filePath={filePath.trim()}
+                            fileName={fileName.trim()}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-3 w-full"
+                            onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                          >
+                            <Download className="h-3 w-3 mr-2" />
+                            Download {fileName.trim()}
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
