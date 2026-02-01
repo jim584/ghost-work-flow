@@ -145,6 +145,8 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           team_id: nextTeamId,
           project_manager_id: userId,
           business_name: formData.business_name,
+          business_email: formData.business_email || null,
+          business_phone: formData.business_phone || null,
           industry: formData.industry,
           website_url: formData.website_url,
           post_type: "Website Design",
@@ -157,6 +159,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           status: "pending" as const,
           // Website specific fields
           number_of_pages: formData.number_of_pages,
+          video_keywords: formData.video_keywords || null,
           design_references: formData.design_references,
           // Customer & Payment fields
           customer_name: formData.customer_name || null,
