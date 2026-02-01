@@ -55,35 +55,6 @@ const PMDashboard = () => {
     },
   });
 
-  // Fetch designer teams only (teams with members who have designer role, not developer)
-  const { data: designerTeams } = useQuery({
-    queryKey: ["designer-teams"],
-    queryFn: async () => {
-      // Get team IDs that have designers (not developers)
-      const { data: designerTeamIds, error: roleError } = await supabase
-        .from("team_members")
-        .select(`
-          team_id,
-          user_roles!inner(role)
-        `)
-        .eq("user_roles.role", "designer");
-      
-      if (roleError) throw roleError;
-      
-      const teamIds = [...new Set(designerTeamIds?.map(d => d.team_id) || [])];
-      
-      if (teamIds.length === 0) return [];
-      
-      const { data, error } = await supabase
-        .from("teams")
-        .select("*")
-        .in("id", teamIds);
-      
-      if (error) throw error;
-      return data;
-    },
-  });
-
   // Fetch developer profiles for website orders (team members with developer role)
   const { data: developerProfiles } = useQuery({
     queryKey: ["developer-profiles"],
@@ -692,7 +663,7 @@ const PMDashboard = () => {
                     </DialogHeader>
                     <CreateTaskForm 
                       userId={user!.id} 
-                      teams={designerTeams || []}
+                      teams={teams || []} 
                       onSuccess={() => {
                         setOpen(false);
                         setTaskType(null);
@@ -706,7 +677,7 @@ const PMDashboard = () => {
                     </DialogHeader>
                     <CreateLogoOrderForm 
                       userId={user!.id} 
-                      teams={designerTeams || []}
+                      teams={teams || []} 
                       onSuccess={() => {
                         setOpen(false);
                         setTaskType(null);
