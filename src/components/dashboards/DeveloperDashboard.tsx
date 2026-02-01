@@ -789,6 +789,18 @@ const DeveloperDashboard = () => {
                     <Label className="text-muted-foreground">Team</Label>
                     <p className="font-medium">{viewDetailsTask?.teams?.name}</p>
                   </div>
+                  {viewDetailsTask?.business_email && (
+                    <div>
+                      <Label className="text-muted-foreground">Business Email</Label>
+                      <p className="font-medium">{viewDetailsTask.business_email}</p>
+                    </div>
+                  )}
+                  {viewDetailsTask?.business_phone && (
+                    <div>
+                      <Label className="text-muted-foreground">Business Phone</Label>
+                      <p className="font-medium">{viewDetailsTask.business_phone}</p>
+                    </div>
+                  )}
                   <div>
                     <Label className="text-muted-foreground">Deadline</Label>
                     <p className="font-medium">{viewDetailsTask?.deadline ? new Date(viewDetailsTask.deadline).toLocaleDateString() : "N/A"}</p>
