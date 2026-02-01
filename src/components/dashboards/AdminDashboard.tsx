@@ -45,7 +45,7 @@ const AdminDashboard = () => {
     password: "", 
     full_name: "", 
     team_name: "", 
-    role: "designer" as "admin" | "project_manager" | "designer" 
+    role: "designer" as "admin" | "project_manager" | "designer" | "developer" 
   });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
@@ -160,7 +160,7 @@ const AdminDashboard = () => {
       password: string; 
       full_name: string; 
       team_name: string;
-      role: "admin" | "project_manager" | "designer";
+      role: "admin" | "project_manager" | "designer" | "developer";
     }) => {
       // Validate password
       passwordSchema.parse(userData.password);
@@ -228,7 +228,7 @@ const AdminDashboard = () => {
   });
 
   const assignRole = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "project_manager" | "designer" }) => {
+    mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "project_manager" | "designer" | "developer" }) => {
       const { error } = await supabase.rpc('admin_set_user_role', {
         target_user_id: userId,
         role_name: role,
@@ -1465,7 +1465,7 @@ const AdminDashboard = () => {
               <Label htmlFor="new-user-role">Role *</Label>
               <Select
                 value={newUserData.role}
-                onValueChange={(value: "admin" | "project_manager" | "designer") => 
+                onValueChange={(value: "admin" | "project_manager" | "designer" | "developer") => 
                   setNewUserData({ ...newUserData, role: value })
                 }
               >
@@ -1474,6 +1474,7 @@ const AdminDashboard = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="designer">Designer</SelectItem>
+                  <SelectItem value="developer">Developer</SelectItem>
                   <SelectItem value="project_manager">Project Manager</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
@@ -1522,13 +1523,13 @@ const AdminDashboard = () => {
               />
             </div>
             
-            {newUserData.role === "designer" && (
+            {(newUserData.role === "designer" || newUserData.role === "developer") && (
               <div className="space-y-2">
                 <Label htmlFor="new-user-team-name">Team Name</Label>
                 <Input
                   id="new-user-team-name"
                   type="text"
-                  placeholder="e.g., Logo Team A"
+                  placeholder={newUserData.role === "developer" ? "e.g., Web Dev Team A" : "e.g., Logo Team A"}
                   value={newUserData.team_name}
                   onChange={(e) => setNewUserData({ ...newUserData, team_name: e.target.value })}
                 />
