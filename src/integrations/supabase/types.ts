@@ -183,7 +183,9 @@ export type Database = {
           attachment_file_name: string | null
           attachment_file_path: string | null
           brand_colors: string | null
+          business_email: string | null
           business_name: string | null
+          business_phone: string | null
           competitors_inspiration: string | null
           content_provided: boolean | null
           created_at: string | null
@@ -230,6 +232,7 @@ export type Database = {
           title: string
           updated_at: string | null
           usage_type: string | null
+          video_keywords: string | null
           website_deadline_type: string | null
           website_features: string | null
           website_type: string | null
@@ -243,7 +246,9 @@ export type Database = {
           attachment_file_name?: string | null
           attachment_file_path?: string | null
           brand_colors?: string | null
+          business_email?: string | null
           business_name?: string | null
+          business_phone?: string | null
           competitors_inspiration?: string | null
           content_provided?: boolean | null
           created_at?: string | null
@@ -290,6 +295,7 @@ export type Database = {
           title: string
           updated_at?: string | null
           usage_type?: string | null
+          video_keywords?: string | null
           website_deadline_type?: string | null
           website_features?: string | null
           website_type?: string | null
@@ -303,7 +309,9 @@ export type Database = {
           attachment_file_name?: string | null
           attachment_file_path?: string | null
           brand_colors?: string | null
+          business_email?: string | null
           business_name?: string | null
+          business_phone?: string | null
           competitors_inspiration?: string | null
           content_provided?: boolean | null
           created_at?: string | null
@@ -350,6 +358,7 @@ export type Database = {
           title?: string
           updated_at?: string | null
           usage_type?: string | null
+          video_keywords?: string | null
           website_deadline_type?: string | null
           website_features?: string | null
           website_type?: string | null

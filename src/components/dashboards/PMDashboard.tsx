@@ -976,6 +976,18 @@ const PMDashboard = () => {
                     <Label className="text-muted-foreground">Website</Label>
                     <p className="font-medium text-primary break-all">{viewDetailsTask?.website_url || "N/A"}</p>
                   </div>
+                  {isWebsiteOrder(viewDetailsTask) && (
+                    <>
+                      <div>
+                        <Label className="text-muted-foreground">Business Email</Label>
+                        <p className="font-medium">{(viewDetailsTask as any)?.business_email || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Business Phone</Label>
+                        <p className="font-medium">{(viewDetailsTask as any)?.business_phone || "N/A"}</p>
+                      </div>
+                    </>
+                  )}
                   <div>
                     <Label className="text-muted-foreground">Deadline</Label>
                     <p className="font-medium">{viewDetailsTask?.deadline ? new Date(viewDetailsTask.deadline).toLocaleDateString() : "N/A"}</p>
@@ -1046,6 +1058,10 @@ const PMDashboard = () => {
                     <div>
                       <Label className="text-muted-foreground">Number of Pages</Label>
                       <p className="font-medium">{viewDetailsTask?.number_of_pages || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Video Keywords</Label>
+                      <p className="font-medium">{(viewDetailsTask as any)?.video_keywords || "N/A"}</p>
                     </div>
                   </div>
                   <div>
