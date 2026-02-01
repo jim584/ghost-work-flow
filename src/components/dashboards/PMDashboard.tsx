@@ -46,18 +46,21 @@ const PMDashboard = () => {
   const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const isAuthed = !!user?.id;
+
   const { data: teams } = useQuery({
-    queryKey: ["teams"],
+    queryKey: ["teams", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("teams").select("*");
       if (error) throw error;
       return data;
     },
+    enabled: isAuthed,
   });
 
   // Fetch designer teams only (teams with designer role members)
   const { data: designerTeams } = useQuery({
-    queryKey: ["designer-teams"],
+    queryKey: ["designer-teams", user?.id],
     queryFn: async () => {
       // Get team IDs that have designer members
       const { data: designerMembers, error: membersError } = await supabase
@@ -86,11 +89,12 @@ const PMDashboard = () => {
 
       return allTeams?.filter(t => designerTeamIds.has(t.id)) || [];
     },
+    enabled: isAuthed,
   });
 
   // Fetch developer profiles for website orders (team members with developer role)
   const { data: developerProfiles } = useQuery({
-    queryKey: ["developer-profiles"],
+    queryKey: ["developer-profiles", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("team_members")
@@ -102,6 +106,7 @@ const PMDashboard = () => {
       if (error) throw error;
       return data;
     },
+    enabled: isAuthed,
   });
 
   // Helper to get developer name for a team
@@ -125,6 +130,7 @@ const PMDashboard = () => {
       if (error) throw error;
       return data;
     },
+    enabled: isAuthed,
   });
 
   // Query for all tasks (used when searching) - PMs can view via admin-like search
@@ -140,7 +146,7 @@ const PMDashboard = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!searchQuery.trim(), // Only fetch when searching
+    enabled: isAuthed && !!searchQuery.trim(), // Only fetch when searching
   });
 
   // Use allTasks when searching, otherwise use myTasks
