@@ -812,38 +812,7 @@ const DeveloperDashboard = () => {
                 </div>
               </div>
 
-              {/* Customer Information */}
-              {(viewDetailsTask?.customer_name || viewDetailsTask?.customer_email || viewDetailsTask?.customer_phone || viewDetailsTask?.customer_domain) && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-lg border-b pb-2">Customer Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {viewDetailsTask?.customer_name && (
-                      <div>
-                        <Label className="text-muted-foreground">Customer Name</Label>
-                        <p className="font-medium">{viewDetailsTask.customer_name}</p>
-                      </div>
-                    )}
-                    {viewDetailsTask?.customer_email && (
-                      <div>
-                        <Label className="text-muted-foreground">Customer Email</Label>
-                        <p className="font-medium">{viewDetailsTask.customer_email}</p>
-                      </div>
-                    )}
-                    {viewDetailsTask?.customer_phone && (
-                      <div>
-                        <Label className="text-muted-foreground">Customer Phone</Label>
-                        <p className="font-medium">{viewDetailsTask.customer_phone}</p>
-                      </div>
-                    )}
-                    {viewDetailsTask?.customer_domain && (
-                      <div>
-                        <Label className="text-muted-foreground">Customer Domain</Label>
-                        <p className="font-medium break-all">{viewDetailsTask.customer_domain}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+
 
               {/* Website Details */}
               <div className="space-y-3">
