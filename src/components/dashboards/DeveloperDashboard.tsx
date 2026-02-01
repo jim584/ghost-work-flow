@@ -794,65 +794,103 @@ const DeveloperDashboard = () => {
                     <p className="font-medium">{viewDetailsTask?.deadline ? new Date(viewDetailsTask.deadline).toLocaleDateString() : "N/A"}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Deadline Type</Label>
-                    <p className="font-medium">{viewDetailsTask?.website_deadline_type || "N/A"}</p>
+                    <Label className="text-muted-foreground">Current Website</Label>
+                    <p className="font-medium break-all">{viewDetailsTask?.website_url || "N/A"}</p>
                   </div>
                 </div>
               </div>
+
+              {/* Customer Information */}
+              {(viewDetailsTask?.customer_name || viewDetailsTask?.customer_email || viewDetailsTask?.customer_phone || viewDetailsTask?.customer_domain) && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Customer Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {viewDetailsTask?.customer_name && (
+                      <div>
+                        <Label className="text-muted-foreground">Customer Name</Label>
+                        <p className="font-medium">{viewDetailsTask.customer_name}</p>
+                      </div>
+                    )}
+                    {viewDetailsTask?.customer_email && (
+                      <div>
+                        <Label className="text-muted-foreground">Customer Email</Label>
+                        <p className="font-medium">{viewDetailsTask.customer_email}</p>
+                      </div>
+                    )}
+                    {viewDetailsTask?.customer_phone && (
+                      <div>
+                        <Label className="text-muted-foreground">Customer Phone</Label>
+                        <p className="font-medium">{viewDetailsTask.customer_phone}</p>
+                      </div>
+                    )}
+                    {viewDetailsTask?.customer_domain && (
+                      <div>
+                        <Label className="text-muted-foreground">Customer Domain</Label>
+                        <p className="font-medium break-all">{viewDetailsTask.customer_domain}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Website Details */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Website Details</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-muted-foreground">Website Type</Label>
-                    <p className="font-medium">{viewDetailsTask?.website_type || "N/A"}</p>
-                  </div>
-                  <div>
                     <Label className="text-muted-foreground">Number of Pages</Label>
                     <p className="font-medium">{viewDetailsTask?.number_of_pages || "N/A"}</p>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Domain/Hosting Status</Label>
-                    <p className="font-medium">{viewDetailsTask?.domain_hosting_status || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Content Provided</Label>
-                    <p className="font-medium">{viewDetailsTask?.content_provided ? "Yes" : "No"}</p>
-                  </div>
+                  {viewDetailsTask?.video_keywords && (
+                    <div>
+                      <Label className="text-muted-foreground">Video Keywords</Label>
+                      <p className="font-medium">{viewDetailsTask.video_keywords}</p>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Website Features</Label>
-                  <p className="font-medium">{viewDetailsTask?.website_features || "N/A"}</p>
-                </div>
+                {viewDetailsTask?.design_references && (
+                  <div>
+                    <Label className="text-muted-foreground">Design References/Inspiration</Label>
+                    <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.design_references}</p>
+                  </div>
+                )}
               </div>
 
-              {/* Design Requirements */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg border-b pb-2">Design Requirements</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Design Style</Label>
-                    <p className="font-medium">{viewDetailsTask?.design_style || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Brand Colors</Label>
-                    <p className="font-medium">{viewDetailsTask?.brand_colors || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Fonts</Label>
-                    <p className="font-medium">{viewDetailsTask?.fonts || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Logo URL</Label>
-                    <p className="font-medium break-all text-primary">{viewDetailsTask?.logo_url || "N/A"}</p>
+              {/* Logo Files */}
+              {viewDetailsTask?.logo_url && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Logo Files</h3>
+                  <div className="space-y-2">
+                    {viewDetailsTask.logo_url.split('|||').map((filePath: string, index: number) => (
+                      <div key={index} className="p-3 bg-muted/30 rounded">
+                        <FilePreview 
+                          filePath={filePath.trim()}
+                          fileName={`Logo ${index + 1}`}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-3 w-full"
+                          onClick={() => handleDownload(filePath.trim(), `logo_${index + 1}`)}
+                        >
+                          <Download className="h-3 w-3 mr-2" />
+                          Download
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Design References</Label>
-                  <p className="font-medium">{viewDetailsTask?.design_references || "N/A"}</p>
+              )}
+
+              {/* Business Description */}
+              {viewDetailsTask?.supporting_text && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Business Description</h3>
+                  <div className="p-3 bg-muted/30 rounded">
+                    <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.supporting_text}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Additional Notes/Instructions */}
               {viewDetailsTask?.notes_extra_instructions && (
@@ -864,20 +902,10 @@ const DeveloperDashboard = () => {
                 </div>
               )}
 
-              {/* Description */}
-              {viewDetailsTask?.description && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-lg border-b pb-2">Description</h3>
-                  <div className="p-3 bg-muted/30 rounded">
-                    <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.description}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Attachments */}
+              {/* Reference Attachments */}
               {viewDetailsTask?.attachment_file_path && (
                 <div className="space-y-3">
-                  <h3 className="font-semibold text-lg border-b pb-2">Task Attachments</h3>
+                  <h3 className="font-semibold text-lg border-b pb-2">Reference Files</h3>
                   <div className="space-y-2">
                     {viewDetailsTask.attachment_file_path.split('|||').map((filePath: string, index: number) => {
                       const fileNames = viewDetailsTask.attachment_file_name?.split('|||') || [];
