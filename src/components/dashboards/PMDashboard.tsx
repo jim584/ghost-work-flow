@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2, Globe } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -728,142 +728,243 @@ const PMDashboard = () => {
                   return null;
                 };
                 
+                const getOrderTypeIcon = () => {
+                  if (isWebsiteOrder(task)) return <Globe className="h-5 w-5 text-blue-500" />;
+                  if (isLogoOrder(task)) return <Palette className="h-5 w-5 text-purple-500" />;
+                  return <Image className="h-5 w-5 text-pink-500" />;
+                };
+
+                const getOrderTypeBadge = () => {
+                  if (isWebsiteOrder(task)) return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">Website</Badge>;
+                  if (isLogoOrder(task)) return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">Logo</Badge>;
+                  return <Badge variant="outline" className="bg-pink-500/10 text-pink-600 border-pink-200">Social Media</Badge>;
+                };
+
                 return (
-                  <div key={task.id} className={`border rounded-lg ${getBorderClass()}`}>
-                    <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-sm text-muted-foreground">
-                            #{task.task_number}
-                          </span>
-                          <h3 className="font-semibold">{task.title}</h3>
+                  <div 
+                    key={task.id} 
+                    className={`group border rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden animate-fade-in ${getBorderClass()}`}
+                  >
+                    {/* Card Header */}
+                    <div className="p-4 bg-gradient-to-r from-muted/30 to-transparent border-b">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="p-2 rounded-lg bg-background shadow-sm">
+                            {getOrderTypeIcon()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs px-2 py-0.5 bg-muted rounded-full text-muted-foreground">
+                                #{task.task_number}
+                              </span>
+                              {getOrderTypeBadge()}
+                              {getCategoryBadge()}
+                            </div>
+                            <h3 className="font-semibold text-lg mt-1 truncate">{task.title}</h3>
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">{task.description}</p>
-                        <div className="text-sm text-muted-foreground">
-                          Created: <span className="font-medium">{format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Badge className={`${getStatusColor(task.status)} shadow-sm`}>
+                            {task.status.replace("_", " ")}
+                          </Badge>
+                          {task.status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 hover:bg-destructive/10"
+                              onClick={() => setDeleteTaskId(task.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="p-4 space-y-4">
+                      {task.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
+                      )}
+
+                      {/* Info Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {/* Customer Info */}
                         {(task.customer_name || task.customer_email || task.customer_phone) && (
-                          <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4">
-                            {task.customer_name && (
-                              <span>Customer: <span className="font-medium">{task.customer_name}</span></span>
-                            )}
-                            {task.customer_email && (
-                              <span>Email: <span className="font-medium">{task.customer_email}</span></span>
-                            )}
-                            {task.customer_phone && (
-                              <span>Phone: <span className="font-medium">{task.customer_phone}</span></span>
-                            )}
+                          <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                              <User className="h-3.5 w-3.5" />
+                              Customer
+                            </div>
+                            <div className="space-y-1">
+                              {task.customer_name && (
+                                <p className="text-sm font-medium truncate">{task.customer_name}</p>
+                              )}
+                              {task.customer_email && (
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <Mail className="h-3 w-3" />
+                                  <span className="truncate">{task.customer_email}</span>
+                                </div>
+                              )}
+                              {task.customer_phone && (
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <Phone className="h-3 w-3" />
+                                  <span>{task.customer_phone}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
+
+                        {/* Payment Info */}
                         {(task.amount_total || task.amount_paid || task.amount_pending) && (
-                          <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4">
-                            {task.amount_total != null && (
-                              <span>Total: <span className="font-medium">${task.amount_total}</span></span>
-                            )}
-                            {task.amount_paid != null && (
-                              <span>Paid: <span className="font-medium text-green-600">${task.amount_paid}</span></span>
-                            )}
-                            {task.amount_pending != null && task.amount_pending > 0 && (
-                              <span>Pending: <span className="font-medium text-orange-600">${task.amount_pending}</span></span>
-                            )}
+                          <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                              <DollarSign className="h-3.5 w-3.5" />
+                              Payment
+                            </div>
+                            <div className="space-y-1">
+                              {task.amount_total != null && (
+                                <p className="text-sm font-semibold">${Number(task.amount_total).toFixed(2)}</p>
+                              )}
+                              <div className="flex items-center gap-3 text-xs">
+                                {task.amount_paid != null && (
+                                  <span className="text-green-600 font-medium">
+                                    ✓ ${Number(task.amount_paid).toFixed(2)} paid
+                                  </span>
+                                )}
+                                {task.amount_pending != null && task.amount_pending > 0 && (
+                                  <span className="text-orange-600 font-medium">
+                                    ○ ${Number(task.amount_pending).toFixed(2)} pending
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         )}
-                        <div className="text-sm text-muted-foreground">
-                          {isWebsiteOrder(task) ? (
-                            <>
-                              Developer: <span className="font-medium">{getDeveloperForTeam(task.team_id) || task.teams?.name}</span>
-                            </>
-                          ) : (
-                            <>
-                              Team: <span className="font-medium">{task.teams?.name}</span>
-                            </>
-                          )}
-                          {taskSubmissions.length > 0 && (
-                            <span className="ml-2 text-primary">
-                              • {taskSubmissions.length} file(s) submitted
-                            </span>
-                          )}
+
+                        {/* Assignment & Date Info */}
+                        <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            <Users className="h-3.5 w-3.5" />
+                            Assignment
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium">
+                              {isWebsiteOrder(task) 
+                                ? getDeveloperForTeam(task.team_id) || task.teams?.name
+                                : task.teams?.name
+                              }
+                            </p>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              <span>{format(new Date(task.created_at), 'MMM d, yyyy')}</span>
+                            </div>
+                            {taskSubmissions.length > 0 && (
+                              <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
+                                <FileText className="h-3 w-3" />
+                                <span>{taskSubmissions.length} file(s) submitted</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex gap-2 mt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setViewDetailsTask(task)}
-                          >
-                            <FileText className="h-3 w-3 mr-1" />
-                            View Details
-                          </Button>
-                        </div>
-                        {task.attachment_file_path && (
-                          <div className="mt-3 space-y-2">
-                            <p className="text-xs text-muted-foreground">Task Attachments ({task.attachment_file_path.split('|||').length}):</p>
-                            {task.attachment_file_path.split('|||').map((filePath: string, index: number) => {
+                      </div>
+
+                      {/* Attachments */}
+                      {task.attachment_file_path && (
+                        <div className="pt-2 border-t">
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Attachments ({task.attachment_file_path.split('|||').length})
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {task.attachment_file_path.split('|||').slice(0, 3).map((filePath: string, index: number) => {
                               const fileName = task.attachment_file_name?.split('|||')[index] || `attachment_${index + 1}`;
                               return (
-                                <div key={index} className="p-2 bg-muted/30 rounded border">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <FilePreview 
-                                      filePath={filePath.trim()}
-                                      fileName={fileName.trim()}
-                                      className="w-10 h-10"
-                                    />
-                                    <span className="text-xs flex-1 truncate">{fileName.trim()}</span>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                    >
-                                      <Download className="h-3 w-3" />
-                                    </Button>
-                                  </div>
+                                <div key={index} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg border hover:border-primary/50 transition-colors">
+                                  <FilePreview 
+                                    filePath={filePath.trim()}
+                                    fileName={fileName.trim()}
+                                    className="w-8 h-8"
+                                  />
+                                  <span className="text-xs max-w-[100px] truncate">{fileName.trim()}</span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </Button>
                                 </div>
                               );
                             })}
+                            {task.attachment_file_path.split('|||').length > 3 && (
+                              <span className="text-xs text-muted-foreground self-center">
+                                +{task.attachment_file_path.split('|||').length - 3} more
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {getCategoryBadge()}
-                        <Badge className={getStatusColor(task.status)}>
-                          {task.status.replace("_", " ")}
-                        </Badge>
-                        {task.status === "pending" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setDeleteTaskId(task.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        )}
-                        {taskSubmissions.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
-                          >
-                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          </Button>
-                        )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="px-4 py-3 bg-muted/20 border-t flex items-center justify-between gap-2">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="hover-scale"
+                          onClick={() => setViewDetailsTask(task)}
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-1.5" />
+                          View Details
+                        </Button>
                         {task.status === "completed" && (
                           <Button
                             size="sm"
+                            className="bg-green-600 hover:bg-green-700 hover-scale"
                             onClick={() =>
                               updateTaskStatus.mutate({ taskId: task.id, status: "approved" })
                             }
                           >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
                             Approve
                           </Button>
                         )}
                       </div>
+                      {taskSubmissions.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1"
+                          onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp className="h-4 w-4" />
+                              Hide Files
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-4 w-4" />
+                              Show Files
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </div>
-                    
+
+                    {/* Expanded Submissions */}
                     {isExpanded && taskSubmissions.length > 0 && (
-                      <div className="border-t bg-muted/20 p-4">
-                        <h4 className="text-sm font-semibold mb-3">Submitted Files:</h4>
+                      <div className="border-t bg-muted/10 p-4 animate-fade-in">
+                        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Submitted Files
+                        </h4>
                         <div className="space-y-2">
                           {taskSubmissions.map((submission) => (
-                            <div key={submission.id} className="flex items-center gap-3 justify-between bg-background p-3 rounded-md">
+                            <div key={submission.id} className="flex items-center gap-3 justify-between bg-background p-3 rounded-lg border hover:border-primary/30 transition-colors">
                               <FilePreview 
                                 filePath={submission.file_path}
                                 fileName={submission.file_name}
@@ -874,100 +975,53 @@ const PMDashboard = () => {
                                   <Badge 
                                     variant={
                                       submission.revision_status === "approved" ? "default" :
-                                      submission.revision_status === "needs_revision" ? "destructive" : 
-                                      "secondary"
+                                      submission.revision_status === "needs_revision" ? "destructive" : "secondary"
                                     }
                                     className="text-xs"
                                   >
-                                    {submission.revision_status?.replace("_", " ")}
+                                    {submission.revision_status === "pending_review" ? "Pending Review" : 
+                                     submission.revision_status === "needs_revision" ? "Needs Revision" : "Approved"}
                                   </Badge>
                                 </div>
-                                 <p className="text-xs text-muted-foreground">
-                                   Delivered: {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
-                                 </p>
-                                 {submission.designer_comment && (
-                                   <div className="mt-2 p-2 bg-primary/10 rounded text-xs">
-                                     <span className="font-medium text-primary">Designer comment:</span>
-                                     <p className="text-muted-foreground mt-1">{submission.designer_comment}</p>
-                                   </div>
-                                 )}
-                                 {submission.revision_notes && (
-                                   <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
-                                     <div className="flex items-center justify-between mb-1">
-                                       <span className="font-medium text-destructive">Revision notes:</span>
-                                       {submission.reviewed_at && (
-                                         <span className="text-xs text-muted-foreground">
-                                           {format(new Date(submission.reviewed_at), 'MMM d, yyyy h:mm a')}
-                                         </span>
-                                       )}
-                                     </div>
-                                     <p className="text-muted-foreground">{submission.revision_notes}</p>
-                                     {submission.revision_reference_file_path && (
-                                       <div className="mt-3 space-y-2">
-                                         <span className="text-xs font-medium text-muted-foreground">Reference files:</span>
-                                         <div className="flex flex-wrap gap-3">
-                                           {submission.revision_reference_file_path.split("|||").map((filePath, fileIndex) => {
-                                             const fileNames = submission.revision_reference_file_name?.split("|||") || [];
-                                             const fileName = fileNames[fileIndex] || `Reference ${fileIndex + 1}`;
-                                             return (
-                                               <div key={fileIndex} className="flex flex-col items-center gap-1">
-                                                 <div 
-                                                   className="cursor-pointer hover:opacity-80 transition-opacity"
-                                                   onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                                 >
-                                                   <FilePreview 
-                                                     filePath={filePath.trim()} 
-                                                     fileName={fileName.trim()} 
-                                                     className="w-16 h-16"
-                                                   />
-                                                 </div>
-                                                 <Button
-                                                   size="sm"
-                                                   variant="ghost"
-                                                   className="h-6 px-2 text-xs"
-                                                   onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                                 >
-                                                   <Download className="h-3 w-3 mr-1" />
-                                                   Download
-                                                 </Button>
-                                               </div>
-                                             );
-                                           })}
-                                         </div>
-                                       </div>
-                                     )}
-                                   </div>
-                                 )}
+                                {submission.designer_comment && (
+                                  <p className="text-xs text-muted-foreground mt-1 truncate">
+                                    Designer: {submission.designer_comment}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  Submitted: {format(new Date(submission.submitted_at!), 'MMM d, yyyy h:mm a')}
+                                </p>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-shrink-0">
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => handleDownload(submission.file_path, submission.file_name)}
                                 >
-                                  <Download className="h-4 w-4" />
+                                  <Download className="h-3 w-3" />
                                 </Button>
-                                {submission.revision_status !== "approved" && submission.revision_status !== "needs_revision" && (
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    onClick={() => handleApproveSubmission.mutate(submission.id)}
-                                  >
-                                    Approve
-                                  </Button>
-                                )}
-                                {submission.revision_status !== "needs_revision" && (
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() => setRevisionDialog({ 
-                                      open: true, 
-                                      submissionId: submission.id,
-                                      fileName: submission.file_name 
-                                    })}
-                                  >
-                                    Request Revision
-                                  </Button>
+                                {submission.revision_status === "pending_review" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      className="bg-green-600 hover:bg-green-700"
+                                      onClick={() => handleApproveSubmission.mutate(submission.id)}
+                                    >
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                                      onClick={() => setRevisionDialog({ 
+                                        open: true, 
+                                        submissionId: submission.id,
+                                        fileName: submission.file_name 
+                                      })}
+                                    >
+                                      Request Revision
+                                    </Button>
+                                  </>
                                 )}
                               </div>
                             </div>
