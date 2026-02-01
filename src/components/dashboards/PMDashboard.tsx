@@ -46,55 +46,18 @@ const PMDashboard = () => {
   const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const isAuthed = !!user?.id;
-
   const { data: teams } = useQuery({
-    queryKey: ["teams", user?.id],
+    queryKey: ["teams"],
     queryFn: async () => {
       const { data, error } = await supabase.from("teams").select("*");
       if (error) throw error;
       return data;
     },
-    enabled: isAuthed,
-  });
-
-  // Fetch designer teams only (teams with designer role members)
-  const { data: designerTeams } = useQuery({
-    queryKey: ["designer-teams", user?.id],
-    queryFn: async () => {
-      // Get team IDs that have designer members
-      const { data: designerMembers, error: membersError } = await supabase
-        .from("team_members")
-        .select(`
-          team_id,
-          user_id
-        `);
-      if (membersError) throw membersError;
-
-      // Get user roles to find designers
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .eq("role", "designer");
-      if (rolesError) throw rolesError;
-
-      const designerUserIds = new Set(roles?.map(r => r.user_id) || []);
-      const designerTeamIds = new Set(
-        designerMembers?.filter(m => designerUserIds.has(m.user_id)).map(m => m.team_id) || []
-      );
-
-      // Get teams that have designer members
-      const { data: allTeams, error: teamsError } = await supabase.from("teams").select("*");
-      if (teamsError) throw teamsError;
-
-      return allTeams?.filter(t => designerTeamIds.has(t.id)) || [];
-    },
-    enabled: isAuthed,
   });
 
   // Fetch developer profiles for website orders (team members with developer role)
   const { data: developerProfiles } = useQuery({
-    queryKey: ["developer-profiles", user?.id],
+    queryKey: ["developer-profiles"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("team_members")
@@ -106,7 +69,6 @@ const PMDashboard = () => {
       if (error) throw error;
       return data;
     },
-    enabled: isAuthed,
   });
 
   // Helper to get developer name for a team
@@ -130,7 +92,6 @@ const PMDashboard = () => {
       if (error) throw error;
       return data;
     },
-    enabled: isAuthed,
   });
 
   // Query for all tasks (used when searching) - PMs can view via admin-like search
@@ -146,7 +107,7 @@ const PMDashboard = () => {
       if (error) throw error;
       return data;
     },
-    enabled: isAuthed && !!searchQuery.trim(), // Only fetch when searching
+    enabled: !!searchQuery.trim(), // Only fetch when searching
   });
 
   // Use allTasks when searching, otherwise use myTasks
@@ -702,7 +663,7 @@ const PMDashboard = () => {
                     </DialogHeader>
                     <CreateTaskForm 
                       userId={user!.id} 
-                      teams={designerTeams || []} 
+                      teams={teams || []} 
                       onSuccess={() => {
                         setOpen(false);
                         setTaskType(null);
@@ -716,7 +677,7 @@ const PMDashboard = () => {
                     </DialogHeader>
                     <CreateLogoOrderForm 
                       userId={user!.id} 
-                      teams={designerTeams || []} 
+                      teams={teams || []} 
                       onSuccess={() => {
                         setOpen(false);
                         setTaskType(null);
