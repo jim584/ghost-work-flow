@@ -705,7 +705,7 @@ const AdminDashboard = () => {
                         </Button>
                         <Select
                           value={currentRole || undefined}
-                          onValueChange={(role: "admin" | "project_manager" | "designer") => 
+                          onValueChange={(role: "admin" | "project_manager" | "designer" | "developer") => 
                             assignRole.mutate({ userId: user.id, role })
                           }
                         >
@@ -714,6 +714,7 @@ const AdminDashboard = () => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="designer">Designer</SelectItem>
+                            <SelectItem value="developer">Developer</SelectItem>
                             <SelectItem value="project_manager">Project Manager</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
