@@ -200,7 +200,15 @@ const FrontSalesDashboard = () => {
   const isLogoOrder = (task: any) => task?.post_type === "Logo Design";
   const isWebsiteOrder = (task: any) => task?.post_type === "Website Design";
 
+  const threeDaysAgo = subDays(new Date(), 3);
+
   const filteredTasks = tasks?.filter((task) => {
+    // Filter by 3 days OR completed/approved status (for My Orders section)
+    const isWithin3Days = task.created_at && isAfter(new Date(task.created_at), threeDaysAgo);
+    const isCompleted = task.status === 'completed' || task.status === 'approved';
+    const passesTimeFilter = isWithin3Days || isCompleted;
+    
+    // When searching, don't apply the time filter (allow searching all orders)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       const matchesSearch = task.title?.toLowerCase().includes(query) ||
@@ -218,6 +226,9 @@ const FrontSalesDashboard = () => {
       }
       return matchesSearch;
     }
+    
+    // Apply time filter only when not searching
+    if (!passesTimeFilter) return false;
     
     if (orderTypeFilter) {
       const matchesOrderType = 
@@ -383,12 +394,15 @@ const FrontSalesDashboard = () => {
           </div>
         </div>
 
-        {/* Recent Orders - Last 6 Days Status (Grouped by Customer) */}
+        {/* Recent Orders - Last 3 Days or Completed Status */}
         {(() => {
-          const sixDaysAgo = subDays(new Date(), 6);
-          const recentOrders = myTasks?.filter(task => 
-            task.created_at && isAfter(new Date(task.created_at), sixDaysAgo)
-          ).sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
+          const threeDaysAgo = subDays(new Date(), 3);
+          // Show orders within 3 days OR completed/approved status (whichever comes first)
+          const recentOrders = myTasks?.filter(task => {
+            const isWithin3Days = task.created_at && isAfter(new Date(task.created_at), threeDaysAgo);
+            const isCompleted = task.status === 'completed' || task.status === 'approved';
+            return isWithin3Days || isCompleted;
+          }).sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
           
           // Group orders by customer name + title + deadline (same order assigned to multiple teams)
           const groupedOrders = recentOrders?.reduce((acc, task) => {
@@ -427,7 +441,7 @@ const FrontSalesDashboard = () => {
             return (
               <Card className="mb-8">
                 <CardHeader>
-                  <CardTitle className="text-lg">Recent Orders (Last 6 Days)</CardTitle>
+                  <CardTitle className="text-lg">Recent Orders</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
