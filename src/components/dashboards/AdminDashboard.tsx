@@ -45,7 +45,7 @@ const AdminDashboard = () => {
     password: "", 
     full_name: "", 
     team_name: "", 
-    role: "designer" as "admin" | "project_manager" | "designer" | "developer" 
+    role: "designer" as "admin" | "project_manager" | "designer" | "developer" | "front_sales" 
   });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
@@ -160,7 +160,7 @@ const AdminDashboard = () => {
       password: string; 
       full_name: string; 
       team_name: string;
-      role: "admin" | "project_manager" | "designer" | "developer";
+      role: "admin" | "project_manager" | "designer" | "developer" | "front_sales";
     }) => {
       // Validate password
       passwordSchema.parse(userData.password);
@@ -228,7 +228,7 @@ const AdminDashboard = () => {
   });
 
   const assignRole = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "project_manager" | "designer" | "developer" }) => {
+    mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "project_manager" | "designer" | "developer" | "front_sales" }) => {
       const { error } = await supabase.rpc('admin_set_user_role', {
         target_user_id: userId,
         role_name: role,
@@ -716,6 +716,7 @@ const AdminDashboard = () => {
                             <SelectItem value="designer">Designer</SelectItem>
                             <SelectItem value="developer">Developer</SelectItem>
                             <SelectItem value="project_manager">Project Manager</SelectItem>
+                            <SelectItem value="front_sales">Front Sales</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
                         </Select>
@@ -1477,6 +1478,7 @@ const AdminDashboard = () => {
                   <SelectItem value="designer">Designer</SelectItem>
                   <SelectItem value="developer">Developer</SelectItem>
                   <SelectItem value="project_manager">Project Manager</SelectItem>
+                  <SelectItem value="front_sales">Front Sales</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
