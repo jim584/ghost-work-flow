@@ -242,7 +242,7 @@ const AdminDashboard = () => {
     },
   });
 
-  // Fetch sales targets for all front sales users
+  // Fetch sales targets for all users
   const { data: salesTargets } = useQuery({
     queryKey: ["sales-targets"],
     queryFn: async () => {
@@ -254,14 +254,63 @@ const AdminDashboard = () => {
     },
   });
 
+  // Fetch PM users with their performance data
+  const { data: pmUsers } = useQuery({
+    queryKey: ["pm-users-performance"],
+    queryFn: async () => {
+      // Get all PM user IDs
+      const { data: pmRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "project_manager");
+      
+      if (rolesError) throw rolesError;
+      if (!pmRoles?.length) return [];
+      
+      const pmUserIds = pmRoles.map(r => r.user_id);
+      
+      // Get profiles for these users
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .in("id", pmUserIds);
+      
+      if (profilesError) throw profilesError;
+      
+      // Get revenue data - tasks closed by each PM (non-upsell)
+      const { data: closedTasks, error: closedError } = await supabase
+        .from("tasks")
+        .select("closed_by, amount_total")
+        .in("closed_by", pmUserIds)
+        .eq("is_upsell", false);
+      
+      if (closedError) throw closedError;
+      
+      // Group closed revenue by PM
+      const closedRevenueByPm = new Map<string, number>();
+      closedTasks?.forEach(task => {
+        if (task.closed_by) {
+          const current = closedRevenueByPm.get(task.closed_by) || 0;
+          closedRevenueByPm.set(task.closed_by, current + (Number(task.amount_total) || 0));
+        }
+      });
+      
+      return profiles?.map(profile => ({
+        ...profile,
+        closedRevenue: closedRevenueByPm.get(profile.id) || 0,
+      })) || [];
+    },
+  });
+
   // State for editing targets
   const [editTargetDialog, setEditTargetDialog] = useState<{ open: boolean; userId: string; userName: string; currentTarget: number } | null>(null);
   const [newTargetValue, setNewTargetValue] = useState("");
+  const [editPmTargetDialog, setEditPmTargetDialog] = useState<{ open: boolean; userId: string; userName: string; currentTarget: number } | null>(null);
+  const [newPmTargetValue, setNewPmTargetValue] = useState("");
 
-  // Mutation to update sales target
+  // Mutation to update sales target (for Front Sales)
   const updateSalesTarget = useMutation({
     mutationFn: async ({ userId, target }: { userId: string; target: number }) => {
-      // First check if target exists
       const { data: existing } = await supabase
         .from("sales_targets")
         .select("id")
@@ -291,6 +340,44 @@ const AdminDashboard = () => {
       toast({
         variant: "destructive",
         title: "Error updating target",
+        description: error.message,
+      });
+    },
+  });
+
+  // Mutation to update PM dollar target
+  const updatePmDollarTarget = useMutation({
+    mutationFn: async ({ userId, target }: { userId: string; target: number }) => {
+      const { data: existing } = await supabase
+        .from("sales_targets")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      
+      if (existing) {
+        const { error } = await supabase
+          .from("sales_targets")
+          .update({ monthly_dollar_target: target })
+          .eq("user_id", userId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("sales_targets")
+          .insert({ user_id: userId, monthly_dollar_target: target });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-targets"] });
+      queryClient.invalidateQueries({ queryKey: ["pm-users-performance"] });
+      toast({ title: "PM target updated successfully" });
+      setEditPmTargetDialog(null);
+      setNewPmTargetValue("");
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error updating PM target",
         description: error.message,
       });
     },
@@ -1334,6 +1421,7 @@ const AdminDashboard = () => {
         )}
 
         {viewMode === 'sales_performance' && (
+          <>
           <Card>
             <CardHeader>
               <CardTitle>Front Sales Performance</CardTitle>
@@ -1442,6 +1530,92 @@ const AdminDashboard = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* PM Performance Section */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Project Manager Performance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!pmUsers?.length ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No project managers found
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {pmUsers.map((pmUser) => {
+                    const userTarget = salesTargets?.find(t => t.user_id === pmUser.id);
+                    const dollarTarget = userTarget?.monthly_dollar_target ?? 0;
+                    const upsellRevenue = Number(userTarget?.upsell_revenue || 0);
+                    const totalAchieved = pmUser.closedRevenue + upsellRevenue;
+                    const targetProgress = dollarTarget > 0 ? Math.min((totalAchieved / dollarTarget) * 100, 100) : 0;
+                    
+                    return (
+                      <Card key={pmUser.id} className="border-l-4 border-l-secondary">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <Users className="h-5 w-5 text-secondary" />
+                              {pmUser.full_name || pmUser.email}
+                            </CardTitle>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditPmTargetDialog({
+                                  open: true,
+                                  userId: pmUser.id,
+                                  userName: pmUser.full_name || pmUser.email,
+                                  currentTarget: dollarTarget,
+                                });
+                                setNewPmTargetValue(dollarTarget.toString());
+                              }}
+                            >
+                              <Edit2 className="h-4 w-4 mr-1" />
+                              Edit Target
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Monthly Target</p>
+                              <p className="text-2xl font-bold text-secondary">${dollarTarget.toLocaleString()}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Closed Value</p>
+                              <p className="text-2xl font-bold">${pmUser.closedRevenue.toLocaleString()}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Upsells</p>
+                              <p className="text-2xl font-bold">${upsellRevenue.toLocaleString()}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Total Achieved</p>
+                              <p className="text-2xl font-bold text-primary">${totalAchieved.toLocaleString()}</p>
+                              {dollarTarget > 0 && (
+                                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-primary transition-all" 
+                                    style={{ width: `${targetProgress}%` }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Progress</p>
+                              <p className="text-2xl font-bold">{dollarTarget > 0 ? `${targetProgress.toFixed(0)}%` : 'No Target'}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          </>
         )}
         </>
         )}
@@ -2047,6 +2221,55 @@ const AdminDashboard = () => {
               disabled={!newTargetValue || updateSalesTarget.isPending}
             >
               {updateSalesTarget.isPending ? "Saving..." : "Save Target"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit PM Dollar Target Dialog */}
+      <Dialog open={editPmTargetDialog?.open || false} onOpenChange={(open) => !open && setEditPmTargetDialog(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit PM Monthly Target</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Set the monthly dollar target for <strong>{editPmTargetDialog?.userName}</strong>
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="pm-target-value">Monthly Dollar Target ($)</Label>
+              <Input
+                id="pm-target-value"
+                type="number"
+                min="0"
+                placeholder="Enter target amount"
+                value={newPmTargetValue}
+                onChange={(e) => setNewPmTargetValue(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditPmTargetDialog(null);
+                setNewPmTargetValue("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (editPmTargetDialog && newPmTargetValue) {
+                  updatePmDollarTarget.mutate({
+                    userId: editPmTargetDialog.userId,
+                    target: parseFloat(newPmTargetValue),
+                  });
+                }
+              }}
+              disabled={!newPmTargetValue || updatePmDollarTarget.isPending}
+            >
+              {updatePmDollarTarget.isPending ? "Saving..." : "Save Target"}
             </Button>
           </div>
         </DialogContent>

@@ -150,6 +150,7 @@ export type Database = {
           closed_orders_count: number
           created_at: string | null
           id: string
+          monthly_dollar_target: number
           monthly_order_target: number
           transferred_orders_count: number
           updated_at: string | null
@@ -160,6 +161,7 @@ export type Database = {
           closed_orders_count?: number
           created_at?: string | null
           id?: string
+          monthly_dollar_target?: number
           monthly_order_target?: number
           transferred_orders_count?: number
           updated_at?: string | null
@@ -170,6 +172,7 @@ export type Database = {
           closed_orders_count?: number
           created_at?: string | null
           id?: string
+          monthly_dollar_target?: number
           monthly_order_target?: number
           transferred_orders_count?: number
           updated_at?: string | null
