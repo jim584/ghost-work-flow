@@ -193,6 +193,60 @@ const AdminDashboard = () => {
     },
   });
 
+  // Fetch sales targets for all front sales users
+  const { data: salesTargets } = useQuery({
+    queryKey: ["sales-targets"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_targets")
+        .select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // State for editing targets
+  const [editTargetDialog, setEditTargetDialog] = useState<{ open: boolean; userId: string; userName: string; currentTarget: number } | null>(null);
+  const [newTargetValue, setNewTargetValue] = useState("");
+
+  // Mutation to update sales target
+  const updateSalesTarget = useMutation({
+    mutationFn: async ({ userId, target }: { userId: string; target: number }) => {
+      // First check if target exists
+      const { data: existing } = await supabase
+        .from("sales_targets")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      
+      if (existing) {
+        const { error } = await supabase
+          .from("sales_targets")
+          .update({ monthly_order_target: target })
+          .eq("user_id", userId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("sales_targets")
+          .insert({ user_id: userId, monthly_order_target: target });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-targets"] });
+      toast({ title: "Target updated successfully" });
+      setEditTargetDialog(null);
+      setNewTargetValue("");
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error updating target",
+        description: error.message,
+      });
+    },
+  });
+
   const createUser = useMutation({
     mutationFn: async (userData: { 
       email: string; 
@@ -1222,27 +1276,60 @@ const AdminDashboard = () => {
                       .reduce((sum, t) => sum + (t.amount_paid || 0), 0);
                     const totalRevenue = uniqueOrders.reduce((sum, t) => sum + (t.amount_paid || 0), 0);
                     
+                    // Get target for this user
+                    const userTarget = salesTargets?.find(t => t.user_id === salesUser.id);
+                    const monthlyTarget = userTarget?.monthly_order_target ?? 10;
+                    const targetProgress = monthlyTarget > 0 ? Math.min((ordersThisMonth / monthlyTarget) * 100, 100) : 0;
+                    
                     return (
                       <Card key={salesUser.id} className="border-l-4 border-l-primary">
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <Users className="h-5 w-5 text-primary" />
-                            {salesUser.full_name || salesUser.email}
-                          </CardTitle>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <Users className="h-5 w-5 text-primary" />
+                              {salesUser.full_name || salesUser.email}
+                            </CardTitle>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditTargetDialog({
+                                  open: true,
+                                  userId: salesUser.id,
+                                  userName: salesUser.full_name || salesUser.email,
+                                  currentTarget: monthlyTarget,
+                                });
+                                setNewTargetValue(monthlyTarget.toString());
+                              }}
+                            >
+                              <Edit2 className="h-4 w-4 mr-1" />
+                              Edit Target
+                            </Button>
+                          </div>
                         </CardHeader>
                         <CardContent>
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                             <div className="space-y-1">
-                              <p className="text-sm text-muted-foreground">Total Orders</p>
-                              <p className="text-2xl font-bold">{totalOrders}</p>
+                              <p className="text-sm text-muted-foreground">Monthly Target</p>
+                              <p className="text-2xl font-bold text-primary">{monthlyTarget}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">This Month</p>
+                              <p className="text-2xl font-bold">{ordersThisMonth}</p>
+                              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-primary transition-all" 
+                                  style={{ width: `${targetProgress}%` }}
+                                />
+                              </div>
                             </div>
                             <div className="space-y-1">
                               <p className="text-sm text-muted-foreground">This Week</p>
                               <p className="text-2xl font-bold">{ordersThisWeek}</p>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-sm text-muted-foreground">This Month</p>
-                              <p className="text-2xl font-bold">{ordersThisMonth}</p>
+                              <p className="text-sm text-muted-foreground">Total Orders</p>
+                              <p className="text-2xl font-bold">{totalOrders}</p>
                             </div>
                             <div className="space-y-1">
                               <p className="text-sm text-muted-foreground">Revenue (Month)</p>
@@ -1799,6 +1886,55 @@ const AdminDashboard = () => {
               disabled={!newPassword || setUserPassword.isPending}
             >
               {setUserPassword.isPending ? "Setting..." : "Set Password"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Sales Target Dialog */}
+      <Dialog open={editTargetDialog?.open || false} onOpenChange={(open) => !open && setEditTargetDialog(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Monthly Target</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Set the monthly order target for <strong>{editTargetDialog?.userName}</strong>
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="target-value">Monthly Order Target</Label>
+              <Input
+                id="target-value"
+                type="number"
+                min="1"
+                placeholder="Enter target"
+                value={newTargetValue}
+                onChange={(e) => setNewTargetValue(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditTargetDialog(null);
+                setNewTargetValue("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (editTargetDialog && newTargetValue) {
+                  updateSalesTarget.mutate({
+                    userId: editTargetDialog.userId,
+                    target: parseInt(newTargetValue, 10),
+                  });
+                }
+              }}
+              disabled={!newTargetValue || updateSalesTarget.isPending}
+            >
+              {updateSalesTarget.isPending ? "Saving..." : "Save Target"}
             </Button>
           </div>
         </DialogContent>
