@@ -82,6 +82,20 @@ const AdminDashboard = () => {
     userName: string;
     metricType: 'target' | 'total_achieved' | 'transferred' | 'closed' | 'revenue' | 'pm_closed' | 'pm_upsells' | 'pm_total';
   } | null>(null);
+  const [editTaskDialog, setEditTaskDialog] = useState<{ open: boolean; task: any } | null>(null);
+  const [editTaskData, setEditTaskData] = useState({
+    customer_name: "",
+    customer_email: "",
+    customer_phone: "",
+    customer_domain: "",
+    amount_total: "",
+    amount_paid: "",
+    amount_pending: "",
+    deadline: "",
+    business_name: "",
+    business_email: "",
+    business_phone: "",
+  });
 
   // Helper function to filter tasks by metric type for a specific user
   const getFilteredTasksForMetric = (userId: string, metricType: string) => {
@@ -639,6 +653,77 @@ const AdminDashboard = () => {
       });
     },
   });
+
+  const updateTask = useMutation({
+    mutationFn: async (data: {
+      taskId: string;
+      customer_name?: string;
+      customer_email?: string;
+      customer_phone?: string;
+      customer_domain?: string;
+      amount_total?: number;
+      amount_paid?: number;
+      amount_pending?: number;
+      deadline?: string | null;
+      business_name?: string;
+      business_email?: string;
+      business_phone?: string;
+    }) => {
+      const { taskId, ...updateData } = data;
+      const { error } = await supabase
+        .from("tasks")
+        .update(updateData)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+      toast({ title: "Task updated successfully" });
+      setEditTaskDialog(null);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error updating task",
+        description: error.message,
+      });
+    },
+  });
+
+  const openEditTaskDialog = (task: any) => {
+    setEditTaskData({
+      customer_name: task.customer_name || "",
+      customer_email: task.customer_email || "",
+      customer_phone: task.customer_phone || "",
+      customer_domain: task.customer_domain || "",
+      amount_total: task.amount_total?.toString() || "",
+      amount_paid: task.amount_paid?.toString() || "",
+      amount_pending: task.amount_pending?.toString() || "",
+      deadline: task.deadline || "",
+      business_name: task.business_name || "",
+      business_email: task.business_email || "",
+      business_phone: task.business_phone || "",
+    });
+    setEditTaskDialog({ open: true, task });
+  };
+
+  const handleSaveTask = () => {
+    if (!editTaskDialog?.task) return;
+    updateTask.mutate({
+      taskId: editTaskDialog.task.id,
+      customer_name: editTaskData.customer_name || null,
+      customer_email: editTaskData.customer_email || null,
+      customer_phone: editTaskData.customer_phone || null,
+      customer_domain: editTaskData.customer_domain || null,
+      amount_total: editTaskData.amount_total ? parseFloat(editTaskData.amount_total) : 0,
+      amount_paid: editTaskData.amount_paid ? parseFloat(editTaskData.amount_paid) : 0,
+      amount_pending: editTaskData.amount_pending ? parseFloat(editTaskData.amount_pending) : 0,
+      deadline: editTaskData.deadline || null,
+      business_name: editTaskData.business_name || null,
+      business_email: editTaskData.business_email || null,
+      business_phone: editTaskData.business_phone || null,
+    });
+  };
 
   const handleDownload = async (filePath: string, fileName: string) => {
     try {
@@ -1261,6 +1346,14 @@ const AdminDashboard = () => {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={() => openEditTaskDialog(task)}
+                          >
+                            <Edit2 className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => setReassignDialog({ 
                               open: true, 
                               taskId: task.id, 
@@ -1821,8 +1914,19 @@ const AdminDashboard = () => {
 
       <Dialog open={!!viewDetailsTask} onOpenChange={() => setViewDetailsTask(null)}>
         <DialogContent className="max-w-2xl">
-          <DialogHeader>
+          <DialogHeader className="flex flex-row items-center justify-between">
             <DialogTitle>Task Details - #{viewDetailsTask?.task_number}</DialogTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                openEditTaskDialog(viewDetailsTask);
+                setViewDetailsTask(null);
+              }}
+            >
+              <Edit2 className="h-4 w-4 mr-1" />
+              Edit Task
+            </Button>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] pr-4">
             <div className="space-y-6">
@@ -2614,6 +2718,151 @@ const AdminDashboard = () => {
               );
             })()}
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Task Dialog */}
+      <Dialog open={editTaskDialog?.open || false} onOpenChange={(open) => !open && setEditTaskDialog(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="h-5 w-5 text-primary" />
+              Edit Task - #{editTaskDialog?.task?.task_number}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[70vh] pr-4">
+            <div className="space-y-6">
+              {/* Customer Information */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg border-b pb-2">Customer Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Customer Name</Label>
+                    <Input
+                      value={editTaskData.customer_name}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, customer_name: e.target.value }))}
+                      placeholder="Enter customer name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Customer Email</Label>
+                    <Input
+                      type="email"
+                      value={editTaskData.customer_email}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, customer_email: e.target.value }))}
+                      placeholder="Enter customer email"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Customer Phone</Label>
+                    <Input
+                      value={editTaskData.customer_phone}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, customer_phone: e.target.value }))}
+                      placeholder="Enter customer phone"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Customer Domain</Label>
+                    <Input
+                      value={editTaskData.customer_domain}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, customer_domain: e.target.value }))}
+                      placeholder="Enter customer domain"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Business Information */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg border-b pb-2">Business Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Business Name</Label>
+                    <Input
+                      value={editTaskData.business_name}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, business_name: e.target.value }))}
+                      placeholder="Enter business name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Business Email</Label>
+                    <Input
+                      type="email"
+                      value={editTaskData.business_email}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, business_email: e.target.value }))}
+                      placeholder="Enter business email"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Business Phone</Label>
+                    <Input
+                      value={editTaskData.business_phone}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, business_phone: e.target.value }))}
+                      placeholder="Enter business phone"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Information */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg border-b pb-2">Payment Information</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Total Amount ($)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={editTaskData.amount_total}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, amount_total: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Amount Paid ($)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={editTaskData.amount_paid}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, amount_paid: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Amount Pending ($)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={editTaskData.amount_pending}
+                      onChange={(e) => setEditTaskData(prev => ({ ...prev, amount_pending: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Deadline */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg border-b pb-2">Deadline</h3>
+                <div className="space-y-2">
+                  <Label>Deadline Date</Label>
+                  <Input
+                    type="date"
+                    value={editTaskData.deadline}
+                    onChange={(e) => setEditTaskData(prev => ({ ...prev, deadline: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => setEditTaskDialog(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTask} disabled={updateTask.isPending}>
+              {updateTask.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
