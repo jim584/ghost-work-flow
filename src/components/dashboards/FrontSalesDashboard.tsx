@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, Clock, FolderKanban, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, FileText, Eye, ChevronDown, ChevronRight } from "lucide-react";
+import { LogOut, Plus, Clock, FolderKanban, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, FileText, Eye, ChevronDown, ChevronRight, Download } from "lucide-react";
+import { FilePreview } from "@/components/FilePreview";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -974,6 +975,50 @@ const FrontSalesDashboard = () => {
                             <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.notes_extra_instructions}</p>
                           </div>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Attachments Section */}
+                {viewDetailsTask.attachment_file_path && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm uppercase text-muted-foreground">Reference Files</h4>
+                    <div className="bg-muted/30 rounded-lg p-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {viewDetailsTask.attachment_file_path.split("|||").map((filePath: string, index: number) => {
+                          const fileNames = viewDetailsTask.attachment_file_name?.split("|||") || [];
+                          const fileName = fileNames[index] || `File ${index + 1}`;
+                          
+                          return (
+                            <div key={index} className="flex flex-col items-center gap-2 p-2 bg-background rounded-lg border">
+                              <FilePreview 
+                                filePath={filePath} 
+                                fileName={fileName}
+                                className="w-20 h-20"
+                              />
+                              <p className="text-xs text-muted-foreground truncate max-w-full text-center" title={fileName}>
+                                {fileName.length > 20 ? `${fileName.substring(0, 17)}...` : fileName}
+                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full text-xs"
+                                onClick={async () => {
+                                  const { data } = await supabase.storage
+                                    .from("design-files")
+                                    .createSignedUrl(filePath, 86400);
+                                  if (data?.signedUrl) {
+                                    window.open(data.signedUrl, "_blank");
+                                  }
+                                }}
+                              >
+                                <Download className="h-3 w-3 mr-1" />
+                                Download
+                              </Button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
