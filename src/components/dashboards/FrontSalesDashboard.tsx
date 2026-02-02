@@ -922,7 +922,7 @@ const FrontSalesDashboard = () => {
                 
                 <div>
                   <h3 className="font-semibold text-lg">{viewDetailsTask.title}</h3>
-                  {viewDetailsTask.description && (
+                  {viewDetailsTask.description && !isWebsiteOrder(viewDetailsTask) && (
                     <p className="text-muted-foreground mt-1">{viewDetailsTask.description}</p>
                   )}
                 </div>
