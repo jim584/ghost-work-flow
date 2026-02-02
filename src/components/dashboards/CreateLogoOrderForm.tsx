@@ -205,32 +205,6 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManag
   return (
     <ScrollArea className="h-[calc(100vh-200px)] pr-4">
       <div className="space-y-6">
-        {/* Assign Project Manager - Only shown for Front Sales */}
-        {showProjectManagerSelector && (
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg">Assignment</h3>
-            <div className="space-y-2">
-              <Label htmlFor="project_manager">Assign Project Manager *</Label>
-              <Select 
-                value={selectedProjectManagerId} 
-                onValueChange={setSelectedProjectManagerId}
-                disabled={loadingPMs}
-              >
-                <SelectTrigger id="project_manager">
-                  <SelectValue placeholder={loadingPMs ? "Loading..." : "Select Project Manager"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {projectManagers.map((pm) => (
-                    <SelectItem key={pm.id} value={pm.id}>
-                      {pm.full_name || pm.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        )}
-
         {/* Customer Information */}
         <div className="space-y-4">
           <h3 className="font-semibold text-lg">Customer Information</h3>
@@ -327,6 +301,32 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManag
             </div>
           </div>
         </div>
+
+        {/* Assign Project Manager - Only shown for Front Sales */}
+        {showProjectManagerSelector && (
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="font-semibold text-lg">Assignment</h3>
+            <div className="space-y-2">
+              <Label htmlFor="project_manager">Assign Project Manager *</Label>
+              <Select 
+                value={selectedProjectManagerId} 
+                onValueChange={setSelectedProjectManagerId}
+                disabled={loadingPMs}
+              >
+                <SelectTrigger id="project_manager">
+                  <SelectValue placeholder={loadingPMs ? "Loading..." : "Select Project Manager"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {projectManagers.map((pm) => (
+                    <SelectItem key={pm.id} value={pm.id}>
+                      {pm.full_name || pm.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
 
         {/* Logo Details */}
         <div className="space-y-4 pt-4 border-t">
