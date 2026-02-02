@@ -641,6 +641,8 @@ const PMDashboard = () => {
           <div className="flex items-center gap-4">
             {(myTargetStats || closedNewCustomerRevenue !== undefined) && (
               <div className="flex items-center gap-3 text-sm text-muted-foreground border rounded-lg px-3 py-1.5 bg-muted/30">
+                <span>Target: <strong className="text-foreground">${Number(myTargetStats?.monthly_dollar_target || 0).toLocaleString()}</strong></span>
+                <span className="text-border">|</span>
                 <span>Closed: <strong className="text-foreground">{myTargetStats?.closed_orders_count || 0}</strong></span>
                 <span className="text-border">|</span>
                 <span>Closed Value: <strong className="text-foreground">${(closedNewCustomerRevenue || 0).toLocaleString()}</strong></span>
@@ -650,6 +652,14 @@ const PMDashboard = () => {
                 <span>Upsells: <strong className="text-foreground">${Number(myTargetStats?.upsell_revenue || 0).toLocaleString()}</strong></span>
                 <span className="text-border">|</span>
                 <span>Total: <strong className="text-primary">${((closedNewCustomerRevenue || 0) + Number(myTargetStats?.upsell_revenue || 0)).toLocaleString()}</strong></span>
+                {Number(myTargetStats?.monthly_dollar_target || 0) > 0 && (
+                  <>
+                    <span className="text-border">|</span>
+                    <span>Progress: <strong className={((closedNewCustomerRevenue || 0) + Number(myTargetStats?.upsell_revenue || 0)) >= Number(myTargetStats?.monthly_dollar_target || 0) ? "text-green-600" : "text-foreground"}>
+                      {Math.min(((closedNewCustomerRevenue || 0) + Number(myTargetStats?.upsell_revenue || 0)) / Number(myTargetStats?.monthly_dollar_target) * 100, 100).toFixed(0)}%
+                    </strong></span>
+                  </>
+                )}
               </div>
             )}
             <Button onClick={signOut} variant="outline" size="sm">
