@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { File as FileIcon } from "lucide-react";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -60,32 +60,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [logoFiles, setLogoFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>("");
-
-  // Fetch project managers
-  const { data: projectManagers } = useQuery({
-    queryKey: ["project-managers"],
-    queryFn: async () => {
-      const { data: pmRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "project_manager");
-      
-      if (rolesError) throw rolesError;
-      
-      const pmUserIds = pmRoles?.map(r => r.user_id) || [];
-      
-      if (pmUserIds.length === 0) return [];
-      
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .in("id", pmUserIds);
-      
-      if (profilesError) throw profilesError;
-      return profiles;
-    },
-  });
+  
 
   const [formData, setFormData] = useState({
     business_name: "",
@@ -168,7 +143,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           title: `Website: ${formData.business_name}`,
           description: formData.supporting_text,
           team_id: nextTeamId,
-          project_manager_id: selectedProjectManagerId,
+          project_manager_id: userId,
           business_name: formData.business_name,
           business_email: formData.business_email || null,
           business_phone: formData.business_phone || null,
@@ -361,22 +336,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
                 placeholder="+1 234 567 890"
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="project_manager">Assign Project Manager *</Label>
-            <Select value={selectedProjectManagerId} onValueChange={setSelectedProjectManagerId}>
-              <SelectTrigger id="project_manager">
-                <SelectValue placeholder="Select project manager" />
-              </SelectTrigger>
-              <SelectContent>
-                {projectManagers?.map((pm) => (
-                  <SelectItem key={pm.id} value={pm.id}>
-                    {pm.full_name || pm.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="p-3 bg-muted/50 rounded-md border">
@@ -610,7 +569,6 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
             !formData.customer_name || 
             !formData.industry || 
             !formData.number_of_pages ||
-            !selectedProjectManagerId ||
             uploading
           }
           className="w-full"
