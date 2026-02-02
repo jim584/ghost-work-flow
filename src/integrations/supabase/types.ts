@@ -245,6 +245,9 @@ export type Database = {
           product_service_images: string | null
           product_service_name: string | null
           project_manager_id: string
+          reassigned_at: string | null
+          reassigned_from: string | null
+          reassignment_reason: string | null
           status: Database["public"]["Enums"]["task_status"]
           supporting_text: string | null
           tagline: string | null
@@ -309,6 +312,9 @@ export type Database = {
           product_service_images?: string | null
           product_service_name?: string | null
           project_manager_id: string
+          reassigned_at?: string | null
+          reassigned_from?: string | null
+          reassignment_reason?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
           tagline?: string | null
@@ -373,6 +379,9 @@ export type Database = {
           product_service_images?: string | null
           product_service_name?: string | null
           project_manager_id?: string
+          reassigned_at?: string | null
+          reassigned_from?: string | null
+          reassignment_reason?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
           tagline?: string | null

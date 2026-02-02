@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw } from "lucide-react";
+import { useProjectManagers } from "@/hooks/useProjectManagers";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +47,11 @@ const PMDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
   const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [reassignDialog, setReassignDialog] = useState<{ open: boolean; taskId: string; currentPmId: string } | null>(null);
+  const [reassignReason, setReassignReason] = useState("");
+  const [selectedNewPmId, setSelectedNewPmId] = useState("");
+
+  const { data: projectManagers = [] } = useProjectManagers();
 
   const { data: teams } = useQuery({
     queryKey: ["teams"],
@@ -343,6 +350,35 @@ const PMDashboard = () => {
       toast({
         variant: "destructive",
         title: "Error deleting task",
+        description: error.message,
+      });
+    },
+  });
+
+  const reassignTask = useMutation({
+    mutationFn: async ({ taskId, newPmId, reason }: { taskId: string; newPmId: string; reason: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          reassigned_from: user!.id,
+          project_manager_id: newPmId,
+          reassignment_reason: reason,
+          reassigned_at: new Date().toISOString(),
+        })
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Task reassigned successfully" });
+      setReassignDialog(null);
+      setReassignReason("");
+      setSelectedNewPmId("");
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error reassigning task",
         description: error.message,
       });
     },
@@ -971,6 +1007,19 @@ const PMDashboard = () => {
                             Approve
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="hover-scale"
+                          onClick={() => setReassignDialog({ 
+                            open: true, 
+                            taskId: task.id, 
+                            currentPmId: task.project_manager_id 
+                          })}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                          Reassign
+                        </Button>
                       </div>
                       {taskSubmissions.length > 0 && (
                         <Button
@@ -1538,6 +1587,60 @@ const PMDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={reassignDialog?.open || false} onOpenChange={(open) => {
+        if (!open) {
+          setReassignDialog(null);
+          setReassignReason("");
+          setSelectedNewPmId("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reassign Task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-pm">Select New Project Manager *</Label>
+              <Select value={selectedNewPmId} onValueChange={setSelectedNewPmId}>
+                <SelectTrigger id="new-pm">
+                  <SelectValue placeholder="Select Project Manager" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projectManagers
+                    .filter(pm => pm.id !== reassignDialog?.currentPmId)
+                    .map((pm) => (
+                      <SelectItem key={pm.id} value={pm.id}>
+                        {pm.full_name || pm.email}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reassign-reason">Reason for Reassignment *</Label>
+              <Textarea
+                id="reassign-reason"
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                placeholder="Explain why you are reassigning this task..."
+                rows={4}
+              />
+            </div>
+            <Button
+              onClick={() => reassignDialog && reassignTask.mutate({ 
+                taskId: reassignDialog.taskId, 
+                newPmId: selectedNewPmId,
+                reason: reassignReason
+              })}
+              disabled={!selectedNewPmId || !reassignReason.trim()}
+              className="w-full"
+            >
+              Reassign Task
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
