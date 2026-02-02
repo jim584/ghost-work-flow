@@ -366,8 +366,8 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="closed_by">Closed By</Label>
-                <Select 
+                <Label htmlFor="closed_by">Closed By *</Label>
+                <Select
                   value={closedBy} 
                   onValueChange={setClosedBy}
                   disabled={loadingTrackingUsers}
@@ -658,6 +658,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
             !formData.customer_name || 
             !formData.industry || 
             !formData.number_of_pages ||
+            (showProjectManagerSelector && !closedBy) ||
             uploading
           }
           className="w-full"

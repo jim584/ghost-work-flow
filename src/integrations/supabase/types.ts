@@ -147,23 +147,29 @@ export type Database = {
       }
       sales_targets: {
         Row: {
+          closed_orders_count: number
           created_at: string | null
           id: string
           monthly_order_target: number
+          transferred_orders_count: number
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          closed_orders_count?: number
           created_at?: string | null
           id?: string
           monthly_order_target?: number
+          transferred_orders_count?: number
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          closed_orders_count?: number
           created_at?: string | null
           id?: string
           monthly_order_target?: number
+          transferred_orders_count?: number
           updated_at?: string | null
           user_id?: string
         }
@@ -252,6 +258,7 @@ export type Database = {
           status: Database["public"]["Enums"]["task_status"]
           supporting_text: string | null
           tagline: string | null
+          target_attributed: boolean
           target_audience_age: string | null
           target_audience_interest: string | null
           target_audience_location: string | null
@@ -321,6 +328,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
           tagline?: string | null
+          target_attributed?: boolean
           target_audience_age?: string | null
           target_audience_interest?: string | null
           target_audience_location?: string | null
@@ -390,6 +398,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
           tagline?: string | null
+          target_attributed?: boolean
           target_audience_age?: string | null
           target_audience_interest?: string | null
           target_audience_location?: string | null

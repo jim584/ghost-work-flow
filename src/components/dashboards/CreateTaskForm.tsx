@@ -356,8 +356,8 @@ export const CreateTaskForm = ({ userId, teams, onSuccess, showProjectManagerSel
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="closed_by">Closed By</Label>
-                <Select 
+                <Label htmlFor="closed_by">Closed By *</Label>
+                <Select
                   value={closedBy} 
                   onValueChange={setClosedBy}
                   disabled={loadingTrackingUsers}
@@ -793,7 +793,14 @@ export const CreateTaskForm = ({ userId, teams, onSuccess, showProjectManagerSel
 
         <Button
           onClick={() => createTask.mutate()}
-          disabled={!formData.title || !formData.customer_name || selectedTeamIds.length === 0 || !formData.website_url || uploading}
+          disabled={
+            !formData.title || 
+            !formData.customer_name || 
+            selectedTeamIds.length === 0 || 
+            !formData.website_url || 
+            (showProjectManagerSelector && !closedBy) ||
+            uploading
+          }
           className="w-full"
         >
           {uploading ? "Creating & Uploading..." : selectedTeamIds.length > 1 ? `Create ${selectedTeamIds.length} Tasks` : "Create Task"}
