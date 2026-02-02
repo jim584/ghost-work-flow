@@ -153,6 +153,7 @@ export type Database = {
           monthly_order_target: number
           transferred_orders_count: number
           updated_at: string | null
+          upsell_revenue: number
           user_id: string
         }
         Insert: {
@@ -162,6 +163,7 @@ export type Database = {
           monthly_order_target?: number
           transferred_orders_count?: number
           updated_at?: string | null
+          upsell_revenue?: number
           user_id: string
         }
         Update: {
@@ -171,6 +173,7 @@ export type Database = {
           monthly_order_target?: number
           transferred_orders_count?: number
           updated_at?: string | null
+          upsell_revenue?: number
           user_id?: string
         }
         Relationships: []
@@ -236,6 +239,7 @@ export type Database = {
           headline_main_text: string | null
           id: string
           industry: string | null
+          is_upsell: boolean
           logo_style: string | null
           logo_type: string | null
           logo_url: string | null
@@ -306,6 +310,7 @@ export type Database = {
           headline_main_text?: string | null
           id?: string
           industry?: string | null
+          is_upsell?: boolean
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null
@@ -376,6 +381,7 @@ export type Database = {
           headline_main_text?: string | null
           id?: string
           industry?: string | null
+          is_upsell?: boolean
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null

@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { File as FileIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +18,7 @@ interface CreateWebsiteOrderFormProps {
   userId: string;
   onSuccess: () => void;
   showProjectManagerSelector?: boolean;
+  showUpsellToggle?: boolean;
 }
 
 const INDUSTRIES = [
@@ -57,7 +59,7 @@ const NUMBER_OF_PAGES = [
   "20+ Pages (Enterprise)",
 ];
 
-export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSelector = false }: CreateWebsiteOrderFormProps) => {
+export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSelector = false, showUpsellToggle = false }: CreateWebsiteOrderFormProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
@@ -66,6 +68,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
   const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>(userId);
   const [transferredBy, setTransferredBy] = useState<string>("");
   const [closedBy, setClosedBy] = useState<string>("");
+  const [isUpsell, setIsUpsell] = useState(false);
   const { data: projectManagers = [], isLoading: loadingPMs } = useProjectManagers();
   const { data: trackingUsers = [], isLoading: loadingTrackingUsers } = useTrackingUsers();
   
@@ -182,8 +185,9 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
           amount_pending: formData.amount_pending ? parseFloat(formData.amount_pending) : 0,
           amount_total: formData.amount_total ? parseFloat(formData.amount_total) : 0,
           // Tracking fields
-          transferred_by: transferredBy || null,
-          closed_by: closedBy || null,
+          transferred_by: isUpsell ? null : (transferredBy || null),
+          closed_by: isUpsell ? null : (closedBy || null),
+          is_upsell: isUpsell,
         };
 
         const { error } = await supabase.from("tasks").insert(taskData);
@@ -341,19 +345,39 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
           </div>
         )}
 
-        {/* Tracking Fields - Only shown for Front Sales */}
-        {showProjectManagerSelector && (
+        {/* Tracking Fields */}
+        {(showProjectManagerSelector || showUpsellToggle) && (
           <div className="space-y-4 pt-4 border-t">
-            <h3 className="font-semibold text-lg">Handoff & Closure Tracking</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-lg">Handoff & Closure Tracking</h3>
+              {showUpsellToggle && (
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="tracking-toggle" className="text-sm text-muted-foreground">
+                    {isUpsell ? "Upsell (Revenue)" : "New Customer"}
+                  </Label>
+                  <Switch
+                    id="tracking-toggle"
+                    checked={!isUpsell}
+                    onCheckedChange={(checked) => {
+                      setIsUpsell(!checked);
+                      if (!checked) {
+                        setTransferredBy("");
+                        setClosedBy("");
+                      }
+                    }}
+                  />
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="transferred_by">Transferred By</Label>
+                <Label htmlFor="transferred_by" className={isUpsell ? "text-muted-foreground" : ""}>Transferred By</Label>
                 <Select 
                   value={transferredBy} 
                   onValueChange={setTransferredBy}
-                  disabled={loadingTrackingUsers}
+                  disabled={loadingTrackingUsers || isUpsell}
                 >
-                  <SelectTrigger id="transferred_by">
+                  <SelectTrigger id="transferred_by" className={isUpsell ? "opacity-50" : ""}>
                     <SelectValue placeholder={loadingTrackingUsers ? "Loading..." : "Select user"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -366,13 +390,13 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="closed_by">Closed By *</Label>
+                <Label htmlFor="closed_by" className={isUpsell ? "text-muted-foreground" : ""}>Closed By {!isUpsell && "*"}</Label>
                 <Select
                   value={closedBy} 
                   onValueChange={setClosedBy}
-                  disabled={loadingTrackingUsers}
+                  disabled={loadingTrackingUsers || isUpsell}
                 >
-                  <SelectTrigger id="closed_by">
+                  <SelectTrigger id="closed_by" className={isUpsell ? "opacity-50" : ""}>
                     <SelectValue placeholder={loadingTrackingUsers ? "Loading..." : "Select user"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -385,6 +409,11 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
                 </Select>
               </div>
             </div>
+            {isUpsell && (
+              <p className="text-sm text-muted-foreground">
+                Upsell orders track revenue towards monthly target based on Total Amount.
+              </p>
+            )}
           </div>
         )}
 
