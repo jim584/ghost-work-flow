@@ -87,7 +87,10 @@ const AdminDashboard = () => {
         .select(`
           *,
           teams(name),
-          profiles!tasks_project_manager_id_fkey(email, full_name)
+          profiles!tasks_project_manager_id_fkey(email, full_name),
+          creator:profiles!tasks_created_by_fkey(email, full_name),
+          transferred_by_profile:profiles!tasks_transferred_by_fkey(email, full_name),
+          closed_by_profile:profiles!tasks_closed_by_fkey(email, full_name)
         `)
         .order("created_at", { ascending: false });
 
@@ -1506,6 +1509,25 @@ const AdminDashboard = () => {
                   <div>
                     <Label className="text-muted-foreground">Project Manager</Label>
                     <p className="font-medium">{viewDetailsTask?.profiles?.full_name || viewDetailsTask?.profiles?.email || "N/A"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Attribution */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg border-b pb-2">Order Attribution</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Created By</Label>
+                    <p className="font-medium">{(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Transferred By</Label>
+                    <p className="font-medium">{(viewDetailsTask as any)?.transferred_by_profile?.full_name || (viewDetailsTask as any)?.transferred_by_profile?.email || "—"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Closed By</Label>
+                    <p className="font-medium">{(viewDetailsTask as any)?.closed_by_profile?.full_name || (viewDetailsTask as any)?.closed_by_profile?.email || "N/A"}</p>
                   </div>
                 </div>
               </div>

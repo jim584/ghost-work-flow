@@ -132,7 +132,14 @@ const FrontSalesDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("*, teams(name), project_manager:profiles!tasks_project_manager_id_fkey(full_name, email)")
+        .select(`
+          *, 
+          teams(name), 
+          project_manager:profiles!tasks_project_manager_id_fkey(full_name, email),
+          creator:profiles!tasks_created_by_fkey(email, full_name),
+          transferred_by_profile:profiles!tasks_transferred_by_fkey(email, full_name),
+          closed_by_profile:profiles!tasks_closed_by_fkey(email, full_name)
+        `)
         .eq("created_by", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -162,7 +169,14 @@ const FrontSalesDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("*, teams(name), project_manager:profiles!tasks_project_manager_id_fkey(full_name, email)")
+        .select(`
+          *, 
+          teams(name), 
+          project_manager:profiles!tasks_project_manager_id_fkey(full_name, email),
+          creator:profiles!tasks_created_by_fkey(email, full_name),
+          transferred_by_profile:profiles!tasks_transferred_by_fkey(email, full_name),
+          closed_by_profile:profiles!tasks_closed_by_fkey(email, full_name)
+        `)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -901,6 +915,11 @@ const FrontSalesDashboard = () => {
                       {viewDetailsTask.deadline && (
                         <p><span className="text-muted-foreground">Deadline:</span> {format(new Date(viewDetailsTask.deadline), "MMM d, yyyy")}</p>
                       )}
+                      <p><span className="text-muted-foreground">Created By:</span> {(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}</p>
+                      {(viewDetailsTask as any)?.transferred_by_profile && (
+                        <p><span className="text-muted-foreground">Transferred By:</span> {(viewDetailsTask as any)?.transferred_by_profile?.full_name || (viewDetailsTask as any)?.transferred_by_profile?.email}</p>
+                      )}
+                      <p><span className="text-muted-foreground">Closed By:</span> {(viewDetailsTask as any)?.closed_by_profile?.full_name || (viewDetailsTask as any)?.closed_by_profile?.email || "N/A"}</p>
                     </div>
                   </div>
                 </div>
