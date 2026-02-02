@@ -2,135 +2,133 @@
 
 ## Overview
 
-Make all performance metrics in the Admin Dashboard's Front Sales Performance section clickable. When clicked, each metric will open a dialog showing the relevant filtered data for that specific user.
+Add an "Accept Order" feature for Project Managers in the PM Dashboard. When a PM accepts an order, the "Reassign" button will be hidden for that task, indicating they have committed to handling it.
 
-## Clickable Metrics
+## Current Behavior
 
-The following metrics in each Front Sales user card will become clickable:
+Currently, when a task has status `pending`, the PM sees a "Reassign" button that allows them to transfer the task to another PM. According to the existing feature memory, PMs can only reassign tasks while the status is `pending` - once the status changes, only admins can reassign.
 
-| Metric | Click Action |
-|--------|--------------|
-| Monthly Target | Opens a dialog to edit the target (already has Edit Target button - will make the number itself clickable too) |
-| Total Achieved | Shows all orders (transferred + closed) attributed to this user |
-| Transferred | Shows only orders where this user is the `transferred_by` |
-| Closed | Shows only orders where this user is the `closed_by` |
-| Closed Revenue | Shows closed orders with their revenue amounts |
+## Proposed Solution
+
+Add an `accepted_by_pm` boolean column to the tasks table. When a PM clicks "Accept", this field is set to `true`, and the Reassign button is hidden for that task.
 
 ## Implementation Details
 
-### 1. Add State for Metric Details Dialog
+### 1. Database Schema Change
 
-Add new state variables to manage the metric details dialog:
+Add a new column to the `tasks` table:
+
+```sql
+ALTER TABLE public.tasks 
+ADD COLUMN accepted_by_pm boolean NOT NULL DEFAULT false;
+```
+
+This column will track whether the assigned PM has explicitly accepted the order.
+
+### 2. PM Dashboard UI Changes
+
+**File:** `src/components/dashboards/PMDashboard.tsx`
+
+**A. Add Accept Order Mutation:**
 
 ```tsx
-const [metricDetailsDialog, setMetricDetailsDialog] = useState<{
-  open: boolean;
-  userId: string;
-  userName: string;
-  metricType: 'target' | 'total_achieved' | 'transferred' | 'closed' | 'revenue';
-} | null>(null);
+const acceptOrder = useMutation({
+  mutationFn: async (taskId: string) => {
+    const { error } = await supabase
+      .from("tasks")
+      .update({ accepted_by_pm: true })
+      .eq("id", taskId);
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+    toast({ title: "Order accepted successfully" });
+  },
+  onError: (error: any) => {
+    toast({
+      variant: "destructive",
+      title: "Error accepting order",
+      description: error.message,
+    });
+  },
+});
 ```
 
-### 2. Create Metric-Filtered Tasks Query
+**B. Update Card Footer Buttons:**
 
-Add a query to fetch tasks filtered by the selected user and metric type:
-
-- For **Transferred**: Tasks where `transferred_by === userId`
-- For **Closed**: Tasks where `closed_by === userId`  
-- For **Total Achieved**: Tasks where `transferred_by === userId` OR `closed_by === userId`
-- For **Revenue**: Tasks where `closed_by === userId` (showing revenue details)
-
-### 3. Make Metric Values Clickable
-
-Update each metric display from static text to clickable buttons with hover effects:
+The current logic shows the Reassign button when `task.status === "pending"`. Update this to:
+- Show "Accept Order" button when: `task.status === "pending"` AND `task.accepted_by_pm !== true`
+- Show "Reassign" button when: `task.status === "pending"` AND `task.accepted_by_pm !== true`
+- Hide both buttons when: `task.accepted_by_pm === true`
 
 ```tsx
-<div 
-  className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
-  onClick={() => setMetricDetailsDialog({
-    open: true,
-    userId: salesUser.id,
-    userName: salesUser.full_name || salesUser.email,
-    metricType: 'transferred',
-  })}
->
-  <p className="text-sm text-muted-foreground">Transferred</p>
-  <p className="text-2xl font-bold text-orange-500">{transferredCount}</p>
-</div>
+{task.status === "pending" && !task.accepted_by_pm && (
+  <>
+    <Button
+      size="sm"
+      className="bg-green-600 hover:bg-green-700 hover-scale"
+      onClick={() => acceptOrder.mutate(task.id)}
+    >
+      <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+      Accept Order
+    </Button>
+    <Button
+      size="sm"
+      variant="outline"
+      className="hover-scale"
+      onClick={() => setReassignDialog({ 
+        open: true, 
+        taskId: task.id, 
+        currentPmId: task.project_manager_id 
+      })}
+    >
+      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+      Reassign
+    </Button>
+  </>
+)}
+{task.status === "pending" && task.accepted_by_pm && (
+  <Badge className="bg-green-100 text-green-700 border-green-300">
+    <CheckCircle2 className="h-3 w-3 mr-1" />
+    Accepted
+  </Badge>
+)}
 ```
 
-### 4. Create Metric Details Dialog
+**C. Add Visual Indicator (Optional):**
 
-Add a new dialog that displays filtered tasks based on the selected metric:
+Show an "Accepted" badge on the card when the order has been accepted, replacing the buttons area.
 
-```text
-+--------------------------------------------------+
-| [User Name] - [Metric Name]                      |
-+--------------------------------------------------+
-| Task List (Scrollable):                          |
-|                                                  |
-| #1234 - Website Design - ABC Company             |
-|   Status: Pending | Revenue: $5,000              |
-|   [View Details]                                 |
-|                                                  |
-| #1235 - Logo Design - XYZ Corp                   |
-|   Status: Completed | Revenue: $1,500            |
-|   [View Details]                                 |
-|                                                  |
-| ... more tasks ...                               |
-+--------------------------------------------------+
-```
+### 3. Logic Summary
 
-### 5. Monthly Target Click Behavior
+| Condition | UI Shown |
+|-----------|----------|
+| `status === "pending"` AND `accepted_by_pm === false` | Accept Order + Reassign buttons |
+| `status === "pending"` AND `accepted_by_pm === true` | "Accepted" badge (no Reassign button) |
+| `status !== "pending"` | Neither button (existing behavior) |
 
-The Monthly Target metric will trigger the existing Edit Target dialog when clicked (same as the "Edit Target" button).
+### 4. Import Updates
 
-## Technical Details
+Add `Check` or use existing `CheckCircle2` icon for the Accept button (already imported).
 
-### File to Modify
-- `src/components/dashboards/AdminDashboard.tsx`
+## Technical Summary
 
-### New State Variables
-```tsx
-const [metricDetailsDialog, setMetricDetailsDialog] = useState<{
-  open: boolean;
-  userId: string;
-  userName: string;
-  metricType: 'target' | 'total_achieved' | 'transferred' | 'closed' | 'revenue';
-} | null>(null);
-```
+| Component | Change |
+|-----------|--------|
+| Database | Add `accepted_by_pm` boolean column to `tasks` table |
+| PMDashboard.tsx | Add `acceptOrder` mutation |
+| PMDashboard.tsx | Update card footer to show Accept/Reassign buttons conditionally |
+| PMDashboard.tsx | Add "Accepted" badge indicator when order is accepted |
 
-### Task Filtering Logic
-```tsx
-const getFilteredTasksForMetric = (userId: string, metricType: string) => {
-  if (!tasks) return [];
-  
-  switch (metricType) {
-    case 'transferred':
-      return tasks.filter(t => t.transferred_by === userId && !t.is_upsell);
-    case 'closed':
-      return tasks.filter(t => t.closed_by === userId && !t.is_upsell);
-    case 'total_achieved':
-      return tasks.filter(t => 
-        (t.transferred_by === userId || t.closed_by === userId) && !t.is_upsell
-      );
-    case 'revenue':
-      return tasks.filter(t => t.closed_by === userId && !t.is_upsell);
-    default:
-      return [];
-  }
-};
-```
+## Expected Behavior After Implementation
 
-### Dialog Content Structure
-The dialog will include:
-- Header with user name and metric type
-- ScrollArea with list of filtered tasks
-- Each task shows: task number, title, status badge, revenue (if applicable)
-- "View Details" button that opens the existing view details dialog
-
-### Visual Feedback
-- Hover state: `hover:bg-muted/50` with `transition-colors`
-- Cursor: `cursor-pointer`
-- Slight padding adjustment for better click target
+1. PM sees a new pending order assigned to them
+2. PM can either click "Accept Order" or "Reassign"
+3. If they click "Accept Order":
+   - The order is marked as accepted
+   - Both "Accept Order" and "Reassign" buttons are replaced with an "Accepted" badge
+   - PM can no longer reassign this task
+4. If they click "Reassign":
+   - Existing reassignment flow continues as before
+5. Admins can still view acceptance status but this doesn't affect their reassignment capabilities
 
