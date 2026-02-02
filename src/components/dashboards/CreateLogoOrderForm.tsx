@@ -360,8 +360,8 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManag
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="closed_by">Closed By</Label>
-                <Select 
+                <Label htmlFor="closed_by">Closed By *</Label>
+                <Select
                   value={closedBy} 
                   onValueChange={setClosedBy}
                   disabled={loadingTrackingUsers}
@@ -580,7 +580,15 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManag
 
         <Button
           onClick={() => createLogoOrder.mutate()}
-          disabled={!formData.logo_name || !formData.customer_name || selectedTeamIds.length === 0 || !formData.industry || !formData.deadline || uploading}
+          disabled={
+            !formData.logo_name || 
+            !formData.customer_name || 
+            selectedTeamIds.length === 0 || 
+            !formData.industry || 
+            !formData.deadline || 
+            (showProjectManagerSelector && !closedBy) ||
+            uploading
+          }
           className="w-full"
         >
           {uploading ? "Creating Logo Order..." : `Create Logo Order${selectedTeamIds.length > 1 ? ` (${selectedTeamIds.length} teams)` : ''}`}
