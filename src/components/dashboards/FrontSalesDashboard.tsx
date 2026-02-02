@@ -246,10 +246,23 @@ const FrontSalesDashboard = () => {
           const weekStart = startOfWeek(now, { weekStartsOn: 1 });
           const monthStart = startOfMonth(now);
           
-          const totalOrders = myTasks?.length || 0;
-          const ordersThisWeek = myTasks?.filter(t => t.created_at && new Date(t.created_at) >= weekStart).length || 0;
-          const ordersThisMonth = myTasks?.filter(t => t.created_at && new Date(t.created_at) >= monthStart).length || 0;
-          const totalRevenue = myTasks?.reduce((sum, t) => sum + (t.amount_paid || 0), 0) || 0;
+          // Group tasks to get unique orders (same order can be assigned to multiple teams)
+          const getUniqueOrders = (tasks: typeof myTasks) => {
+            if (!tasks) return [];
+            const seen = new Set<string>();
+            return tasks.filter(task => {
+              const key = `${task.customer_name || task.business_name || ''}_${task.title}_${task.deadline || ''}_${task.post_type || ''}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+          };
+          
+          const uniqueOrders = getUniqueOrders(myTasks);
+          const totalOrders = uniqueOrders.length;
+          const ordersThisWeek = getUniqueOrders(myTasks?.filter(t => t.created_at && new Date(t.created_at) >= weekStart)).length;
+          const ordersThisMonth = getUniqueOrders(myTasks?.filter(t => t.created_at && new Date(t.created_at) >= monthStart)).length;
+          const totalRevenue = uniqueOrders.reduce((sum, t) => sum + (t.amount_paid || 0), 0);
           
           return (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
