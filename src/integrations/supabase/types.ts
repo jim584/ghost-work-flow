@@ -495,10 +495,16 @@ export type Database = {
       }
       set_user_role_designer: { Args: never; Returns: undefined }
       set_user_role_developer: { Args: never; Returns: undefined }
+      set_user_role_front_sales: { Args: never; Returns: undefined }
       validate_safe_filename: { Args: { filename: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "project_manager" | "designer" | "developer"
+      app_role:
+        | "admin"
+        | "project_manager"
+        | "designer"
+        | "developer"
+        | "front_sales"
       task_status: "pending" | "in_progress" | "completed" | "approved"
     }
     CompositeTypes: {
@@ -627,7 +633,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "project_manager", "designer", "developer"],
+      app_role: [
+        "admin",
+        "project_manager",
+        "designer",
+        "developer",
+        "front_sales",
+      ],
       task_status: ["pending", "in_progress", "completed", "approved"],
     },
   },
