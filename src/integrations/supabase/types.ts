@@ -210,6 +210,7 @@ export type Database = {
           business_email: string | null
           business_name: string | null
           business_phone: string | null
+          closed_by: string | null
           competitors_inspiration: string | null
           content_provided: boolean | null
           created_at: string | null
@@ -258,6 +259,7 @@ export type Database = {
           task_number: number
           team_id: string
           title: string
+          transferred_by: string | null
           updated_at: string | null
           usage_type: string | null
           video_keywords: string | null
@@ -277,6 +279,7 @@ export type Database = {
           business_email?: string | null
           business_name?: string | null
           business_phone?: string | null
+          closed_by?: string | null
           competitors_inspiration?: string | null
           content_provided?: boolean | null
           created_at?: string | null
@@ -325,6 +328,7 @@ export type Database = {
           task_number?: number
           team_id: string
           title: string
+          transferred_by?: string | null
           updated_at?: string | null
           usage_type?: string | null
           video_keywords?: string | null
@@ -344,6 +348,7 @@ export type Database = {
           business_email?: string | null
           business_name?: string | null
           business_phone?: string | null
+          closed_by?: string | null
           competitors_inspiration?: string | null
           content_provided?: boolean | null
           created_at?: string | null
@@ -392,6 +397,7 @@ export type Database = {
           task_number?: number
           team_id?: string
           title?: string
+          transferred_by?: string | null
           updated_at?: string | null
           usage_type?: string | null
           video_keywords?: string | null
@@ -401,6 +407,13 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tasks_project_manager_id_fkey"
             columns: ["project_manager_id"]
@@ -413,6 +426,13 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_transferred_by_fkey"
+            columns: ["transferred_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
