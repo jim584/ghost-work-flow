@@ -1,58 +1,96 @@
 
 
-# Fix PM Task Reassignment with Status Restriction
-
 ## Overview
-Update the RLS policy to allow Project Managers to reassign tasks to other PMs, but only while the task status is still 'pending'. Once the status changes (e.g., to 'in_progress'), only Admins can perform reassignments.
 
-## Current Problem
-The existing RLS policy blocks PM reassignment entirely because it requires `project_manager_id = auth.uid()` both before and after the update, preventing ownership transfer.
+Enhance the View Details dialog for website orders in the Front Sales Dashboard to display all the fields from the website order form. Currently, the website details section only shows `website_type`, `number_of_pages`, and `website_features` - but it's missing several important fields that are captured during order creation.
 
-## Solution
+## Fields to Add
 
-### Database Migration
-Replace the existing "PMs can update their tasks" policy with one that:
-1. Allows regular updates where PM keeps ownership
-2. Allows reassignment only when status = 'pending' and proper tracking fields are set
+The following fields from the website order form are currently missing in the view details dialog:
 
-```sql
--- Drop the existing policy
-DROP POLICY IF EXISTS "PMs can update their tasks" ON public.tasks;
+| Field | Database Column | Display Format |
+|-------|-----------------|----------------|
+| Business Description | `supporting_text` | Multi-line with preserved formatting |
+| Video Keywords | `video_keywords` | Multi-line with preserved formatting |
+| Additional Notes | `notes_extra_instructions` | Multi-line with preserved formatting |
+| Design References | `design_references` | Multi-line with preserved formatting |
+| Current Website URL | `website_url` | Clickable link |
+| Customer Domain | `customer_domain` | Clickable link |
+| Logo Files | `logo_url` | File preview with download |
 
--- Create updated policy with reassignment support
-CREATE POLICY "PMs can update their tasks"
-ON public.tasks
-FOR UPDATE
-USING (
-  has_role(auth.uid(), 'project_manager'::app_role) 
-  AND project_manager_id = auth.uid()
-)
-WITH CHECK (
-  has_role(auth.uid(), 'project_manager'::app_role) 
-  AND (
-    -- Regular updates: PM keeps ownership
-    project_manager_id = auth.uid()
-    OR
-    -- Reassignment: Only allowed when status is pending
-    (
-      status = 'pending'::task_status
-      AND reassigned_from = auth.uid() 
-      AND reassigned_at IS NOT NULL
-    )
-  )
-);
+## Implementation
+
+### 1. Expand Website Details Section (lines ~1007-1016)
+
+Currently the section shows minimal information. It will be restructured to include:
+
+- Industry
+- Number of Pages
+- Current Website URL (clickable)
+- Customer Domain (clickable)
+- Video Keywords (with `whitespace-pre-wrap`)
+
+### 2. Add Business Description Section
+
+A new section for the business description (`supporting_text`) with proper text formatting using `whitespace-pre-wrap` to preserve line breaks.
+
+### 3. Add Design References Section
+
+Display the `design_references` field with preserved formatting.
+
+### 4. Add Additional Notes Section
+
+Display `notes_extra_instructions` with `whitespace-pre-wrap` styling, matching other dashboards.
+
+### 5. Add Logo Files Section
+
+If `logo_url` contains uploaded logos, display them with:
+- File preview using the existing `FilePreview` component
+- Download button functionality (similar to the existing attachments section)
+
+## Technical Details
+
+The changes will be made to `src/components/dashboards/FrontSalesDashboard.tsx` within the View Details Dialog (starting around line 1007).
+
+```text
+Structure of enhanced Website Details:
+
++----------------------------------+
+| Website Details                  |
++----------------------------------+
+| Industry: [value]                |
+| Pages: [value]                   |
+| Current Website: [link]          |
+| Customer Domain: [link]          |
+| Video Keywords:                  |
+| [preserved multi-line text]      |
++----------------------------------+
+
++----------------------------------+
+| Business Description             |
++----------------------------------+
+| [preserved multi-line text]      |
++----------------------------------+
+
++----------------------------------+
+| Design References                |
++----------------------------------+
+| [preserved multi-line text]      |
++----------------------------------+
+
++----------------------------------+
+| Additional Notes                 |
++----------------------------------+
+| [preserved multi-line text]      |
++----------------------------------+
+
++----------------------------------+
+| Logo Files                       |
++----------------------------------+
+| [File Preview] [File Preview]    |
+| [Download]     [Download]        |
++----------------------------------+
 ```
 
-## Business Rules Summary
-
-| Scenario | PM Can Reassign? | Admin Can Reassign? |
-|----------|------------------|---------------------|
-| Status = pending | Yes | Yes |
-| Status = in_progress | No | Yes |
-| Status = completed | No | Yes |
-
-## No Frontend Changes Required
-The existing reassignment UI in PMDashboard already:
-- Only shows the reassign option for pending tasks
-- Sets `reassigned_from`, `reassigned_at`, and `reassignment_reason` correctly
+Key styling: All multi-line text fields will use `whitespace-pre-wrap` class to preserve the original formatting entered in the order form.
 
