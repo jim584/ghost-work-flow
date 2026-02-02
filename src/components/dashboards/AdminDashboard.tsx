@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -300,6 +300,20 @@ const AdminDashboard = () => {
         closedRevenue: closedRevenueByPm.get(profile.id) || 0,
       })) || [];
     },
+  });
+
+  // Fetch performance history
+  const { data: performanceHistory } = useQuery({
+    queryKey: ["performance-history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_performance_history")
+        .select("*")
+        .order("month_year", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: viewMode === 'sales_performance',
   });
 
   // State for editing targets
@@ -1609,6 +1623,78 @@ const AdminDashboard = () => {
                           </div>
                         </CardContent>
                       </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Performance History Section */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Performance History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!performanceHistory?.length ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No historical data yet. Data will be archived at the start of each month.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {Array.from(new Set(performanceHistory.map(h => h.month_year))).map(monthYear => {
+                    const monthRecords = performanceHistory.filter(h => h.month_year === monthYear);
+                    const formattedMonth = new Date(monthYear + 'T00:00:00').toLocaleDateString('en-US', { 
+                      month: 'long', 
+                      year: 'numeric' 
+                    });
+                    
+                    return (
+                      <Accordion key={monthYear} type="single" collapsible className="border rounded-lg">
+                        <AccordionItem value={monthYear} className="border-0">
+                          <AccordionTrigger className="px-4 hover:no-underline">
+                            <div className="flex items-center gap-4">
+                              <span className="font-semibold">{formattedMonth}</span>
+                              <Badge variant="outline">{monthRecords.length} users</Badge>
+                              <span className="text-sm text-muted-foreground">
+                                Total: ${monthRecords.reduce((sum, r) => sum + Number(r.upsell_revenue || 0), 0).toLocaleString()} upsells
+                              </span>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="px-4 pb-4">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b">
+                                    <th className="text-left py-2 font-medium">User</th>
+                                    <th className="text-right py-2 font-medium">Transferred</th>
+                                    <th className="text-right py-2 font-medium">Closed</th>
+                                    <th className="text-right py-2 font-medium">Upsell Revenue</th>
+                                    <th className="text-right py-2 font-medium">Target</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {monthRecords.map(record => {
+                                    const userProfile = users?.find(u => u.id === record.user_id);
+                                    return (
+                                      <tr key={record.id} className="border-b last:border-0">
+                                        <td className="py-2">{userProfile?.full_name || userProfile?.email || 'Unknown User'}</td>
+                                        <td className="text-right py-2">{record.transferred_orders_count}</td>
+                                        <td className="text-right py-2">{record.closed_orders_count}</td>
+                                        <td className="text-right py-2 text-green-600">${Number(record.upsell_revenue || 0).toLocaleString()}</td>
+                                        <td className="text-right py-2">${Number(record.monthly_dollar_target || 0).toLocaleString()}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     );
                   })}
                 </div>
