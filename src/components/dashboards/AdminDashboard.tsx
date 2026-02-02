@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FilePreview } from "@/components/FilePreview";
-import { format } from "date-fns";
+import { format, startOfWeek, startOfMonth } from "date-fns";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -51,7 +51,7 @@ const AdminDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
   const [editTeamDialog, setEditTeamDialog] = useState<{ open: boolean; teamId: string; currentName: string } | null>(null);
   const [newTeamName, setNewTeamName] = useState("");
-  const [viewMode, setViewMode] = useState<'tasks' | 'portfolio'>('tasks');
+  const [viewMode, setViewMode] = useState<'tasks' | 'portfolio' | 'sales_performance'>('tasks');
   const [passwordResetDialog, setPasswordResetDialog] = useState<{ open: boolean; userId: string; userName: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
@@ -151,6 +151,45 @@ const AdminDashboard = () => {
       
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fetch front sales users with their tasks
+  const { data: frontSalesUsers } = useQuery({
+    queryKey: ["front-sales-users"],
+    queryFn: async () => {
+      // Get all front sales user IDs
+      const { data: frontSalesRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "front_sales");
+      
+      if (rolesError) throw rolesError;
+      if (!frontSalesRoles?.length) return [];
+      
+      const salesUserIds = frontSalesRoles.map(r => r.user_id);
+      
+      // Get profiles for these users
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .in("id", salesUserIds);
+      
+      if (profilesError) throw profilesError;
+      
+      // Get all tasks created by front sales users
+      const { data: salesTasks, error: tasksError } = await supabase
+        .from("tasks")
+        .select("*")
+        .in("created_by", salesUserIds);
+      
+      if (tasksError) throw tasksError;
+      
+      // Combine profiles with their tasks
+      return profiles?.map(profile => ({
+        ...profile,
+        tasks: salesTasks?.filter(t => t.created_by === profile.id) || []
+      })) || [];
     },
   });
 
@@ -754,6 +793,12 @@ const AdminDashboard = () => {
             >
               Industry Portfolio
             </Button>
+            <Button
+              variant={viewMode === 'sales_performance' ? 'default' : 'outline'}
+              onClick={() => setViewMode('sales_performance')}
+            >
+              Sales Performance
+            </Button>
           </div>
           {viewMode === 'tasks' && (
             <div className="flex gap-2">
@@ -1135,6 +1180,84 @@ const AdminDashboard = () => {
                       );
                     })}
                 </Accordion>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {viewMode === 'sales_performance' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Front Sales Performance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!frontSalesUsers?.length ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No front sales users found
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {frontSalesUsers.map((salesUser) => {
+                    const now = new Date();
+                    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+                    const monthStart = startOfMonth(now);
+                    
+                    // Group tasks to get unique orders
+                    const getUniqueOrders = (userTasks: typeof salesUser.tasks) => {
+                      if (!userTasks) return [];
+                      const seen = new Set<string>();
+                      return userTasks.filter(task => {
+                        const key = `${task.customer_name || task.business_name || ''}_${task.title}_${task.deadline || ''}_${task.post_type || ''}`;
+                        if (seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                      });
+                    };
+                    
+                    const uniqueOrders = getUniqueOrders(salesUser.tasks);
+                    const totalOrders = uniqueOrders.length;
+                    const ordersThisWeek = getUniqueOrders(salesUser.tasks.filter(t => t.created_at && new Date(t.created_at) >= weekStart)).length;
+                    const ordersThisMonth = getUniqueOrders(salesUser.tasks.filter(t => t.created_at && new Date(t.created_at) >= monthStart)).length;
+                    const revenueThisMonth = getUniqueOrders(salesUser.tasks.filter(t => t.created_at && new Date(t.created_at) >= monthStart))
+                      .reduce((sum, t) => sum + (t.amount_paid || 0), 0);
+                    const totalRevenue = uniqueOrders.reduce((sum, t) => sum + (t.amount_paid || 0), 0);
+                    
+                    return (
+                      <Card key={salesUser.id} className="border-l-4 border-l-primary">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Users className="h-5 w-5 text-primary" />
+                            {salesUser.full_name || salesUser.email}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Total Orders</p>
+                              <p className="text-2xl font-bold">{totalOrders}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">This Week</p>
+                              <p className="text-2xl font-bold">{ordersThisWeek}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">This Month</p>
+                              <p className="text-2xl font-bold">{ordersThisMonth}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Revenue (Month)</p>
+                              <p className="text-2xl font-bold text-green-600">${revenueThisMonth.toLocaleString()}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Total Revenue</p>
+                              <p className="text-2xl font-bold text-green-600">${totalRevenue.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               )}
             </CardContent>
           </Card>
