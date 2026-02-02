@@ -148,16 +148,37 @@ const PMDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select(`
-          *, 
-          teams(name),
-          creator:profiles!tasks_created_by_fkey(email, full_name),
-          transferred_by_profile:profiles!tasks_transferred_by_fkey(email, full_name),
-          closed_by_profile:profiles!tasks_closed_by_fkey(email, full_name)
-        `)
+        .select("*, teams(name)")
         .eq("project_manager_id", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
+      
+      // Fetch creator, transferred_by, and closed_by profiles separately
+      if (data && data.length > 0) {
+        const userIds = new Set<string>();
+        data.forEach(task => {
+          if (task.created_by) userIds.add(task.created_by);
+          if (task.transferred_by) userIds.add(task.transferred_by);
+          if (task.closed_by) userIds.add(task.closed_by);
+        });
+        
+        if (userIds.size > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, email, full_name")
+            .in("id", Array.from(userIds));
+          
+          const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+          
+          return data.map(task => ({
+            ...task,
+            creator: task.created_by ? profileMap.get(task.created_by) : null,
+            transferred_by_profile: task.transferred_by ? profileMap.get(task.transferred_by) : null,
+            closed_by_profile: task.closed_by ? profileMap.get(task.closed_by) : null,
+          }));
+        }
+      }
+      
       return data;
     },
   });
@@ -166,23 +187,41 @@ const PMDashboard = () => {
   const { data: allTasks } = useQuery({
     queryKey: ["all-tasks-search", searchQuery],
     queryFn: async () => {
-      // Use RPC or a broader query - but PMs only have RLS for their own tasks
-      // We need to use the project_manager profile to get names
       const { data, error } = await supabase
         .from("tasks")
-        .select(`
-          *, 
-          teams(name), 
-          profiles!tasks_project_manager_id_fkey(full_name, email),
-          creator:profiles!tasks_created_by_fkey(email, full_name),
-          transferred_by_profile:profiles!tasks_transferred_by_fkey(email, full_name),
-          closed_by_profile:profiles!tasks_closed_by_fkey(email, full_name)
-        `)
+        .select("*, teams(name), profiles!tasks_project_manager_id_fkey(full_name, email)")
         .order("created_at", { ascending: false });
       if (error) throw error;
+      
+      // Fetch creator, transferred_by, and closed_by profiles separately
+      if (data && data.length > 0) {
+        const userIds = new Set<string>();
+        data.forEach(task => {
+          if (task.created_by) userIds.add(task.created_by);
+          if (task.transferred_by) userIds.add(task.transferred_by);
+          if (task.closed_by) userIds.add(task.closed_by);
+        });
+        
+        if (userIds.size > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, email, full_name")
+            .in("id", Array.from(userIds));
+          
+          const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+          
+          return data.map(task => ({
+            ...task,
+            creator: task.created_by ? profileMap.get(task.created_by) : null,
+            transferred_by_profile: task.transferred_by ? profileMap.get(task.transferred_by) : null,
+            closed_by_profile: task.closed_by ? profileMap.get(task.closed_by) : null,
+          }));
+        }
+      }
+      
       return data;
     },
-    enabled: !!searchQuery.trim(), // Only fetch when searching
+    enabled: !!searchQuery.trim(),
   });
 
   // Use allTasks when searching, otherwise use myTasks

@@ -87,14 +87,38 @@ const AdminDashboard = () => {
         .select(`
           *,
           teams(name),
-          profiles!tasks_project_manager_id_fkey(email, full_name),
-          creator:profiles!tasks_created_by_fkey(email, full_name),
-          transferred_by_profile:profiles!tasks_transferred_by_fkey(email, full_name),
-          closed_by_profile:profiles!tasks_closed_by_fkey(email, full_name)
+          profiles!tasks_project_manager_id_fkey(email, full_name)
         `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+      
+      // Fetch creator, transferred_by, and closed_by profiles separately
+      if (data && data.length > 0) {
+        const userIds = new Set<string>();
+        data.forEach(task => {
+          if (task.created_by) userIds.add(task.created_by);
+          if (task.transferred_by) userIds.add(task.transferred_by);
+          if (task.closed_by) userIds.add(task.closed_by);
+        });
+        
+        if (userIds.size > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, email, full_name")
+            .in("id", Array.from(userIds));
+          
+          const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+          
+          return data.map(task => ({
+            ...task,
+            creator: task.created_by ? profileMap.get(task.created_by) : null,
+            transferred_by_profile: task.transferred_by ? profileMap.get(task.transferred_by) : null,
+            closed_by_profile: task.closed_by ? profileMap.get(task.closed_by) : null,
+          }));
+        }
+      }
+      
       return data;
     },
   });
