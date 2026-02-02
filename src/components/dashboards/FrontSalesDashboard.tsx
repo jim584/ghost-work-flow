@@ -126,16 +126,40 @@ const FrontSalesDashboard = () => {
     return null;
   };
 
-  // Fetch my own orders (created by me) for the main dashboard
+  // Fetch my own orders (created by me OR closed by me when transferred_by is different) for the main dashboard
   const { data: myTasks } = useQuery({
     queryKey: ["sales-tasks", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Get orders created by the user
+      const { data: createdOrders, error: createdError } = await supabase
         .from("tasks")
         .select("*, teams(name), project_manager:profiles!tasks_project_manager_id_fkey(full_name, email)")
         .eq("created_by", user!.id)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (createdError) throw createdError;
+      
+      // Get orders closed by the user where transferred_by is different (and not null)
+      const { data: closedOrders, error: closedError } = await supabase
+        .from("tasks")
+        .select("*, teams(name), project_manager:profiles!tasks_project_manager_id_fkey(full_name, email)")
+        .eq("closed_by", user!.id)
+        .not("transferred_by", "is", null)
+        .neq("transferred_by", user!.id)
+        .order("created_at", { ascending: false });
+      if (closedError) throw closedError;
+      
+      // Merge and deduplicate by task id
+      const taskMap = new Map<string, any>();
+      createdOrders?.forEach(task => taskMap.set(task.id, task));
+      closedOrders?.forEach(task => {
+        if (!taskMap.has(task.id)) {
+          taskMap.set(task.id, task);
+        }
+      });
+      
+      const data = Array.from(taskMap.values()).sort(
+        (a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()
+      );
       
       // Fetch creator, transferred_by, and closed_by profiles separately
       if (data && data.length > 0) {
