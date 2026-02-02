@@ -33,6 +33,22 @@ const AdminDashboard = () => {
   const { signOut, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  const { data: profile } = useQuery({
+    queryKey: ["profile", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+  
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
@@ -741,7 +757,10 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Welcome, {profile?.full_name || 'Admin'}</h1>
+            <p className="text-sm text-muted-foreground">Admin Dashboard</p>
+          </div>
           <div className="flex gap-2">
             <Button 
               onClick={() => setShowUserManagement(!showUserManagement)} 
