@@ -955,11 +955,11 @@ const FrontSalesDashboard = () => {
                       {viewDetailsTask.deadline && (
                         <p><span className="text-muted-foreground">Deadline:</span> {format(new Date(viewDetailsTask.deadline), "MMM d, yyyy")}</p>
                       )}
-                      <p><span className="text-muted-foreground">Created By:</span> {(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}</p>
                       {(viewDetailsTask as any)?.transferred_by_profile && (
                         <p><span className="text-muted-foreground">Transferred By:</span> {(viewDetailsTask as any)?.transferred_by_profile?.full_name || (viewDetailsTask as any)?.transferred_by_profile?.email}</p>
                       )}
                       <p><span className="text-muted-foreground">Closed By:</span> {(viewDetailsTask as any)?.closed_by_profile?.full_name || (viewDetailsTask as any)?.closed_by_profile?.email || "N/A"}</p>
+                      <p className="text-xs text-muted-foreground/70 mt-1">Created by: {(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}</p>
                     </div>
                   </div>
                 </div>
