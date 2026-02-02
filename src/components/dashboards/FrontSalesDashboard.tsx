@@ -433,7 +433,7 @@ const FrontSalesDashboard = () => {
                               : `#${order.task_number}`}
                           </span>
                           <span className="text-muted-foreground truncate max-w-[200px]">
-                            {order.customer_name || order.business_name || order.title}
+                            {order.title}
                           </span>
                           {order.teamCount > 1 && (
                             <Badge variant="outline" className="text-xs">
