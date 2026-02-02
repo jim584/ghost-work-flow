@@ -125,6 +125,21 @@ const FrontSalesDashboard = () => {
     enabled: !!user?.id,
   });
 
+  // Fetch sales target for the current user
+  const { data: salesTarget } = useQuery({
+    queryKey: ["sales-target", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_targets")
+        .select("monthly_order_target")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
   // Query for all tasks (used when searching) - can search all orders in the system
   const { data: allTasks } = useQuery({
     queryKey: ["all-tasks-search", searchQuery],
@@ -270,11 +285,11 @@ const FrontSalesDashboard = () => {
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-primary/10">
-                      <FolderKanban className="h-5 w-5 text-primary" />
+                      <Users className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Total Orders</p>
-                      <p className="text-2xl font-bold">{totalOrders}</p>
+                      <p className="text-sm text-muted-foreground">Monthly Target</p>
+                      <p className="text-2xl font-bold">{salesTarget?.monthly_order_target ?? 10}</p>
                     </div>
                   </div>
                 </CardContent>
