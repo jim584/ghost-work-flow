@@ -643,7 +643,7 @@ const PMDashboard = () => {
               <div className="flex items-center gap-3 text-sm text-muted-foreground border rounded-lg px-3 py-1.5 bg-muted/30">
                 <span>Closed: <strong className="text-foreground">{myTargetStats?.closed_orders_count || 0}</strong></span>
                 <span className="text-border">|</span>
-                <span>Revenue: <strong className="text-foreground">${(closedNewCustomerRevenue || 0).toLocaleString()}</strong></span>
+                <span>Closed Value: <strong className="text-foreground">${(closedNewCustomerRevenue || 0).toLocaleString()}</strong></span>
                 <span className="text-border">|</span>
                 <span>Transferred: <strong className="text-foreground">{myTargetStats?.transferred_orders_count || 0}</strong></span>
                 <span className="text-border">|</span>
