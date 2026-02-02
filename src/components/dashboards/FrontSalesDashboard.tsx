@@ -36,7 +36,6 @@ const FrontSalesDashboard = () => {
   const [taskType, setTaskType] = useState<"social_media" | "logo" | "website" | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string | null>("all");
   const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -168,17 +167,6 @@ const FrontSalesDashboard = () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const stats = {
-    delayed: tasks?.filter(t => 
-      t.deadline && new Date(t.deadline) < today && 
-      !['completed', 'approved'].includes(t.status)
-    ).length || 0,
-    pending: tasks?.filter(t => t.status === 'pending').length || 0,
-    in_progress: tasks?.filter(t => t.status === 'in_progress').length || 0,
-    completed: tasks?.filter(t => t.status === 'completed' || t.status === 'approved').length || 0,
-    total: tasks?.length || 0,
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
@@ -224,11 +212,7 @@ const FrontSalesDashboard = () => {
       if (!matchesOrderType) return false;
     }
     
-    if (!statusFilter || statusFilter === 'all') return true;
-    if (statusFilter === 'delayed') {
-      return task.deadline && new Date(task.deadline) < today && !['completed', 'approved'].includes(task.status);
-    }
-    return task.status === statusFilter;
+    return true;
   }).sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
 
   const getOrderTypeIcon = (task: any) => {
@@ -266,22 +250,7 @@ const FrontSalesDashboard = () => {
           />
         </div>
         
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex gap-2">
-            <Button
-              variant={statusFilter === 'all' ? 'default' : 'outline'}
-              onClick={() => setStatusFilter('all')}
-            >
-              All Tasks
-            </Button>
-            <Button
-              variant={statusFilter === 'delayed' ? 'default' : 'outline'}
-              onClick={() => setStatusFilter('delayed')}
-              className="text-red-600"
-            >
-              Delayed
-            </Button>
-          </div>
+        <div className="flex justify-end items-center mb-4">
           <div className="flex gap-2">
             <Button
               variant={!orderTypeFilter ? 'default' : 'outline'}
@@ -315,64 +284,6 @@ const FrontSalesDashboard = () => {
               Website
             </Button>
           </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-4 mb-8">
-          <Card 
-            className={`border-l-4 border-l-red-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'delayed' ? 'ring-2 ring-red-500' : ''}`}
-            onClick={() => setStatusFilter('delayed')}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Delayed Orders</CardTitle>
-              <Clock className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.delayed}</div>
-              <p className="text-xs text-muted-foreground">Past deadline</p>
-            </CardContent>
-          </Card>
-          
-          <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter('pending')}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <FolderKanban className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.pending}</div>
-              <p className="text-xs text-muted-foreground">Not started</p>
-            </CardContent>
-          </Card>
-          
-          <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'in_progress' ? 'ring-2 ring-warning' : ''}`}
-            onClick={() => setStatusFilter('in_progress')}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-              <Clock className="h-4 w-4 text-warning" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.in_progress}</div>
-              <p className="text-xs text-muted-foreground">Being worked on</p>
-            </CardContent>
-          </Card>
-          
-          <Card 
-            className={`border-l-4 border-l-green-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'completed' ? 'ring-2 ring-green-500' : ''}`}
-            onClick={() => setStatusFilter('completed')}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <FolderKanban className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.completed}</div>
-              <p className="text-xs text-muted-foreground">Finished orders</p>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Recent Orders - Last 6 Days Status (Grouped by Customer) */}
