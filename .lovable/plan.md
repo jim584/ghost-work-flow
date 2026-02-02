@@ -1,67 +1,58 @@
 
-# Plan: Display Order Creator Information
+
+# Fix PM Task Reassignment with Status Restriction
 
 ## Overview
-Add a "Created By" field to the task/order details view so Admins and Project Managers can see who originally created an order, separate from the "Transferred By" and "Closed By" attribution fields.
+Update the RLS policy to allow Project Managers to reassign tasks to other PMs, but only while the task status is still 'pending'. Once the status changes (e.g., to 'in_progress'), only Admins can perform reassignments.
 
-## Changes Required
+## Current Problem
+The existing RLS policy blocks PM reassignment entirely because it requires `project_manager_id = auth.uid()` both before and after the update, preventing ownership transfer.
 
-### 1. Update Task Queries to Include Creator Profile
-Modify the task fetch queries in both Admin and PM dashboards to join the `created_by` field with the profiles table to get the creator's name.
+## Solution
 
-**Files affected:**
-- `src/components/dashboards/AdminDashboard.tsx`
-- `src/components/dashboards/PMDashboard.tsx`
+### Database Migration
+Replace the existing "PMs can update their tasks" policy with one that:
+1. Allows regular updates where PM keeps ownership
+2. Allows reassignment only when status = 'pending' and proper tracking fields are set
 
-### 2. Display "Created By" in Task Details
-Add a new field in the task details dialog/view showing who created the order:
-- Label: "Created By"
-- Value: Creator's full name (or email as fallback)
-- Position: Near other attribution fields (Transferred By, Closed By)
+```sql
+-- Drop the existing policy
+DROP POLICY IF EXISTS "PMs can update their tasks" ON public.tasks;
 
-### 3. Update Front Sales Dashboard (Optional)
-The Front Sales dashboard could also show this field in their order details view for consistency.
-
-**File affected:**
-- `src/components/dashboards/FrontSalesDashboard.tsx`
-
----
-
-## Technical Details
-
-### Query Update Example
-```typescript
-const { data: tasks } = useQuery({
-  queryFn: async () => {
-    const { data } = await supabase
-      .from("tasks")
-      .select(`
-        *,
-        teams(name),
-        profiles!tasks_project_manager_id_fkey(email, full_name),
-        creator:profiles!tasks_created_by_fkey(email, full_name),
-        transferred_by_profile:profiles!tasks_transferred_by_fkey(email, full_name),
-        closed_by_profile:profiles!tasks_closed_by_fkey(email, full_name)
-      `);
-    return data;
-  }
-});
+-- Create updated policy with reassignment support
+CREATE POLICY "PMs can update their tasks"
+ON public.tasks
+FOR UPDATE
+USING (
+  has_role(auth.uid(), 'project_manager'::app_role) 
+  AND project_manager_id = auth.uid()
+)
+WITH CHECK (
+  has_role(auth.uid(), 'project_manager'::app_role) 
+  AND (
+    -- Regular updates: PM keeps ownership
+    project_manager_id = auth.uid()
+    OR
+    -- Reassignment: Only allowed when status is pending
+    (
+      status = 'pending'::task_status
+      AND reassigned_from = auth.uid() 
+      AND reassigned_at IS NOT NULL
+    )
+  )
+);
 ```
 
-### UI Display
-In the task details section, add:
-```
-Created By: [Creator Name]
-Transferred By: [Name or "—"]
-Closed By: [Name]
-```
+## Business Rules Summary
 
----
+| Scenario | PM Can Reassign? | Admin Can Reassign? |
+|----------|------------------|---------------------|
+| Status = pending | Yes | Yes |
+| Status = in_progress | No | Yes |
+| Status = completed | No | Yes |
 
-## Summary
-This change ensures complete visibility into order attribution by showing:
-1. **Created By** - Who originally submitted the order
-2. **Transferred By** - Who handed off the lead (optional)
-3. **Closed By** - Who finalized the sale
+## No Frontend Changes Required
+The existing reassignment UI in PMDashboard already:
+- Only shows the reassign option for pending tasks
+- Sets `reassigned_from`, `reassigned_at`, and `reassignment_reason` correctly
 
-All three fields will be visible to Admins and PMs in task details.
