@@ -239,6 +239,22 @@ const PMDashboard = () => {
     enabled: !!user?.id,
   });
 
+  // Fetch revenue from closed new customer orders (non-upsell)
+  const { data: closedNewCustomerRevenue } = useQuery({
+    queryKey: ["pm-closed-revenue", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("amount_total")
+        .eq("closed_by", user!.id)
+        .eq("is_upsell", false);
+      if (error) throw error;
+      const total = data?.reduce((sum, task) => sum + (Number(task.amount_total) || 0), 0) || 0;
+      return total;
+    },
+    enabled: !!user?.id,
+  });
+
   // Use allTasks when searching, otherwise use myTasks
   const tasks = searchQuery.trim() ? allTasks : myTasks;
 
@@ -623,13 +639,15 @@ const PMDashboard = () => {
             <p className="text-sm text-muted-foreground">Project Manager Dashboard</p>
           </div>
           <div className="flex items-center gap-4">
-            {myTargetStats && (
+            {(myTargetStats || closedNewCustomerRevenue !== undefined) && (
               <div className="flex items-center gap-3 text-sm text-muted-foreground border rounded-lg px-3 py-1.5 bg-muted/30">
-                <span>Closed: <strong className="text-foreground">{myTargetStats.closed_orders_count}</strong></span>
+                <span>Closed: <strong className="text-foreground">{myTargetStats?.closed_orders_count || 0}</strong></span>
                 <span className="text-border">|</span>
-                <span>Transferred: <strong className="text-foreground">{myTargetStats.transferred_orders_count}</strong></span>
+                <span>Revenue: <strong className="text-foreground">${(closedNewCustomerRevenue || 0).toLocaleString()}</strong></span>
                 <span className="text-border">|</span>
-                <span>Upsells: <strong className="text-foreground">${Number(myTargetStats.upsell_revenue || 0).toLocaleString()}</strong></span>
+                <span>Transferred: <strong className="text-foreground">{myTargetStats?.transferred_orders_count || 0}</strong></span>
+                <span className="text-border">|</span>
+                <span>Upsells: <strong className="text-foreground">${Number(myTargetStats?.upsell_revenue || 0).toLocaleString()}</strong></span>
               </div>
             )}
             <Button onClick={signOut} variant="outline" size="sm">
