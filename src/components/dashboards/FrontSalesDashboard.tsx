@@ -928,9 +928,28 @@ const FrontSalesDashboard = () => {
                       <p><span className="text-muted-foreground">Project Manager:</span> {(viewDetailsTask.project_manager as any)?.full_name || (viewDetailsTask.project_manager as any)?.email || "Unassigned"}</p>
                       {isWebsiteOrder(viewDetailsTask) ? (
                         <p><span className="text-muted-foreground">Developer:</span> {getDeveloperForTeam(viewDetailsTask.team_id) || "Unassigned"}</p>
-                      ) : (
-                        <p><span className="text-muted-foreground">Team:</span> {(viewDetailsTask.teams as any)?.name || "Unassigned"}</p>
-                      )}
+                      ) : (() => {
+                        // Find all tasks with same group key to show all assigned teams
+                        const groupKey = `${viewDetailsTask.customer_name || viewDetailsTask.business_name || ''}_${viewDetailsTask.title}_${viewDetailsTask.deadline || ''}_${viewDetailsTask.post_type || ''}`;
+                        const relatedTasks = myTasks?.filter(t => {
+                          const taskKey = `${t.customer_name || t.business_name || ''}_${t.title}_${t.deadline || ''}_${t.post_type || ''}`;
+                          return taskKey === groupKey;
+                        }) || [];
+                        const teamNames = [...new Set(relatedTasks.map(t => (t as any).teams?.name).filter(Boolean))];
+                        
+                        return teamNames.length > 1 ? (
+                          <div>
+                            <span className="text-muted-foreground">Teams:</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {teamNames.map((name, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs">{name}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p><span className="text-muted-foreground">Team:</span> {(viewDetailsTask.teams as any)?.name || "Unassigned"}</p>
+                        );
+                      })()}
                       <p><span className="text-muted-foreground">Created:</span> {format(new Date(viewDetailsTask.created_at!), "MMM d, yyyy")}</p>
                       {viewDetailsTask.deadline && (
                         <p><span className="text-muted-foreground">Deadline:</span> {format(new Date(viewDetailsTask.deadline), "MMM d, yyyy")}</p>
