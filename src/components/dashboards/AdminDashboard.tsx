@@ -1278,6 +1278,18 @@ const AdminDashboard = () => {
                         <Badge className={getStatusColor(task.status)}>
                           {task.status.replace("_", " ")}
                         </Badge>
+                        {task.status === "pending" && (task as any).accepted_by_pm && (
+                          <Badge className="bg-green-100 text-green-700 border-green-300">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            PM Accepted
+                          </Badge>
+                        )}
+                        {task.status === "pending" && !(task as any).accepted_by_pm && (
+                          <Badge variant="outline" className="text-yellow-600 border-yellow-400">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Awaiting PM
+                          </Badge>
+                        )}
                         {taskSubmissions.length > 0 && (
                           <Button
                             size="sm"
