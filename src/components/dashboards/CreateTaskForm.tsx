@@ -63,7 +63,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess, showProjectManagerSel
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
-  const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>("");
+  const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>(userId);
   const [transferredBy, setTransferredBy] = useState<string>("");
   const [closedBy, setClosedBy] = useState<string>("");
   const { data: projectManagers = [], isLoading: loadingPMs } = useProjectManagers();
