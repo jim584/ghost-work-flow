@@ -254,6 +254,7 @@ export type Database = {
       }
       tasks: {
         Row: {
+          accepted_by_pm: boolean
           additional_details: string | null
           amount_paid: number | null
           amount_pending: number | null
@@ -325,6 +326,7 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
+          accepted_by_pm?: boolean
           additional_details?: string | null
           amount_paid?: number | null
           amount_pending?: number | null
@@ -396,6 +398,7 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
+          accepted_by_pm?: boolean
           additional_details?: string | null
           amount_paid?: number | null
           amount_pending?: number | null

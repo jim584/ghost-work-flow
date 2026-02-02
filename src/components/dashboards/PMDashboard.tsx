@@ -483,6 +483,28 @@ const PMDashboard = () => {
     },
   });
 
+  const acceptOrder = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ accepted_by_pm: true } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["all-tasks-search"] });
+      toast({ title: "Order accepted successfully" });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error accepting order",
+        description: error.message,
+      });
+    },
+  });
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -1140,20 +1162,36 @@ const PMDashboard = () => {
                             Approve
                           </Button>
                         )}
-                        {task.status === "pending" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="hover-scale"
-                            onClick={() => setReassignDialog({ 
-                              open: true, 
-                              taskId: task.id, 
-                              currentPmId: task.project_manager_id 
-                            })}
-                          >
-                            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                            Reassign
-                          </Button>
+                        {task.status === "pending" && !(task as any).accepted_by_pm && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 hover-scale"
+                              onClick={() => acceptOrder.mutate(task.id)}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                              Accept Order
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="hover-scale"
+                              onClick={() => setReassignDialog({ 
+                                open: true, 
+                                taskId: task.id, 
+                                currentPmId: task.project_manager_id 
+                              })}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                              Reassign
+                            </Button>
+                          </>
+                        )}
+                        {task.status === "pending" && (task as any).accepted_by_pm && (
+                          <Badge className="bg-green-100 text-green-700 border-green-300">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Accepted
+                          </Badge>
                         )}
                       </div>
                       {taskSubmissions.length > 0 && (
