@@ -224,6 +224,21 @@ const PMDashboard = () => {
     enabled: !!searchQuery.trim(),
   });
 
+  // Fetch PM's own sales target stats
+  const { data: myTargetStats } = useQuery({
+    queryKey: ["pm-target-stats", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_targets")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
   // Use allTasks when searching, otherwise use myTasks
   const tasks = searchQuery.trim() ? allTasks : myTasks;
 
@@ -607,10 +622,19 @@ const PMDashboard = () => {
             <h1 className="text-2xl font-bold text-foreground">Welcome, {profile?.full_name || 'Project Manager'}</h1>
             <p className="text-sm text-muted-foreground">Project Manager Dashboard</p>
           </div>
-          <Button onClick={signOut} variant="outline" size="sm">
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-4">
+            {myTargetStats && (
+              <div className="flex items-center gap-3 text-sm text-muted-foreground border rounded-lg px-3 py-1.5 bg-muted/30">
+                <span>Closed: <strong className="text-foreground">{myTargetStats.closed_orders_count}</strong></span>
+                <span className="text-border">|</span>
+                <span>Transferred: <strong className="text-foreground">{myTargetStats.transferred_orders_count}</strong></span>
+              </div>
+            )}
+            <Button onClick={signOut} variant="outline" size="sm">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
