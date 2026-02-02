@@ -928,13 +928,53 @@ const FrontSalesDashboard = () => {
                 )}
 
                 {isLogoOrder(viewDetailsTask) && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm uppercase text-muted-foreground">Logo Details</h4>
-                    <div className="bg-muted/30 rounded-lg p-3 grid grid-cols-2 gap-2">
-                      {viewDetailsTask.logo_type && <p><span className="text-muted-foreground">Type:</span> {viewDetailsTask.logo_type}</p>}
-                      {viewDetailsTask.logo_style && <p><span className="text-muted-foreground">Style:</span> {viewDetailsTask.logo_style}</p>}
-                      {viewDetailsTask.tagline && <p><span className="text-muted-foreground">Tagline:</span> {viewDetailsTask.tagline}</p>}
-                      {viewDetailsTask.brand_colors && <p><span className="text-muted-foreground">Colors:</span> {viewDetailsTask.brand_colors}</p>}
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm uppercase text-muted-foreground">Logo Details</h4>
+                      <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+                        {viewDetailsTask.industry && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Industry:</span>
+                            <p className="font-medium">{viewDetailsTask.industry}</p>
+                          </div>
+                        )}
+                        {viewDetailsTask.description && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Primary Focus:</span>
+                            <p className="font-medium">{viewDetailsTask.description}</p>
+                          </div>
+                        )}
+                        {viewDetailsTask.brand_colors && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Color Combination:</span>
+                            <p className="font-medium">{viewDetailsTask.brand_colors}</p>
+                          </div>
+                        )}
+                        {viewDetailsTask.logo_style && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Look & Feel:</span>
+                            <p className="font-medium">{viewDetailsTask.logo_style}</p>
+                          </div>
+                        )}
+                        {viewDetailsTask.logo_type && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Logo Type:</span>
+                            <p className="font-medium">{viewDetailsTask.logo_type}</p>
+                          </div>
+                        )}
+                        {viewDetailsTask.tagline && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Tagline:</span>
+                            <p className="font-medium">{viewDetailsTask.tagline}</p>
+                          </div>
+                        )}
+                        {viewDetailsTask.notes_extra_instructions && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Additional Notes:</span>
+                            <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.notes_extra_instructions}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
