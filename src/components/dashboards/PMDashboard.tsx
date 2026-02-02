@@ -1325,41 +1325,17 @@ const PMDashboard = () => {
                   <h3 className="font-semibold text-lg border-b pb-2">Logo Details</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-muted-foreground">Logo Type</Label>
-                      <p className="font-medium">{viewDetailsTask?.logo_type || "N/A"}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Logo Style</Label>
+                      <Label className="text-muted-foreground">Look & Feel</Label>
                       <p className="font-medium">{viewDetailsTask?.logo_style || "N/A"}</p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground">Number of Concepts</Label>
-                      <p className="font-medium">{viewDetailsTask?.number_of_concepts || "N/A"}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Number of Revisions</Label>
-                      <p className="font-medium">{viewDetailsTask?.number_of_revisions || "N/A"}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">File Formats Needed</Label>
-                      <p className="font-medium">{viewDetailsTask?.file_formats_needed || "N/A"}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Usage Type</Label>
-                      <p className="font-medium">{viewDetailsTask?.usage_type || "N/A"}</p>
+                      <Label className="text-muted-foreground">Color Combination</Label>
+                      <p className="font-medium">{viewDetailsTask?.brand_colors || "N/A"}</p>
                     </div>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Tagline</Label>
-                    <p className="font-medium">{viewDetailsTask?.tagline || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Competitors/Inspiration</Label>
-                    <p className="font-medium">{viewDetailsTask?.competitors_inspiration || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Description</Label>
-                    <p className="font-medium">{viewDetailsTask?.description || "N/A"}</p>
+                    <Label className="text-muted-foreground">Primary Focus</Label>
+                    <p className="font-medium whitespace-pre-wrap">{viewDetailsTask?.description || "N/A"}</p>
                   </div>
                 </div>
               )}
