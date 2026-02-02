@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown } from "lucide-react";
+import { exportTasksToCSV, exportSalesPerformanceToCSV, exportUsersToCSV } from "@/utils/csvExport";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -1072,14 +1073,23 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* User Management Section */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>User Management</CardTitle>
-              <Button onClick={() => setShowAddUserDialog(true)} size="sm">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Add User
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => exportUsersToCSV(users || [], teams || [], developerProfiles || [])}
+                >
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Export Users
+                </Button>
+                <Button onClick={() => setShowAddUserDialog(true)} size="sm">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Add User
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -1169,6 +1179,14 @@ const AdminDashboard = () => {
           </div>
           {viewMode === 'tasks' && (
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportTasksToCSV(tasks || [], submissions || [])}
+              >
+                <FileDown className="h-4 w-4 mr-1" />
+                Export Tasks
+              </Button>
               <Button
                 variant={statusFilter === 'priority' ? 'default' : 'outline'}
                 onClick={() => setStatusFilter('priority')}
@@ -1587,6 +1605,27 @@ const AdminDashboard = () => {
 
         {viewMode === 'sales_performance' && (
           <>
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const designerDeveloperUsers = users?.filter(u => 
+                  u.user_roles?.some((r: any) => r.role === 'designer' || r.role === 'developer')
+                ) || [];
+                exportSalesPerformanceToCSV(
+                  frontSalesUsers || [],
+                  pmUsers || [],
+                  salesTargets || [],
+                  designerDeveloperUsers,
+                  submissions || []
+                );
+              }}
+            >
+              <FileDown className="h-4 w-4 mr-1" />
+              Export All Performance Data
+            </Button>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle>Front Sales Performance</CardTitle>
