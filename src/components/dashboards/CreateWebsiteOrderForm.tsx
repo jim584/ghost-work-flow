@@ -11,6 +11,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectManagers } from "@/hooks/useProjectManagers";
+import { useTrackingUsers } from "@/hooks/useTrackingUsers";
 
 interface CreateWebsiteOrderFormProps {
   userId: string;
@@ -63,7 +64,10 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
   const [logoFiles, setLogoFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>("");
+  const [transferredBy, setTransferredBy] = useState<string>("");
+  const [closedBy, setClosedBy] = useState<string>("");
   const { data: projectManagers = [], isLoading: loadingPMs } = useProjectManagers();
+  const { data: trackingUsers = [], isLoading: loadingTrackingUsers } = useTrackingUsers();
   
 
   const [formData, setFormData] = useState({
@@ -177,6 +181,9 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
           amount_paid: formData.amount_paid ? parseFloat(formData.amount_paid) : 0,
           amount_pending: formData.amount_pending ? parseFloat(formData.amount_pending) : 0,
           amount_total: formData.amount_total ? parseFloat(formData.amount_total) : 0,
+          // Tracking fields
+          transferred_by: transferredBy || null,
+          closed_by: closedBy || null,
         };
 
         const { error } = await supabase.from("tasks").insert(taskData);
@@ -330,6 +337,53 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+        )}
+
+        {/* Tracking Fields - Only shown for Front Sales */}
+        {showProjectManagerSelector && (
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="font-semibold text-lg">Handoff & Closure Tracking</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="transferred_by">Transferred By</Label>
+                <Select 
+                  value={transferredBy} 
+                  onValueChange={setTransferredBy}
+                  disabled={loadingTrackingUsers}
+                >
+                  <SelectTrigger id="transferred_by">
+                    <SelectValue placeholder={loadingTrackingUsers ? "Loading..." : "Select user"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {trackingUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.full_name || user.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="closed_by">Closed By</Label>
+                <Select 
+                  value={closedBy} 
+                  onValueChange={setClosedBy}
+                  disabled={loadingTrackingUsers}
+                >
+                  <SelectTrigger id="closed_by">
+                    <SelectValue placeholder={loadingTrackingUsers ? "Loading..." : "Select user"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {trackingUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.full_name || user.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         )}
