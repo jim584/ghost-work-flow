@@ -1448,34 +1448,14 @@ const AdminDashboard = () => {
               ) : (
                 <div className="space-y-6">
                   {frontSalesUsers.map((salesUser) => {
-                    const now = new Date();
-                    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-                    const monthStart = startOfMonth(now);
-                    
-                    // Group tasks to get unique orders
-                    const getUniqueOrders = (userTasks: typeof salesUser.tasks) => {
-                      if (!userTasks) return [];
-                      const seen = new Set<string>();
-                      return userTasks.filter(task => {
-                        const key = `${task.customer_name || task.business_name || ''}_${task.title}_${task.deadline || ''}_${task.post_type || ''}`;
-                        if (seen.has(key)) return false;
-                        seen.add(key);
-                        return true;
-                      });
-                    };
-                    
-                    const uniqueOrders = getUniqueOrders(salesUser.tasks);
-                    const totalOrders = uniqueOrders.length;
-                    const ordersThisWeek = getUniqueOrders(salesUser.tasks.filter(t => t.created_at && new Date(t.created_at) >= weekStart)).length;
-                    const ordersThisMonth = getUniqueOrders(salesUser.tasks.filter(t => t.created_at && new Date(t.created_at) >= monthStart)).length;
-                    const revenueThisMonth = getUniqueOrders(salesUser.tasks.filter(t => t.created_at && new Date(t.created_at) >= monthStart))
-                      .reduce((sum, t) => sum + (t.amount_paid || 0), 0);
-                    const totalRevenue = uniqueOrders.reduce((sum, t) => sum + (t.amount_paid || 0), 0);
-                    
-                    // Get target for this user
+                    // Get target and attributed metrics for this user from sales_targets
                     const userTarget = salesTargets?.find(t => t.user_id === salesUser.id);
                     const monthlyTarget = userTarget?.monthly_order_target ?? 10;
-                    const targetProgress = monthlyTarget > 0 ? Math.min((ordersThisMonth / monthlyTarget) * 100, 100) : 0;
+                    const transferredCount = userTarget?.transferred_orders_count ?? 0;
+                    const closedCount = userTarget?.closed_orders_count ?? 0;
+                    const closedRevenue = Number(userTarget?.closed_revenue ?? 0);
+                    const totalAchieved = transferredCount + closedCount;
+                    const targetProgress = monthlyTarget > 0 ? Math.min((totalAchieved / monthlyTarget) * 100, 100) : 0;
                     
                     return (
                       <Card key={salesUser.id} className="border-l-4 border-l-primary">
@@ -1504,14 +1484,14 @@ const AdminDashboard = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <div className="space-y-1">
                               <p className="text-sm text-muted-foreground">Monthly Target</p>
                               <p className="text-2xl font-bold text-primary">{monthlyTarget}</p>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-sm text-muted-foreground">This Month</p>
-                              <p className="text-2xl font-bold">{ordersThisMonth}</p>
+                              <p className="text-sm text-muted-foreground">Total Achieved</p>
+                              <p className="text-2xl font-bold">{totalAchieved}</p>
                               <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                                 <div 
                                   className="h-full bg-primary transition-all" 
@@ -1520,20 +1500,16 @@ const AdminDashboard = () => {
                               </div>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-sm text-muted-foreground">This Week</p>
-                              <p className="text-2xl font-bold">{ordersThisWeek}</p>
+                              <p className="text-sm text-muted-foreground">Transferred</p>
+                              <p className="text-2xl font-bold text-orange-500">{transferredCount}</p>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-sm text-muted-foreground">Total Orders</p>
-                              <p className="text-2xl font-bold">{totalOrders}</p>
+                              <p className="text-sm text-muted-foreground">Closed</p>
+                              <p className="text-2xl font-bold text-emerald-500">{closedCount}</p>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-sm text-muted-foreground">Revenue (Month)</p>
-                              <p className="text-2xl font-bold text-green-600">${revenueThisMonth.toLocaleString()}</p>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-sm text-muted-foreground">Total Revenue</p>
-                              <p className="text-2xl font-bold text-green-600">${totalRevenue.toLocaleString()}</p>
+                              <p className="text-sm text-muted-foreground">Closed Revenue</p>
+                              <p className="text-2xl font-bold text-green-600">${closedRevenue.toLocaleString()}</p>
                             </div>
                           </div>
                         </CardContent>
