@@ -287,12 +287,11 @@ const FrontSalesDashboard = () => {
           const uniqueOrders = getUniqueOrders(myTasks);
           const totalOrders = uniqueOrders.length;
           
-          const ordersThisMonth = getUniqueOrders(myTasks?.filter(t => t.created_at && new Date(t.created_at) >= monthStart)).length;
           const totalRevenue = uniqueOrders.reduce((sum, t) => sum + (t.amount_paid || 0), 0);
           const totalAchieved = (salesTarget?.transferred_orders_count ?? 0) + (salesTarget?.closed_orders_count ?? 0);
           
           return (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
@@ -341,19 +340,6 @@ const FrontSalesDashboard = () => {
                     <div>
                       <p className="text-sm text-muted-foreground">Closed</p>
                       <p className="text-2xl font-bold">{salesTarget?.closed_orders_count ?? 0}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-purple-500/10">
-                      <Clock className="h-5 w-5 text-purple-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">This Month</p>
-                      <p className="text-2xl font-bold">{ordersThisMonth}</p>
                     </div>
                   </div>
                 </CardContent>
