@@ -22,6 +22,22 @@ const DeveloperDashboard = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  const { data: profile } = useQuery({
+    queryKey: ["profile", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+  
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<{[key: number]: string}>({});
@@ -300,7 +316,10 @@ const DeveloperDashboard = () => {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Developer Dashboard</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Welcome, {profile?.full_name || 'Developer'}</h1>
+            <p className="text-sm text-muted-foreground">Developer Dashboard</p>
+          </div>
           <div className="flex items-center gap-2">
             <NotificationBell userId={user!.id} />
             <Button onClick={signOut} variant="outline" size="sm">
