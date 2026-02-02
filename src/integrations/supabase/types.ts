@@ -145,6 +145,42 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_performance_history: {
+        Row: {
+          archived_at: string
+          closed_orders_count: number
+          id: string
+          month_year: string
+          monthly_dollar_target: number
+          monthly_order_target: number
+          transferred_orders_count: number
+          upsell_revenue: number
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string
+          closed_orders_count?: number
+          id?: string
+          month_year: string
+          monthly_dollar_target?: number
+          monthly_order_target?: number
+          transferred_orders_count?: number
+          upsell_revenue?: number
+          user_id: string
+        }
+        Update: {
+          archived_at?: string
+          closed_orders_count?: number
+          id?: string
+          month_year?: string
+          monthly_dollar_target?: number
+          monthly_order_target?: number
+          transferred_orders_count?: number
+          upsell_revenue?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       sales_targets: {
         Row: {
           closed_orders_count: number
