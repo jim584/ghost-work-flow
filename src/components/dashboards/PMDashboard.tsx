@@ -648,6 +648,8 @@ const PMDashboard = () => {
                 <span>Transferred: <strong className="text-foreground">{myTargetStats?.transferred_orders_count || 0}</strong></span>
                 <span className="text-border">|</span>
                 <span>Upsells: <strong className="text-foreground">${Number(myTargetStats?.upsell_revenue || 0).toLocaleString()}</strong></span>
+                <span className="text-border">|</span>
+                <span>Total: <strong className="text-primary">${((closedNewCustomerRevenue || 0) + Number(myTargetStats?.upsell_revenue || 0)).toLocaleString()}</strong></span>
               </div>
             )}
             <Button onClick={signOut} variant="outline" size="sm">
