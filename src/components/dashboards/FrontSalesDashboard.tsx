@@ -1005,13 +1005,134 @@ const FrontSalesDashboard = () => {
 
                 {/* Additional Details for specific order types */}
                 {isWebsiteOrder(viewDetailsTask) && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm uppercase text-muted-foreground">Website Details</h4>
-                    <div className="bg-muted/30 rounded-lg p-3 grid grid-cols-2 gap-2">
-                      {viewDetailsTask.website_type && <p><span className="text-muted-foreground">Type:</span> {viewDetailsTask.website_type}</p>}
-                      {viewDetailsTask.number_of_pages && <p><span className="text-muted-foreground">Pages:</span> {viewDetailsTask.number_of_pages}</p>}
-                      {viewDetailsTask.website_features && <p className="col-span-2"><span className="text-muted-foreground">Features:</span> {viewDetailsTask.website_features}</p>}
+                  <div className="space-y-4">
+                    {/* Website Details Section */}
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm uppercase text-muted-foreground">Website Details</h4>
+                      <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+                        {viewDetailsTask.industry && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Industry:</span>
+                            <p className="font-medium">{viewDetailsTask.industry}</p>
+                          </div>
+                        )}
+                        {viewDetailsTask.number_of_pages && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Number of Pages:</span>
+                            <p className="font-medium">{viewDetailsTask.number_of_pages}</p>
+                          </div>
+                        )}
+                        {viewDetailsTask.website_url && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Current Website URL:</span>
+                            <p>
+                              <a 
+                                href={viewDetailsTask.website_url.startsWith('http') ? viewDetailsTask.website_url : `https://${viewDetailsTask.website_url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline font-medium"
+                              >
+                                {viewDetailsTask.website_url}
+                              </a>
+                            </p>
+                          </div>
+                        )}
+                        {viewDetailsTask.customer_domain && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Customer Domain:</span>
+                            <p>
+                              <a 
+                                href={viewDetailsTask.customer_domain.startsWith('http') ? viewDetailsTask.customer_domain : `https://${viewDetailsTask.customer_domain}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline font-medium"
+                              >
+                                {viewDetailsTask.customer_domain}
+                              </a>
+                            </p>
+                          </div>
+                        )}
+                        {viewDetailsTask.video_keywords && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Video Keywords:</span>
+                            <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.video_keywords}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Business Description Section */}
+                    {viewDetailsTask.supporting_text && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-sm uppercase text-muted-foreground">Business Description</h4>
+                        <div className="bg-muted/30 rounded-lg p-4">
+                          <p className="whitespace-pre-wrap text-sm">{viewDetailsTask.supporting_text}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Design References Section */}
+                    {viewDetailsTask.design_references && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-sm uppercase text-muted-foreground">Design References</h4>
+                        <div className="bg-muted/30 rounded-lg p-4">
+                          <p className="whitespace-pre-wrap text-sm">{viewDetailsTask.design_references}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Additional Notes Section */}
+                    {viewDetailsTask.notes_extra_instructions && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-sm uppercase text-muted-foreground">Additional Notes</h4>
+                        <div className="bg-muted/30 rounded-lg p-4">
+                          <p className="whitespace-pre-wrap text-sm">{viewDetailsTask.notes_extra_instructions}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Logo Files Section */}
+                    {viewDetailsTask.logo_url && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-sm uppercase text-muted-foreground">Logo Files</h4>
+                        <div className="bg-muted/30 rounded-lg p-4">
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {viewDetailsTask.logo_url.split("|||").map((filePath: string, index: number) => {
+                              const fileName = filePath.split('/').pop() || `Logo ${index + 1}`;
+                              
+                              return (
+                                <div key={index} className="flex flex-col items-center gap-2 p-2 bg-background rounded-lg border">
+                                  <FilePreview 
+                                    filePath={filePath} 
+                                    fileName={fileName}
+                                    className="w-20 h-20"
+                                  />
+                                  <p className="text-xs text-muted-foreground truncate max-w-full text-center" title={fileName}>
+                                    {fileName.length > 20 ? `${fileName.substring(0, 17)}...` : fileName}
+                                  </p>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full text-xs"
+                                    onClick={async () => {
+                                      const { data } = await supabase.storage
+                                        .from("design-files")
+                                        .createSignedUrl(filePath, 86400);
+                                      if (data?.signedUrl) {
+                                        window.open(data.signedUrl, "_blank");
+                                      }
+                                    }}
+                                  >
+                                    <Download className="h-3 w-3 mr-1" />
+                                    Download
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
