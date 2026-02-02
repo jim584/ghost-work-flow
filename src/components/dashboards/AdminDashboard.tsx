@@ -80,7 +80,7 @@ const AdminDashboard = () => {
     open: boolean;
     userId: string;
     userName: string;
-    metricType: 'target' | 'total_achieved' | 'transferred' | 'closed' | 'revenue';
+    metricType: 'target' | 'total_achieved' | 'transferred' | 'closed' | 'revenue' | 'pm_closed' | 'pm_upsells' | 'pm_total';
   } | null>(null);
 
   // Helper function to filter tasks by metric type for a specific user
@@ -98,6 +98,12 @@ const AdminDashboard = () => {
         );
       case 'revenue':
         return tasks.filter(t => t.closed_by === userId && !t.is_upsell);
+      case 'pm_closed':
+        return tasks.filter(t => t.closed_by === userId && !t.is_upsell);
+      case 'pm_upsells':
+        return tasks.filter(t => t.closed_by === userId && t.is_upsell);
+      case 'pm_total':
+        return tasks.filter(t => t.closed_by === userId);
       default:
         return [];
     }
@@ -110,6 +116,9 @@ const AdminDashboard = () => {
       case 'closed': return 'Closed Orders';
       case 'total_achieved': return 'Total Achieved Orders';
       case 'revenue': return 'Closed Revenue Orders';
+      case 'pm_closed': return 'Closed Value Orders';
+      case 'pm_upsells': return 'Upsell Orders';
+      case 'pm_total': return 'Total Achieved Orders';
       default: return 'Orders';
     }
   };
@@ -1648,19 +1657,54 @@ const AdminDashboard = () => {
                         </CardHeader>
                         <CardContent>
                           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            <div className="space-y-1">
+                            <div 
+                              className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                              onClick={() => {
+                                setEditPmTargetDialog({
+                                  open: true,
+                                  userId: pmUser.id,
+                                  userName: pmUser.full_name || pmUser.email,
+                                  currentTarget: dollarTarget,
+                                });
+                                setNewPmTargetValue(dollarTarget.toString());
+                              }}
+                            >
                               <p className="text-sm text-muted-foreground">Monthly Target</p>
                               <p className="text-2xl font-bold text-secondary">${dollarTarget.toLocaleString()}</p>
                             </div>
-                            <div className="space-y-1">
+                            <div 
+                              className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                              onClick={() => setMetricDetailsDialog({
+                                open: true,
+                                userId: pmUser.id,
+                                userName: pmUser.full_name || pmUser.email,
+                                metricType: 'pm_closed',
+                              })}
+                            >
                               <p className="text-sm text-muted-foreground">Closed Value</p>
                               <p className="text-2xl font-bold">${pmUser.closedRevenue.toLocaleString()}</p>
                             </div>
-                            <div className="space-y-1">
+                            <div 
+                              className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                              onClick={() => setMetricDetailsDialog({
+                                open: true,
+                                userId: pmUser.id,
+                                userName: pmUser.full_name || pmUser.email,
+                                metricType: 'pm_upsells',
+                              })}
+                            >
                               <p className="text-sm text-muted-foreground">Upsells</p>
                               <p className="text-2xl font-bold">${upsellRevenue.toLocaleString()}</p>
                             </div>
-                            <div className="space-y-1">
+                            <div 
+                              className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                              onClick={() => setMetricDetailsDialog({
+                                open: true,
+                                userId: pmUser.id,
+                                userName: pmUser.full_name || pmUser.email,
+                                metricType: 'pm_total',
+                              })}
+                            >
                               <p className="text-sm text-muted-foreground">Total Achieved</p>
                               <p className="text-2xl font-bold text-primary">${totalAchieved.toLocaleString()}</p>
                               {dollarTarget > 0 && (
