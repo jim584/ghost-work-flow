@@ -14,7 +14,7 @@ import { CreateLogoOrderForm } from "./CreateLogoOrderForm";
 import { CreateWebsiteOrderForm } from "./CreateWebsiteOrderForm";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format } from "date-fns";
+import { format, subDays, isAfter } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -369,6 +369,46 @@ const FrontSalesDashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Recent Orders - Last 6 Days Status */}
+        {(() => {
+          const sixDaysAgo = subDays(new Date(), 6);
+          const recentOrders = myTasks?.filter(task => 
+            task.created_at && isAfter(new Date(task.created_at), sixDaysAgo)
+          ).sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
+          
+          if (recentOrders && recentOrders.length > 0) {
+            return (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle className="text-lg">Recent Orders (Last 6 Days)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {recentOrders.map((task) => (
+                      <div 
+                        key={task.id} 
+                        className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50"
+                      >
+                        <div className="flex items-center gap-3">
+                          {getOrderTypeIcon(task)}
+                          <span className="font-medium">#{task.task_number}</span>
+                          <span className="text-muted-foreground truncate max-w-[200px]">
+                            {task.title}
+                          </span>
+                        </div>
+                        <Badge className={getStatusColor(task.status)}>
+                          {task.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }
+          return null;
+        })()}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
