@@ -149,6 +149,7 @@ export type Database = {
         Row: {
           archived_at: string
           closed_orders_count: number
+          closed_revenue: number
           id: string
           month_year: string
           monthly_dollar_target: number
@@ -160,6 +161,7 @@ export type Database = {
         Insert: {
           archived_at?: string
           closed_orders_count?: number
+          closed_revenue?: number
           id?: string
           month_year: string
           monthly_dollar_target?: number
@@ -171,6 +173,7 @@ export type Database = {
         Update: {
           archived_at?: string
           closed_orders_count?: number
+          closed_revenue?: number
           id?: string
           month_year?: string
           monthly_dollar_target?: number
@@ -184,6 +187,7 @@ export type Database = {
       sales_targets: {
         Row: {
           closed_orders_count: number
+          closed_revenue: number
           created_at: string | null
           id: string
           monthly_dollar_target: number
@@ -195,6 +199,7 @@ export type Database = {
         }
         Insert: {
           closed_orders_count?: number
+          closed_revenue?: number
           created_at?: string | null
           id?: string
           monthly_dollar_target?: number
@@ -206,6 +211,7 @@ export type Database = {
         }
         Update: {
           closed_orders_count?: number
+          closed_revenue?: number
           created_at?: string | null
           id?: string
           monthly_dollar_target?: number
@@ -603,6 +609,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      reset_monthly_sales_targets: { Args: never; Returns: undefined }
       set_user_role_designer: { Args: never; Returns: undefined }
       set_user_role_developer: { Args: never; Returns: undefined }
       set_user_role_front_sales: { Args: never; Returns: undefined }

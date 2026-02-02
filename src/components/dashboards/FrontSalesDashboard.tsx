@@ -213,7 +213,7 @@ const FrontSalesDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sales_targets")
-        .select("monthly_order_target, transferred_orders_count, closed_orders_count")
+        .select("monthly_order_target, transferred_orders_count, closed_orders_count, closed_revenue")
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
@@ -399,7 +399,7 @@ const FrontSalesDashboard = () => {
           const uniqueOrders = getUniqueOrders(myTasks);
           const totalOrders = uniqueOrders.length;
           
-          const totalRevenue = uniqueOrders.reduce((sum, t) => sum + (t.amount_paid || 0), 0);
+          const closedRevenue = salesTarget?.closed_revenue ?? 0;
           const totalAchieved = (salesTarget?.transferred_orders_count ?? 0) + (salesTarget?.closed_orders_count ?? 0);
           
           return (
@@ -463,8 +463,8 @@ const FrontSalesDashboard = () => {
                       <DollarSign className="h-5 w-5 text-green-500" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Revenue</p>
-                      <p className="text-2xl font-bold">${totalRevenue.toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground">My Revenue</p>
+                      <p className="text-2xl font-bold">${Number(closedRevenue).toLocaleString()}</p>
                     </div>
                   </div>
                 </CardContent>
