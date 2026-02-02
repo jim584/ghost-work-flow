@@ -131,7 +131,7 @@ const FrontSalesDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sales_targets")
-        .select("monthly_order_target")
+        .select("monthly_order_target, transferred_orders_count, closed_orders_count")
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
@@ -291,7 +291,7 @@ const FrontSalesDashboard = () => {
           const totalRevenue = uniqueOrders.reduce((sum, t) => sum + (t.amount_paid || 0), 0);
           
           return (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
@@ -334,11 +334,37 @@ const FrontSalesDashboard = () => {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-orange-500/10">
+                      <Users className="h-5 w-5 text-orange-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Transferred</p>
+                      <p className="text-2xl font-bold">{salesTarget?.transferred_orders_count ?? 0}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-emerald-500/10">
+                      <Users className="h-5 w-5 text-emerald-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Closed</p>
+                      <p className="text-2xl font-bold">{salesTarget?.closed_orders_count ?? 0}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-green-500/10">
                       <DollarSign className="h-5 w-5 text-green-500" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Revenue Collected</p>
+                      <p className="text-sm text-muted-foreground">Revenue</p>
                       <p className="text-2xl font-bold">${totalRevenue.toLocaleString()}</p>
                     </div>
                   </div>
