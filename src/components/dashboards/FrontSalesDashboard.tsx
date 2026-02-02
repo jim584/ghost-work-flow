@@ -370,14 +370,47 @@ const FrontSalesDashboard = () => {
           </Card>
         </div>
 
-        {/* Recent Orders - Last 6 Days Status */}
+        {/* Recent Orders - Last 6 Days Status (Grouped by Customer) */}
         {(() => {
           const sixDaysAgo = subDays(new Date(), 6);
           const recentOrders = myTasks?.filter(task => 
             task.created_at && isAfter(new Date(task.created_at), sixDaysAgo)
           ).sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
           
-          if (recentOrders && recentOrders.length > 0) {
+          // Group orders by customer name + title + deadline (same order assigned to multiple teams)
+          const groupedOrders = recentOrders?.reduce((acc, task) => {
+            // Create a unique key based on customer, title, deadline, and post_type
+            const groupKey = `${task.customer_name || task.business_name || ''}_${task.title}_${task.deadline || ''}_${task.post_type || ''}`;
+            
+            if (!acc[groupKey]) {
+              acc[groupKey] = {
+                ...task,
+                teams: [(task as any).teams?.name || 'Unknown'],
+                teamCount: 1,
+                statuses: [task.status],
+                taskNumbers: [task.task_number],
+              };
+            } else {
+              acc[groupKey].teams.push((task as any).teams?.name || 'Unknown');
+              acc[groupKey].teamCount += 1;
+              acc[groupKey].statuses.push(task.status);
+              acc[groupKey].taskNumbers.push(task.task_number);
+            }
+            return acc;
+          }, {} as Record<string, any>) || {};
+          
+          const groupedOrdersList = Object.values(groupedOrders);
+          
+          // Get overall status for grouped order (worst status takes priority)
+          const getOverallStatus = (statuses: string[]) => {
+            if (statuses.includes('pending')) return 'pending';
+            if (statuses.includes('in_progress')) return 'in_progress';
+            if (statuses.includes('completed')) return 'completed';
+            if (statuses.includes('approved')) return 'approved';
+            return statuses[0];
+          };
+          
+          if (groupedOrdersList.length > 0) {
             return (
               <Card className="mb-8">
                 <CardHeader>
@@ -385,20 +418,30 @@ const FrontSalesDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {recentOrders.map((task) => (
+                    {groupedOrdersList.map((order: any) => (
                       <div 
-                        key={task.id} 
+                        key={order.id} 
                         className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50"
                       >
                         <div className="flex items-center gap-3">
-                          {getOrderTypeIcon(task)}
-                          <span className="font-medium">#{task.task_number}</span>
-                          <span className="text-muted-foreground truncate max-w-[200px]">
-                            {task.title}
+                          {getOrderTypeIcon(order)}
+                          <span className="font-medium">
+                            {order.taskNumbers.length > 1 
+                              ? `#${order.taskNumbers.join(', #')}` 
+                              : `#${order.task_number}`}
                           </span>
+                          <span className="text-muted-foreground truncate max-w-[200px]">
+                            {order.customer_name || order.business_name || order.title}
+                          </span>
+                          {order.teamCount > 1 && (
+                            <Badge variant="outline" className="text-xs">
+                              <Users className="h-3 w-3 mr-1" />
+                              {order.teamCount} teams
+                            </Badge>
+                          )}
                         </div>
-                        <Badge className={getStatusColor(task.status)}>
-                          {task.status.replace('_', ' ')}
+                        <Badge className={getStatusColor(getOverallStatus(order.statuses))}>
+                          {getOverallStatus(order.statuses).replace('_', ' ')}
                         </Badge>
                       </div>
                     ))}
