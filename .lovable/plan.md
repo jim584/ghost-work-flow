@@ -2,95 +2,135 @@
 
 ## Overview
 
-Enhance the View Details dialog for website orders in the Front Sales Dashboard to display all the fields from the website order form. Currently, the website details section only shows `website_type`, `number_of_pages`, and `website_features` - but it's missing several important fields that are captured during order creation.
+Make all performance metrics in the Admin Dashboard's Front Sales Performance section clickable. When clicked, each metric will open a dialog showing the relevant filtered data for that specific user.
 
-## Fields to Add
+## Clickable Metrics
 
-The following fields from the website order form are currently missing in the view details dialog:
+The following metrics in each Front Sales user card will become clickable:
 
-| Field | Database Column | Display Format |
-|-------|-----------------|----------------|
-| Business Description | `supporting_text` | Multi-line with preserved formatting |
-| Video Keywords | `video_keywords` | Multi-line with preserved formatting |
-| Additional Notes | `notes_extra_instructions` | Multi-line with preserved formatting |
-| Design References | `design_references` | Multi-line with preserved formatting |
-| Current Website URL | `website_url` | Clickable link |
-| Customer Domain | `customer_domain` | Clickable link |
-| Logo Files | `logo_url` | File preview with download |
+| Metric | Click Action |
+|--------|--------------|
+| Monthly Target | Opens a dialog to edit the target (already has Edit Target button - will make the number itself clickable too) |
+| Total Achieved | Shows all orders (transferred + closed) attributed to this user |
+| Transferred | Shows only orders where this user is the `transferred_by` |
+| Closed | Shows only orders where this user is the `closed_by` |
+| Closed Revenue | Shows closed orders with their revenue amounts |
 
-## Implementation
+## Implementation Details
 
-### 1. Expand Website Details Section (lines ~1007-1016)
+### 1. Add State for Metric Details Dialog
 
-Currently the section shows minimal information. It will be restructured to include:
+Add new state variables to manage the metric details dialog:
 
-- Industry
-- Number of Pages
-- Current Website URL (clickable)
-- Customer Domain (clickable)
-- Video Keywords (with `whitespace-pre-wrap`)
+```tsx
+const [metricDetailsDialog, setMetricDetailsDialog] = useState<{
+  open: boolean;
+  userId: string;
+  userName: string;
+  metricType: 'target' | 'total_achieved' | 'transferred' | 'closed' | 'revenue';
+} | null>(null);
+```
 
-### 2. Add Business Description Section
+### 2. Create Metric-Filtered Tasks Query
 
-A new section for the business description (`supporting_text`) with proper text formatting using `whitespace-pre-wrap` to preserve line breaks.
+Add a query to fetch tasks filtered by the selected user and metric type:
 
-### 3. Add Design References Section
+- For **Transferred**: Tasks where `transferred_by === userId`
+- For **Closed**: Tasks where `closed_by === userId`  
+- For **Total Achieved**: Tasks where `transferred_by === userId` OR `closed_by === userId`
+- For **Revenue**: Tasks where `closed_by === userId` (showing revenue details)
 
-Display the `design_references` field with preserved formatting.
+### 3. Make Metric Values Clickable
 
-### 4. Add Additional Notes Section
+Update each metric display from static text to clickable buttons with hover effects:
 
-Display `notes_extra_instructions` with `whitespace-pre-wrap` styling, matching other dashboards.
+```tsx
+<div 
+  className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+  onClick={() => setMetricDetailsDialog({
+    open: true,
+    userId: salesUser.id,
+    userName: salesUser.full_name || salesUser.email,
+    metricType: 'transferred',
+  })}
+>
+  <p className="text-sm text-muted-foreground">Transferred</p>
+  <p className="text-2xl font-bold text-orange-500">{transferredCount}</p>
+</div>
+```
 
-### 5. Add Logo Files Section
+### 4. Create Metric Details Dialog
 
-If `logo_url` contains uploaded logos, display them with:
-- File preview using the existing `FilePreview` component
-- Download button functionality (similar to the existing attachments section)
+Add a new dialog that displays filtered tasks based on the selected metric:
+
+```text
++--------------------------------------------------+
+| [User Name] - [Metric Name]                      |
++--------------------------------------------------+
+| Task List (Scrollable):                          |
+|                                                  |
+| #1234 - Website Design - ABC Company             |
+|   Status: Pending | Revenue: $5,000              |
+|   [View Details]                                 |
+|                                                  |
+| #1235 - Logo Design - XYZ Corp                   |
+|   Status: Completed | Revenue: $1,500            |
+|   [View Details]                                 |
+|                                                  |
+| ... more tasks ...                               |
++--------------------------------------------------+
+```
+
+### 5. Monthly Target Click Behavior
+
+The Monthly Target metric will trigger the existing Edit Target dialog when clicked (same as the "Edit Target" button).
 
 ## Technical Details
 
-The changes will be made to `src/components/dashboards/FrontSalesDashboard.tsx` within the View Details Dialog (starting around line 1007).
+### File to Modify
+- `src/components/dashboards/AdminDashboard.tsx`
 
-```text
-Structure of enhanced Website Details:
-
-+----------------------------------+
-| Website Details                  |
-+----------------------------------+
-| Industry: [value]                |
-| Pages: [value]                   |
-| Current Website: [link]          |
-| Customer Domain: [link]          |
-| Video Keywords:                  |
-| [preserved multi-line text]      |
-+----------------------------------+
-
-+----------------------------------+
-| Business Description             |
-+----------------------------------+
-| [preserved multi-line text]      |
-+----------------------------------+
-
-+----------------------------------+
-| Design References                |
-+----------------------------------+
-| [preserved multi-line text]      |
-+----------------------------------+
-
-+----------------------------------+
-| Additional Notes                 |
-+----------------------------------+
-| [preserved multi-line text]      |
-+----------------------------------+
-
-+----------------------------------+
-| Logo Files                       |
-+----------------------------------+
-| [File Preview] [File Preview]    |
-| [Download]     [Download]        |
-+----------------------------------+
+### New State Variables
+```tsx
+const [metricDetailsDialog, setMetricDetailsDialog] = useState<{
+  open: boolean;
+  userId: string;
+  userName: string;
+  metricType: 'target' | 'total_achieved' | 'transferred' | 'closed' | 'revenue';
+} | null>(null);
 ```
 
-Key styling: All multi-line text fields will use `whitespace-pre-wrap` class to preserve the original formatting entered in the order form.
+### Task Filtering Logic
+```tsx
+const getFilteredTasksForMetric = (userId: string, metricType: string) => {
+  if (!tasks) return [];
+  
+  switch (metricType) {
+    case 'transferred':
+      return tasks.filter(t => t.transferred_by === userId && !t.is_upsell);
+    case 'closed':
+      return tasks.filter(t => t.closed_by === userId && !t.is_upsell);
+    case 'total_achieved':
+      return tasks.filter(t => 
+        (t.transferred_by === userId || t.closed_by === userId) && !t.is_upsell
+      );
+    case 'revenue':
+      return tasks.filter(t => t.closed_by === userId && !t.is_upsell);
+    default:
+      return [];
+  }
+};
+```
+
+### Dialog Content Structure
+The dialog will include:
+- Header with user name and metric type
+- ScrollArea with list of filtered tasks
+- Each task shows: task number, title, status badge, revenue (if applicable)
+- "View Details" button that opens the existing view details dialog
+
+### Visual Feedback
+- Hover state: `hover:bg-muted/50` with `transition-colors`
+- Cursor: `cursor-pointer`
+- Slight padding adjustment for better click target
 
