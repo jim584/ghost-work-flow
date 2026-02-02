@@ -2565,6 +2565,21 @@ const AdminDashboard = () => {
                                 ${Number(task.amount_total || 0).toLocaleString()}
                               </span>
                             )}
+                            {(metricDetailsDialog.metricType === 'pm_closed' || metricDetailsDialog.metricType === 'pm_total' || metricDetailsDialog.metricType === 'pm_upsells') && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">
+                                  Total: ${Number(task.amount_total || 0).toLocaleString()}
+                                </span>
+                                <span className="text-sm font-medium text-green-600">
+                                  Paid: ${Number(task.amount_paid || 0).toLocaleString()}
+                                </span>
+                                {Number(task.amount_pending || 0) > 0 && (
+                                  <span className="text-sm font-medium text-orange-500">
+                                    Pending: ${Number(task.amount_pending || 0).toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             <span className="text-xs text-muted-foreground">
                               {task.created_at ? format(new Date(task.created_at), 'MMM d, yyyy') : ''}
                             </span>
