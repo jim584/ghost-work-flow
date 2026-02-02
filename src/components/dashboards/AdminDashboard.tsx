@@ -76,6 +76,43 @@ const AdminDashboard = () => {
   const [reassignDialog, setReassignDialog] = useState<{ open: boolean; taskId: string; taskTitle: string; currentPmId: string } | null>(null);
   const [reassignReason, setReassignReason] = useState("");
   const [selectedNewPmId, setSelectedNewPmId] = useState("");
+  const [metricDetailsDialog, setMetricDetailsDialog] = useState<{
+    open: boolean;
+    userId: string;
+    userName: string;
+    metricType: 'target' | 'total_achieved' | 'transferred' | 'closed' | 'revenue';
+  } | null>(null);
+
+  // Helper function to filter tasks by metric type for a specific user
+  const getFilteredTasksForMetric = (userId: string, metricType: string) => {
+    if (!tasks) return [];
+    
+    switch (metricType) {
+      case 'transferred':
+        return tasks.filter(t => t.transferred_by === userId && !t.is_upsell);
+      case 'closed':
+        return tasks.filter(t => t.closed_by === userId && !t.is_upsell);
+      case 'total_achieved':
+        return tasks.filter(t => 
+          (t.transferred_by === userId || t.closed_by === userId) && !t.is_upsell
+        );
+      case 'revenue':
+        return tasks.filter(t => t.closed_by === userId && !t.is_upsell);
+      default:
+        return [];
+    }
+  };
+
+  // Helper to get metric type display name
+  const getMetricDisplayName = (metricType: string) => {
+    switch (metricType) {
+      case 'transferred': return 'Transferred Orders';
+      case 'closed': return 'Closed Orders';
+      case 'total_achieved': return 'Total Achieved Orders';
+      case 'revenue': return 'Closed Revenue Orders';
+      default: return 'Orders';
+    }
+  };
 
   const { data: projectManagers = [] } = useProjectManagers();
 
@@ -1485,11 +1522,30 @@ const AdminDashboard = () => {
                         </CardHeader>
                         <CardContent>
                           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            <div className="space-y-1">
+                            <div 
+                              className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                              onClick={() => {
+                                setEditTargetDialog({
+                                  open: true,
+                                  userId: salesUser.id,
+                                  userName: salesUser.full_name || salesUser.email,
+                                  currentTarget: monthlyTarget,
+                                });
+                                setNewTargetValue(monthlyTarget.toString());
+                              }}
+                            >
                               <p className="text-sm text-muted-foreground">Monthly Target</p>
                               <p className="text-2xl font-bold text-primary">{monthlyTarget}</p>
                             </div>
-                            <div className="space-y-1">
+                            <div 
+                              className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                              onClick={() => setMetricDetailsDialog({
+                                open: true,
+                                userId: salesUser.id,
+                                userName: salesUser.full_name || salesUser.email,
+                                metricType: 'total_achieved',
+                              })}
+                            >
                               <p className="text-sm text-muted-foreground">Total Achieved</p>
                               <p className="text-2xl font-bold">{totalAchieved}</p>
                               <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -1499,15 +1555,39 @@ const AdminDashboard = () => {
                                 />
                               </div>
                             </div>
-                            <div className="space-y-1">
+                            <div 
+                              className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                              onClick={() => setMetricDetailsDialog({
+                                open: true,
+                                userId: salesUser.id,
+                                userName: salesUser.full_name || salesUser.email,
+                                metricType: 'transferred',
+                              })}
+                            >
                               <p className="text-sm text-muted-foreground">Transferred</p>
                               <p className="text-2xl font-bold text-orange-500">{transferredCount}</p>
                             </div>
-                            <div className="space-y-1">
+                            <div 
+                              className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                              onClick={() => setMetricDetailsDialog({
+                                open: true,
+                                userId: salesUser.id,
+                                userName: salesUser.full_name || salesUser.email,
+                                metricType: 'closed',
+                              })}
+                            >
                               <p className="text-sm text-muted-foreground">Closed</p>
                               <p className="text-2xl font-bold text-emerald-500">{closedCount}</p>
                             </div>
-                            <div className="space-y-1">
+                            <div 
+                              className="space-y-1 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                              onClick={() => setMetricDetailsDialog({
+                                open: true,
+                                userId: salesUser.id,
+                                userName: salesUser.full_name || salesUser.email,
+                                metricType: 'revenue',
+                              })}
+                            >
                               <p className="text-sm text-muted-foreground">Closed Revenue</p>
                               <p className="text-2xl font-bold text-green-600">${closedRevenue.toLocaleString()}</p>
                             </div>
@@ -2392,6 +2472,77 @@ const AdminDashboard = () => {
               {reassignTask.isPending ? "Reassigning..." : "Reassign Task"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Metric Details Dialog */}
+      <Dialog open={metricDetailsDialog?.open || false} onOpenChange={(open) => !open && setMetricDetailsDialog(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {metricDetailsDialog?.userName} - {metricDetailsDialog && getMetricDisplayName(metricDetailsDialog.metricType)}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            {metricDetailsDialog && (() => {
+              const filteredTasks = getFilteredTasksForMetric(metricDetailsDialog.userId, metricDetailsDialog.metricType);
+              
+              if (filteredTasks.length === 0) {
+                return (
+                  <p className="text-center text-muted-foreground py-8">
+                    No orders found for this metric.
+                  </p>
+                );
+              }
+              
+              return (
+                <div className="space-y-3 pr-4">
+                  {filteredTasks.map((task) => (
+                    <Card key={task.id} className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm text-muted-foreground">
+                              #{task.task_number}
+                            </span>
+                            <span className="font-medium">{task.title}</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {task.customer_name || task.business_name || 'No customer name'}
+                          </p>
+                          <div className="flex items-center gap-3 mt-2">
+                            <Badge 
+                              variant={task.status === 'completed' || task.status === 'approved' ? 'default' : 'secondary'}
+                            >
+                              {task.status}
+                            </Badge>
+                            {metricDetailsDialog.metricType === 'revenue' && (
+                              <span className="text-sm font-medium text-green-600">
+                                ${Number(task.amount_total || 0).toLocaleString()}
+                              </span>
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              {task.created_at ? format(new Date(task.created_at), 'MMM d, yyyy') : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setMetricDetailsDialog(null);
+                            setViewDetailsTask(task);
+                          }}
+                        >
+                          View Details
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })()}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>
