@@ -108,13 +108,13 @@ const FrontSalesDashboard = () => {
     return null;
   };
 
+  // Front Sales can view all tasks (RLS policy allows this)
   const { data: myTasks } = useQuery({
-    queryKey: ["sales-tasks", user?.id],
+    queryKey: ["sales-tasks"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
         .select("*, teams(name)")
-        .eq("project_manager_id", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
