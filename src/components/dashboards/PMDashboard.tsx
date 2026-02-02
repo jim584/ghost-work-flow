@@ -838,6 +838,7 @@ const PMDashboard = () => {
                         setOpen(false);
                         setTaskType(null);
                       }}
+                      showProjectManagerSelector={true}
                     />
                   </>
                 ) : taskType === "logo" ? (
@@ -852,6 +853,7 @@ const PMDashboard = () => {
                         setOpen(false);
                         setTaskType(null);
                       }}
+                      showProjectManagerSelector={true}
                     />
                   </>
                 ) : (
@@ -865,6 +867,7 @@ const PMDashboard = () => {
                         setOpen(false);
                         setTaskType(null);
                       }}
+                      showProjectManagerSelector={true}
                     />
                   </>
                 )}
