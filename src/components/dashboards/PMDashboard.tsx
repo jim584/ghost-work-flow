@@ -1007,19 +1007,21 @@ const PMDashboard = () => {
                             Approve
                           </Button>
                         )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="hover-scale"
-                          onClick={() => setReassignDialog({ 
-                            open: true, 
-                            taskId: task.id, 
-                            currentPmId: task.project_manager_id 
-                          })}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                          Reassign
-                        </Button>
+                        {task.status === "pending" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="hover-scale"
+                            onClick={() => setReassignDialog({ 
+                              open: true, 
+                              taskId: task.id, 
+                              currentPmId: task.project_manager_id 
+                            })}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                            Reassign
+                          </Button>
+                        )}
                       </div>
                       {taskSubmissions.length > 0 && (
                         <Button
