@@ -151,6 +151,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
           description: formData.supporting_text,
           team_id: nextTeamId,
           project_manager_id: pmId,
+          created_by: userId,
           business_name: formData.business_name,
           business_email: formData.business_email || null,
           business_phone: formData.business_phone || null,
@@ -183,6 +184,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
         if (error) throw error;
 
         queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+        queryClient.invalidateQueries({ queryKey: ["sales-tasks"] });
         
         toast({
           title: "Website order created successfully!",
