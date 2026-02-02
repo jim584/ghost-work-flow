@@ -15,7 +15,7 @@ import { CreateLogoOrderForm } from "./CreateLogoOrderForm";
 import { CreateWebsiteOrderForm } from "./CreateWebsiteOrderForm";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format, subDays, isAfter } from "date-fns";
+import { format, subDays, isAfter, startOfWeek, startOfMonth } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog,
@@ -240,6 +240,75 @@ const FrontSalesDashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {/* Stats Summary Cards */}
+        {(() => {
+          const now = new Date();
+          const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+          const monthStart = startOfMonth(now);
+          
+          const totalOrders = myTasks?.length || 0;
+          const ordersThisWeek = myTasks?.filter(t => t.created_at && new Date(t.created_at) >= weekStart).length || 0;
+          const ordersThisMonth = myTasks?.filter(t => t.created_at && new Date(t.created_at) >= monthStart).length || 0;
+          const totalRevenue = myTasks?.reduce((sum, t) => sum + (t.amount_paid || 0), 0) || 0;
+          
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <FolderKanban className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Orders</p>
+                      <p className="text-2xl font-bold">{totalOrders}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-500/10">
+                      <Calendar className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">This Week</p>
+                      <p className="text-2xl font-bold">{ordersThisWeek}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-purple-500/10">
+                      <Clock className="h-5 w-5 text-purple-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">This Month</p>
+                      <p className="text-2xl font-bold">{ordersThisMonth}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-green-500/10">
+                      <DollarSign className="h-5 w-5 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Revenue Collected</p>
+                      <p className="text-2xl font-bold">${totalRevenue.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })()}
+
         <div className="mb-6">
           <Input
             type="text"
