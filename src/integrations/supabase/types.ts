@@ -145,6 +145,30 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_targets: {
+        Row: {
+          created_at: string | null
+          id: string
+          monthly_order_target: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          monthly_order_target?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          monthly_order_target?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       task_delay_notifications: {
         Row: {
           created_at: string
