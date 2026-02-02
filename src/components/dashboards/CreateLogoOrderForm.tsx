@@ -151,6 +151,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManag
           description: formData.primary_focus,
           team_id: teamId,
           project_manager_id: pmId,
+          created_by: userId,
           business_name: formData.logo_name,
           industry: formData.industry,
           post_type: "Logo Design",
@@ -176,6 +177,7 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManag
         if (error) throw error;
 
         queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+        queryClient.invalidateQueries({ queryKey: ["sales-tasks"] });
         
         toast({
           title: "Logo order created successfully!",

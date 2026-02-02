@@ -189,6 +189,7 @@ export type Database = {
           competitors_inspiration: string | null
           content_provided: boolean | null
           created_at: string | null
+          created_by: string | null
           cta: string | null
           customer_domain: string | null
           customer_email: string | null
@@ -252,6 +253,7 @@ export type Database = {
           competitors_inspiration?: string | null
           content_provided?: boolean | null
           created_at?: string | null
+          created_by?: string | null
           cta?: string | null
           customer_domain?: string | null
           customer_email?: string | null
@@ -315,6 +317,7 @@ export type Database = {
           competitors_inspiration?: string | null
           content_provided?: boolean | null
           created_at?: string | null
+          created_by?: string | null
           cta?: string | null
           customer_domain?: string | null
           customer_email?: string | null

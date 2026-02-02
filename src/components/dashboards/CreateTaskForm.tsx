@@ -154,6 +154,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess, showProjectManagerSel
           amount_total: formData.amount_total ? parseFloat(formData.amount_total) : 0,
           team_id: teamId,
           project_manager_id: pmId,
+          created_by: userId,
           status: "pending" as const,
           attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
           attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
@@ -167,6 +168,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess, showProjectManagerSel
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-tasks"] });
       const taskCount = selectedTeamIds.length;
       toast({ title: taskCount > 1 ? `${taskCount} tasks created successfully` : "Task created successfully" });
       setAttachmentFiles([]);
