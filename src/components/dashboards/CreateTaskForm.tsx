@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { File as FileIcon } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -60,6 +60,32 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+  const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>("");
+
+  // Fetch project managers
+  const { data: projectManagers } = useQuery({
+    queryKey: ["project-managers"],
+    queryFn: async () => {
+      const { data: pmRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "project_manager");
+      
+      if (rolesError) throw rolesError;
+      
+      const pmUserIds = pmRoles?.map(r => r.user_id) || [];
+      
+      if (pmUserIds.length === 0) return [];
+      
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", pmUserIds);
+      
+      if (profilesError) throw profilesError;
+      return profiles;
+    },
+  });
 
   const [formData, setFormData] = useState({
     title: "",
@@ -146,7 +172,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
           amount_pending: formData.amount_pending ? parseFloat(formData.amount_pending) : 0,
           amount_total: formData.amount_total ? parseFloat(formData.amount_total) : 0,
           team_id: teamId,
-          project_manager_id: userId,
+          project_manager_id: selectedProjectManagerId,
           status: "pending" as const,
           attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
           attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
@@ -302,6 +328,22 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
               placeholder="E.g., Instagram Post for New Product Launch"
               required
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="project_manager">Assign Project Manager *</Label>
+            <Select value={selectedProjectManagerId} onValueChange={setSelectedProjectManagerId}>
+              <SelectTrigger id="project_manager">
+                <SelectValue placeholder="Select project manager" />
+              </SelectTrigger>
+              <SelectContent>
+                {projectManagers?.map((pm) => (
+                  <SelectItem key={pm.id} value={pm.id}>
+                    {pm.full_name || pm.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -704,7 +746,7 @@ export const CreateTaskForm = ({ userId, teams, onSuccess }: CreateTaskFormProps
 
         <Button
           onClick={() => createTask.mutate()}
-          disabled={!formData.title || !formData.customer_name || selectedTeamIds.length === 0 || !formData.website_url || uploading}
+          disabled={!formData.title || !formData.customer_name || selectedTeamIds.length === 0 || !formData.website_url || !selectedProjectManagerId || uploading}
           className="w-full"
         >
           {uploading ? "Creating & Uploading..." : selectedTeamIds.length > 1 ? `Create ${selectedTeamIds.length} Tasks` : "Create Task"}
