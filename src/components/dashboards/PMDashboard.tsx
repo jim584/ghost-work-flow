@@ -1304,11 +1304,7 @@ const PMDashboard = () => {
               {/* Order Attribution */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Order Attribution</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Created By</Label>
-                    <p className="font-medium">{(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}</p>
-                  </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-muted-foreground">Transferred By</Label>
                     <p className="font-medium">{(viewDetailsTask as any)?.transferred_by_profile?.full_name || (viewDetailsTask as any)?.transferred_by_profile?.email || "—"}</p>
@@ -1318,6 +1314,9 @@ const PMDashboard = () => {
                     <p className="font-medium">{(viewDetailsTask as any)?.closed_by_profile?.full_name || (viewDetailsTask as any)?.closed_by_profile?.email || "N/A"}</p>
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Created by: {(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}
+                </p>
               </div>
 
               {/* Logo Details - Only for Logo Orders */}
