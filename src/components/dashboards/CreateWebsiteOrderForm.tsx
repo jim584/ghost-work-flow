@@ -63,7 +63,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [logoFiles, setLogoFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>("");
+  const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>(userId);
   const [transferredBy, setTransferredBy] = useState<string>("");
   const [closedBy, setClosedBy] = useState<string>("");
   const { data: projectManagers = [], isLoading: loadingPMs } = useProjectManagers();
