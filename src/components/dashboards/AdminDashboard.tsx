@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -1832,6 +1832,100 @@ const AdminDashboard = () => {
                   })}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Designer/Developer Performance Section */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="h-5 w-5" />
+                Designer & Developer Performance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                // Get designers and developers
+                const designerDeveloperUsers = users?.filter(u => 
+                  u.user_roles?.some((r: any) => r.role === 'designer' || r.role === 'developer')
+                ) || [];
+                
+                if (!designerDeveloperUsers.length) {
+                  return (
+                    <p className="text-center text-muted-foreground py-8">
+                      No designers or developers found
+                    </p>
+                  );
+                }
+                
+                return (
+                  <div className="space-y-4">
+                    {designerDeveloperUsers.map((user) => {
+                      const userRole = user.user_roles?.[0]?.role;
+                      const userSubmissions = submissions?.filter(s => s.designer_id === user.id) || [];
+                      const totalSubmissions = userSubmissions.length;
+                      const approvedSubmissions = userSubmissions.filter(s => s.revision_status === 'approved').length;
+                      const revisionsNeeded = userSubmissions.filter(s => s.revision_status === 'needs_revision').length;
+                      const pendingReview = userSubmissions.filter(s => s.revision_status === 'pending_review').length;
+                      const approvalRate = totalSubmissions > 0 
+                        ? ((approvedSubmissions / totalSubmissions) * 100).toFixed(1) 
+                        : '0';
+                      
+                      return (
+                        <Card key={user.id} className={`border-l-4 ${userRole === 'designer' ? 'border-l-purple-500' : 'border-l-blue-500'}`}>
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                {userRole === 'designer' ? (
+                                  <Palette className="h-5 w-5 text-purple-500" />
+                                ) : (
+                                  <Code className="h-5 w-5 text-blue-500" />
+                                )}
+                                {user.full_name || user.email}
+                              </CardTitle>
+                              <Badge variant="outline" className={userRole === 'designer' ? 'border-purple-500 text-purple-600' : 'border-blue-500 text-blue-600'}>
+                                {userRole === 'designer' ? 'Designer' : 'Developer'}
+                              </Badge>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                              <div className="space-y-1">
+                                <p className="text-sm text-muted-foreground">Total Submissions</p>
+                                <p className="text-2xl font-bold">{totalSubmissions}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-sm text-muted-foreground">Approved</p>
+                                <p className="text-2xl font-bold text-green-600">{approvedSubmissions}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-sm text-muted-foreground">Needs Revision</p>
+                                <p className="text-2xl font-bold text-orange-500">{revisionsNeeded}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-sm text-muted-foreground">Pending Review</p>
+                                <p className="text-2xl font-bold text-yellow-500">{pendingReview}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-sm text-muted-foreground">Approval Rate</p>
+                                <p className={`text-2xl font-bold ${Number(approvalRate) >= 80 ? 'text-green-600' : Number(approvalRate) >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>
+                                  {approvalRate}%
+                                </p>
+                                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full transition-all ${Number(approvalRate) >= 80 ? 'bg-green-500' : Number(approvalRate) >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                    style={{ width: `${approvalRate}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 
