@@ -110,20 +110,22 @@ const FrontSalesDashboard = () => {
     return null;
   };
 
-  // Front Sales can view all tasks (RLS policy allows this)
+  // Fetch my own orders (created by me) for the main dashboard
   const { data: myTasks } = useQuery({
-    queryKey: ["sales-tasks"],
+    queryKey: ["sales-tasks", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
         .select("*, teams(name)")
+        .eq("created_by", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
+    enabled: !!user?.id,
   });
 
-  // Query for all tasks (used when searching)
+  // Query for all tasks (used when searching) - can search all orders in the system
   const { data: allTasks } = useQuery({
     queryKey: ["all-tasks-search", searchQuery],
     queryFn: async () => {
