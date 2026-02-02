@@ -1010,12 +1010,6 @@ const FrontSalesDashboard = () => {
                     <div className="space-y-2">
                       <h4 className="font-medium text-sm uppercase text-muted-foreground">Website Details</h4>
                       <div className="bg-muted/30 rounded-lg p-4 space-y-3">
-                        {viewDetailsTask.industry && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Industry:</span>
-                            <p className="font-medium">{viewDetailsTask.industry}</p>
-                          </div>
-                        )}
                         {viewDetailsTask.number_of_pages && (
                           <div>
                             <span className="text-sm text-muted-foreground">Number of Pages:</span>
