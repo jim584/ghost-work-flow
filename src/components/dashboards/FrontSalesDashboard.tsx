@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, Clock, FolderKanban, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, FileText, Eye } from "lucide-react";
+import { LogOut, Plus, Clock, FolderKanban, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, FileText, Eye, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,7 @@ import { CreateWebsiteOrderForm } from "./CreateWebsiteOrderForm";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, subDays, isAfter } from "date-fns";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,7 @@ const FrontSalesDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>("all");
   const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const { data: teams } = useQuery({
     queryKey: ["teams"],
@@ -558,164 +560,280 @@ const FrontSalesDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {filteredTasks?.map((task) => {
-                const isDelayed = task.deadline && new Date(task.deadline) < today && !['completed', 'approved'].includes(task.status);
+              {(() => {
+                // Group orders by customer name + title + deadline (same order assigned to multiple teams)
+                const groupedOrders = filteredTasks?.reduce((acc, task) => {
+                  const groupKey = `${task.customer_name || task.business_name || ''}_${task.title}_${task.deadline || ''}_${task.post_type || ''}`;
+                  
+                  if (!acc[groupKey]) {
+                    acc[groupKey] = {
+                      ...task,
+                      groupKey,
+                      tasks: [task],
+                      teams: [(task as any).teams?.name || 'Unknown'],
+                      teamCount: 1,
+                      statuses: [task.status],
+                      taskNumbers: [task.task_number],
+                    };
+                  } else {
+                    acc[groupKey].tasks.push(task);
+                    acc[groupKey].teams.push((task as any).teams?.name || 'Unknown');
+                    acc[groupKey].teamCount += 1;
+                    acc[groupKey].statuses.push(task.status);
+                    acc[groupKey].taskNumbers.push(task.task_number);
+                  }
+                  return acc;
+                }, {} as Record<string, any>) || {};
                 
-                return (
-                  <div 
-                    key={task.id} 
-                    className={`group border rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden animate-fade-in ${isDelayed ? 'border-l-4 border-l-red-500 bg-red-50/10' : ''}`}
-                  >
-                    {/* Card Header */}
-                    <div className="p-4 bg-gradient-to-r from-muted/30 to-transparent border-b">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="p-2 rounded-lg bg-background shadow-sm">
-                            {getOrderTypeIcon(task)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono text-xs px-2 py-0.5 bg-muted rounded-full text-muted-foreground">
-                                #{task.task_number}
-                              </span>
-                              {getOrderTypeBadge(task)}
-                              {isDelayed && <Badge className="bg-red-500 text-white">DELAYED</Badge>}
+                const groupedOrdersList = Object.values(groupedOrders);
+
+                const getOverallStatus = (statuses: string[]) => {
+                  if (statuses.includes('pending')) return 'pending';
+                  if (statuses.includes('in_progress')) return 'in_progress';
+                  if (statuses.includes('completed')) return 'completed';
+                  if (statuses.includes('approved')) return 'approved';
+                  return statuses[0];
+                };
+
+                const toggleGroup = (groupKey: string) => {
+                  setExpandedGroups(prev => {
+                    const newSet = new Set(prev);
+                    if (newSet.has(groupKey)) {
+                      newSet.delete(groupKey);
+                    } else {
+                      newSet.add(groupKey);
+                    }
+                    return newSet;
+                  });
+                };
+
+                if (groupedOrdersList.length === 0) {
+                  return (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <FolderKanban className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No orders found</p>
+                      <p className="text-sm">Create your first order to get started</p>
+                    </div>
+                  );
+                }
+
+                return groupedOrdersList.map((group: any) => {
+                  const isMultiTeam = group.teamCount > 1;
+                  const primaryTask = group.tasks[0];
+                  const isDelayed = primaryTask.deadline && new Date(primaryTask.deadline) < today && !['completed', 'approved'].includes(getOverallStatus(group.statuses));
+                  const isExpanded = expandedGroups.has(group.groupKey);
+
+                  return (
+                    <div 
+                      key={group.groupKey} 
+                      className={`group border rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden animate-fade-in ${isDelayed ? 'border-l-4 border-l-destructive bg-destructive/5' : ''}`}
+                    >
+                      {/* Card Header */}
+                      <div className="p-4 bg-gradient-to-r from-muted/30 to-transparent border-b">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="p-2 rounded-lg bg-background shadow-sm">
+                              {getOrderTypeIcon(primaryTask)}
                             </div>
-                            <h3 className="font-semibold text-lg mt-1 truncate">{task.title}</h3>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-xs px-2 py-0.5 bg-muted rounded-full text-muted-foreground">
+                                  {isMultiTeam 
+                                    ? `#${group.taskNumbers.join(', #')}` 
+                                    : `#${primaryTask.task_number}`}
+                                </span>
+                                {getOrderTypeBadge(primaryTask)}
+                                {isMultiTeam && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <Users className="h-3 w-3 mr-1" />
+                                    {group.teamCount} teams
+                                  </Badge>
+                                )}
+                                {isDelayed && <Badge variant="destructive">DELAYED</Badge>}
+                              </div>
+                              <h3 className="font-semibold text-lg mt-1 truncate">{primaryTask.title}</h3>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(task.status)} shadow-sm`}>
-                            {task.status.replace("_", " ")}
-                          </Badge>
-                          {task.status === "pending" && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 hover:bg-destructive/10"
-                              onClick={() => setDeleteTaskId(task.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <Badge className={`${getStatusColor(getOverallStatus(group.statuses))} shadow-sm`}>
+                              {getOverallStatus(group.statuses).replace("_", " ")}
+                            </Badge>
+                            {!isMultiTeam && primaryTask.status === "pending" && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 hover:bg-destructive/10"
+                                onClick={() => setDeleteTaskId(primaryTask.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Card Body */}
-                    <div className="p-4 space-y-4">
-                      {task.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
-                      )}
+                      {/* Card Body */}
+                      <div className="p-4 space-y-4">
+                        {primaryTask.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2">{primaryTask.description}</p>
+                        )}
 
-                      {/* Info Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {/* Customer Info */}
-                        {(task.customer_name || task.customer_email || task.customer_phone) && (
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {/* Customer Info */}
+                          {(primaryTask.customer_name || primaryTask.customer_email || primaryTask.customer_phone) && (
+                            <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                <User className="h-3.5 w-3.5" />
+                                Customer
+                              </div>
+                              <div className="space-y-1">
+                                {primaryTask.customer_name && (
+                                  <p className="text-sm font-medium truncate">{primaryTask.customer_name}</p>
+                                )}
+                                {primaryTask.customer_email && (
+                                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <Mail className="h-3 w-3" />
+                                    <span className="truncate">{primaryTask.customer_email}</span>
+                                  </div>
+                                )}
+                                {primaryTask.customer_phone && (
+                                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <Phone className="h-3 w-3" />
+                                    <span>{primaryTask.customer_phone}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Payment Info */}
+                          {(primaryTask.amount_total || primaryTask.amount_paid || primaryTask.amount_pending) && (
+                            <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                <DollarSign className="h-3.5 w-3.5" />
+                                Payment
+                              </div>
+                              <div className="space-y-1 text-sm">
+                                {primaryTask.amount_total && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Total:</span>
+                                    <span className="font-medium">${Number(primaryTask.amount_total).toFixed(2)}</span>
+                                  </div>
+                                )}
+                                {primaryTask.amount_paid !== null && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Paid:</span>
+                                    <span className="font-medium text-success">${Number(primaryTask.amount_paid).toFixed(2)}</span>
+                                  </div>
+                                )}
+                                {primaryTask.amount_pending && Number(primaryTask.amount_pending) > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Pending:</span>
+                                    <span className="font-medium text-warning">${Number(primaryTask.amount_pending).toFixed(2)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Assignment Info */}
                           <div className="bg-muted/30 rounded-lg p-3 space-y-2">
                             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                              <User className="h-3.5 w-3.5" />
-                              Customer
+                              <Users className="h-3.5 w-3.5" />
+                              Assignment
                             </div>
                             <div className="space-y-1">
-                              {task.customer_name && (
-                                <p className="text-sm font-medium truncate">{task.customer_name}</p>
+                              {isMultiTeam ? (
+                                <p className="text-sm font-medium">{group.teamCount} teams assigned</p>
+                              ) : isWebsiteOrder(primaryTask) ? (
+                                <p className="text-sm font-medium">{getDeveloperForTeam(primaryTask.team_id) || "Unassigned"}</p>
+                              ) : (
+                                <p className="text-sm font-medium">{(primaryTask.teams as any)?.name || "Unassigned"}</p>
                               )}
-                              {task.customer_email && (
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                  <Mail className="h-3 w-3" />
-                                  <span className="truncate">{task.customer_email}</span>
-                                </div>
-                              )}
-                              {task.customer_phone && (
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                  <Phone className="h-3 w-3" />
-                                  <span>{task.customer_phone}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Payment Info */}
-                        {(task.amount_total || task.amount_paid || task.amount_pending) && (
-                          <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-                            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                              <DollarSign className="h-3.5 w-3.5" />
-                              Payment
-                            </div>
-                            <div className="space-y-1 text-sm">
-                              {task.amount_total && (
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Total:</span>
-                                  <span className="font-medium">${Number(task.amount_total).toFixed(2)}</span>
-                                </div>
-                              )}
-                              {task.amount_paid !== null && (
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Paid:</span>
-                                  <span className="font-medium text-green-600">${Number(task.amount_paid).toFixed(2)}</span>
-                                </div>
-                              )}
-                              {task.amount_pending && Number(task.amount_pending) > 0 && (
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Pending:</span>
-                                  <span className="font-medium text-orange-600">${Number(task.amount_pending).toFixed(2)}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Assignment Info */}
-                        <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-                          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                            <Users className="h-3.5 w-3.5" />
-                            Assignment
-                          </div>
-                          <div className="space-y-1">
-                            {isWebsiteOrder(task) ? (
-                              <p className="text-sm font-medium">{getDeveloperForTeam(task.team_id) || "Unassigned"}</p>
-                            ) : (
-                              <p className="text-sm font-medium">{(task.teams as any)?.name || "Unassigned"}</p>
-                            )}
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              <span>{format(new Date(task.created_at!), "MMM d, yyyy")}</span>
-                            </div>
-                            {task.deadline && (
-                              <div className={`flex items-center gap-1.5 text-xs ${isDelayed ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
-                                <Clock className="h-3 w-3" />
-                                <span>Due: {format(new Date(task.deadline), "MMM d, yyyy")}</span>
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                <span>{format(new Date(primaryTask.created_at!), "MMM d, yyyy")}</span>
                               </div>
-                            )}
+                              {primaryTask.deadline && (
+                                <div className={`flex items-center gap-1.5 text-xs ${isDelayed ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                                  <Clock className="h-3 w-3" />
+                                  <span>Due: {format(new Date(primaryTask.deadline), "MMM d, yyyy")}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Card Footer */}
-                      <div className="flex items-center justify-end pt-2 border-t">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setViewDetailsTask(task)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View Details
-                        </Button>
+                        {/* Expandable Team Details for Multi-Team Orders */}
+                        {isMultiTeam && (
+                          <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(group.groupKey)}>
+                            <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="sm" className="w-full justify-between">
+                                <span className="text-sm font-medium">View Team Progress</span>
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="mt-3">
+                              <div className="space-y-2 border-t pt-3">
+                                {group.tasks.map((task: any) => {
+                                  const taskDelayed = task.deadline && new Date(task.deadline) < today && !['completed', 'approved'].includes(task.status);
+                                  return (
+                                    <div 
+                                      key={task.id} 
+                                      className={`flex items-center justify-between p-3 rounded-lg bg-muted/30 ${taskDelayed ? 'border-l-2 border-l-destructive' : ''}`}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <span className="font-mono text-xs text-muted-foreground">#{task.task_number}</span>
+                                        <span className="text-sm font-medium">{(task.teams as any)?.name || 'Unknown Team'}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Badge className={`${getStatusColor(task.status)} text-xs`}>
+                                          {task.status.replace("_", " ")}
+                                        </Badge>
+                                        {task.status === "pending" && (
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-6 w-6 p-0 hover:bg-destructive/10"
+                                            onClick={() => setDeleteTaskId(task.id)}
+                                          >
+                                            <Trash2 className="h-3 w-3 text-destructive" />
+                                          </Button>
+                                        )}
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 px-2"
+                                          onClick={() => setViewDetailsTask(task)}
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        )}
+
+                        {/* Card Footer */}
+                        <div className="flex items-center justify-end pt-2 border-t">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setViewDetailsTask(primaryTask)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View Details
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-              
-              {(!filteredTasks || filteredTasks.length === 0) && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <FolderKanban className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No orders found</p>
-                  <p className="text-sm">Create your first order to get started</p>
-                </div>
-              )}
+                  );
+                });
+              })()}
             </div>
           </CardContent>
         </Card>
