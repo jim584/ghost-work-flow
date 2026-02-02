@@ -117,7 +117,7 @@ const FrontSalesDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("*, teams(name)")
+        .select("*, teams(name), project_manager:profiles!tasks_project_manager_id_fkey(full_name, email)")
         .eq("created_by", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -132,7 +132,7 @@ const FrontSalesDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("*, teams(name), profiles!tasks_project_manager_id_fkey(full_name, email)")
+        .select("*, teams(name), project_manager:profiles!tasks_project_manager_id_fkey(full_name, email)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -903,6 +903,7 @@ const FrontSalesDashboard = () => {
                   <div className="space-y-2">
                     <h4 className="font-medium text-sm uppercase text-muted-foreground">Assignment</h4>
                     <div className="bg-muted/30 rounded-lg p-3 space-y-1">
+                      <p><span className="text-muted-foreground">Project Manager:</span> {(viewDetailsTask.project_manager as any)?.full_name || (viewDetailsTask.project_manager as any)?.email || "Unassigned"}</p>
                       {isWebsiteOrder(viewDetailsTask) ? (
                         <p><span className="text-muted-foreground">Developer:</span> {getDeveloperForTeam(viewDetailsTask.team_id) || "Unassigned"}</p>
                       ) : (
