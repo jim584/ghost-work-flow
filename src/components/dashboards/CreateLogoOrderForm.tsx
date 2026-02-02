@@ -10,11 +10,13 @@ import { File as FileIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useProjectManagers } from "@/hooks/useProjectManagers";
 
 interface CreateLogoOrderFormProps {
   userId: string;
   teams: any[];
   onSuccess: () => void;
+  showProjectManagerSelector?: boolean;
 }
 
 const INDUSTRIES = [
@@ -62,12 +64,14 @@ const LOOK_AND_FEEL = [
   "Sophisticated",
 ];
 
-export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrderFormProps) => {
+export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManagerSelector = false }: CreateLogoOrderFormProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+  const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>("");
+  const { data: projectManagers = [], isLoading: loadingPMs } = useProjectManagers();
 
   const [formData, setFormData] = useState({
     logo_name: "",
@@ -138,12 +142,15 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
           .filter(Boolean)
           .join(" - ") || null;
 
+        // Determine the project manager ID
+        const pmId = showProjectManagerSelector && selectedProjectManagerId ? selectedProjectManagerId : userId;
+
         // Create a task for each selected team
         const tasksToInsert = selectedTeamIds.map(teamId => ({
           title: formData.logo_name,
           description: formData.primary_focus,
           team_id: teamId,
-          project_manager_id: userId,
+          project_manager_id: pmId,
           business_name: formData.logo_name,
           industry: formData.industry,
           post_type: "Logo Design",
@@ -196,6 +203,32 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess }: CreateLogoOrde
   return (
     <ScrollArea className="h-[calc(100vh-200px)] pr-4">
       <div className="space-y-6">
+        {/* Assign Project Manager - Only shown for Front Sales */}
+        {showProjectManagerSelector && (
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">Assignment</h3>
+            <div className="space-y-2">
+              <Label htmlFor="project_manager">Assign Project Manager *</Label>
+              <Select 
+                value={selectedProjectManagerId} 
+                onValueChange={setSelectedProjectManagerId}
+                disabled={loadingPMs}
+              >
+                <SelectTrigger id="project_manager">
+                  <SelectValue placeholder={loadingPMs ? "Loading..." : "Select Project Manager"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {projectManagers.map((pm) => (
+                    <SelectItem key={pm.id} value={pm.id}>
+                      {pm.full_name || pm.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {/* Customer Information */}
         <div className="space-y-4">
           <h3 className="font-semibold text-lg">Customer Information</h3>

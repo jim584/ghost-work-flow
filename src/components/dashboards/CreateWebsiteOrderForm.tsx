@@ -10,10 +10,12 @@ import { File as FileIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useProjectManagers } from "@/hooks/useProjectManagers";
 
 interface CreateWebsiteOrderFormProps {
   userId: string;
   onSuccess: () => void;
+  showProjectManagerSelector?: boolean;
 }
 
 const INDUSTRIES = [
@@ -54,12 +56,14 @@ const NUMBER_OF_PAGES = [
   "20+ Pages (Enterprise)",
 ];
 
-export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrderFormProps) => {
+export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSelector = false }: CreateWebsiteOrderFormProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [logoFiles, setLogoFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [selectedProjectManagerId, setSelectedProjectManagerId] = useState<string>("");
+  const { data: projectManagers = [], isLoading: loadingPMs } = useProjectManagers();
   
 
   const [formData, setFormData] = useState({
@@ -138,12 +142,15 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
           }
         }
 
+        // Determine the project manager ID
+        const pmId = showProjectManagerSelector && selectedProjectManagerId ? selectedProjectManagerId : userId;
+
         // Create a single task assigned to the next developer team
         const taskData = {
           title: `Website: ${formData.business_name}`,
           description: formData.supporting_text,
           team_id: nextTeamId,
-          project_manager_id: userId,
+          project_manager_id: pmId,
           business_name: formData.business_name,
           business_email: formData.business_email || null,
           business_phone: formData.business_phone || null,
@@ -202,6 +209,32 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess }: CreateWebsiteOrder
   return (
     <ScrollArea className="h-[calc(100vh-200px)] pr-4">
       <div className="space-y-6">
+        {/* Assign Project Manager - Only shown for Front Sales */}
+        {showProjectManagerSelector && (
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">Assignment</h3>
+            <div className="space-y-2">
+              <Label htmlFor="project_manager">Assign Project Manager *</Label>
+              <Select 
+                value={selectedProjectManagerId} 
+                onValueChange={setSelectedProjectManagerId}
+                disabled={loadingPMs}
+              >
+                <SelectTrigger id="project_manager">
+                  <SelectValue placeholder={loadingPMs ? "Loading..." : "Select Project Manager"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {projectManagers.map((pm) => (
+                    <SelectItem key={pm.id} value={pm.id}>
+                      {pm.full_name || pm.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {/* Customer Information */}
         <div className="space-y-4">
           <h3 className="font-semibold text-lg">Customer Information</h3>

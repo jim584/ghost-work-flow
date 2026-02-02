@@ -437,6 +437,7 @@ const FrontSalesDashboard = () => {
                         setOpen(false);
                         setTaskType(null);
                       }}
+                      showProjectManagerSelector={true}
                     />
                   </>
                 ) : taskType === "logo" ? (
@@ -451,6 +452,7 @@ const FrontSalesDashboard = () => {
                         setOpen(false);
                         setTaskType(null);
                       }}
+                      showProjectManagerSelector={true}
                     />
                   </>
                 ) : (
@@ -464,6 +466,7 @@ const FrontSalesDashboard = () => {
                         setOpen(false);
                         setTaskType(null);
                       }}
+                      showProjectManagerSelector={true}
                     />
                   </>
                 )}
