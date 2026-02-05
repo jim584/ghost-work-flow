@@ -571,6 +571,23 @@ const PMDashboard = () => {
     return { status: 'in_progress', label: 'In Progress', color: 'default' };
   };
 
+  // Helper to get multi-team delivery progress for card front indicator
+  const getMultiTeamDeliveryProgress = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
+    if (!group.isMultiTeam) return null;
+    
+    const teamsWithDeliveries = group.allTasks.filter((task: any) =>
+      allSubmissions?.some(s => s.task_id === task.id)
+    ).length;
+    
+    const totalTeams = group.allTasks.length;
+    
+    return {
+      delivered: teamsWithDeliveries,
+      total: totalTeams,
+      hasPartialDelivery: teamsWithDeliveries > 0 && teamsWithDeliveries < totalTeams
+    };
+  };
+
   // Helper to get category for a grouped order (uses primary task, but considers all task submissions)
   const getGroupCategory = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
     const groupSubmissions = group.allTasks.flatMap((task: any) => 
@@ -1095,9 +1112,22 @@ const PMDashboard = () => {
                               </span>
                               {getOrderTypeBadge()}
                               {group.isMultiTeam && (
-                                <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-200">
-                                  {group.teamNames.length} Teams
-                                </Badge>
+                                <>
+                                  <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-200">
+                                    {group.teamNames.length} Teams
+                                  </Badge>
+                                  {(() => {
+                                    const progress = getMultiTeamDeliveryProgress(group, submissions || []);
+                                    if (progress?.hasPartialDelivery) {
+                                      return (
+                                        <Badge className="bg-blue-500 text-white animate-pulse">
+                                          {progress.delivered}/{progress.total} Teams Delivered
+                                        </Badge>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </>
                               )}
                               {getCategoryBadge()}
                             </div>
