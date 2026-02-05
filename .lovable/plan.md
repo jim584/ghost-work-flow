@@ -1,72 +1,120 @@
 
 
-# Update Status Badge for Partially Delivered Orders
+# Update Delayed Logic for Revision Requests in Designer Dashboard
 
 ## Problem
-When a multi-team order has partial deliveries (e.g., Team A delivered, Team B hasn't), the status badge still shows the raw database status like "pending" instead of reflecting the actual "Partially Delivered" state.
+Currently, the delayed task logic in the Designer Dashboard:
+1. Uses task `created_at` timestamp for calculating delay hours
+2. Uses a fixed 24-hour threshold for both pending tasks and revision requests
+3. Shows hours since task creation on the delayed badge
 
-## Current State
-- Line 1138-1140 shows: `{task.status.replace("_", " ")}` (e.g., "pending")
-- The "X/Y Teams Delivered" badge is shown, but the main status badge doesn't change
+## Requested Behavior
+1. When a revision is requested, the order should go into "delayed" after **12 hours** (not 24 hours)
+2. The delayed hours shown should be based on **when the revision was requested** (`reviewed_at` timestamp), not task creation time
 
-## Solution
-Update the status badge logic to show "Partially Delivered" for multi-team orders when at least one team has delivered but not all.
-
-## Implementation
-
-### File: `src/components/dashboards/PMDashboard.tsx`
-
-### Update Status Badge Section (around line 1137-1141)
-
-Replace the static status badge with dynamic logic:
+## Current Implementation (lines 250-256)
 
 ```typescript
-<div className="flex items-center gap-2 flex-shrink-0">
-  {(() => {
-    // Check for partial delivery status on multi-team orders
-    if (group.isMultiTeam) {
-      const progress = getMultiTeamDeliveryProgress(group, submissions || []);
-      if (progress?.hasPartialDelivery) {
-        return (
-          <Badge className="bg-blue-600 text-white shadow-sm">
-            Partially Delivered
-          </Badge>
-        );
-      }
-    }
-    // Default to regular status
-    return (
-      <Badge className={`${getStatusColor(task.status)} shadow-sm`}>
-        {task.status.replace("_", " ")}
-      </Badge>
-    );
-  })()}
-  {/* Delete button - only show if still pending and no deliveries */}
-  {task.status === "pending" && !getMultiTeamDeliveryProgress(group, submissions || [])?.hasPartialDelivery && (
-    <Button
-      size="sm"
-      variant="ghost"
-      className="h-8 w-8 p-0 hover:bg-destructive/10"
-      onClick={() => setDeleteTaskId(task.id)}
-    >
-      <Trash2 className="h-4 w-4 text-destructive" />
-    </Button>
-  )}
-</div>
+const isTaskDelayed = (task: any) => {
+  const createdAt = new Date(task.created_at);
+  const hoursSinceCreation = differenceInHours(new Date(), createdAt);
+  const needsRevision = tasksNeedingRevision.some(t => t.id === task.id);
+  return hoursSinceCreation > 24 && (task.status === "pending" || needsRevision);
+};
 ```
 
-### Expected Result
+## Solution
 
-| Scenario | Status Badge |
-|----------|-------------|
-| Multi-team, no deliveries | `pending` (yellow) |
-| Multi-team, 1 of 2 delivered | `Partially Delivered` (blue) |
-| Multi-team, all delivered pending review | `pending` or `in_progress` |
-| Single team | Normal status from database |
+### File: `src/components/dashboards/DesignerDashboard.tsx`
+
+### 1. Update `isTaskDelayed` Function
+
+Change the logic to handle two scenarios differently:
+- **Pending tasks**: Use 24-hour threshold from `created_at`
+- **Revision requests**: Use 12-hour threshold from `reviewed_at` (the timestamp when PM requested the revision)
+
+```typescript
+const isTaskDelayed = (task: any) => {
+  const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
+  const revisionSubmission = taskSubmissions.find(s => s.revision_status === "needs_revision");
+  
+  if (revisionSubmission && revisionSubmission.reviewed_at) {
+    // Revision request: 12-hour threshold from when revision was requested
+    const hoursSinceRevision = differenceInHours(new Date(), new Date(revisionSubmission.reviewed_at));
+    return hoursSinceRevision > 12;
+  }
+  
+  // Pending task: 24-hour threshold from creation
+  if (task.status === "pending") {
+    const hoursSinceCreation = differenceInHours(new Date(), new Date(task.created_at));
+    return hoursSinceCreation > 24;
+  }
+  
+  return false;
+};
+```
+
+### 2. Create Helper Function for Delayed Hours Display
+
+Add a new function to get the correct delay hours based on whether it's a revision or pending task:
+
+```typescript
+const getDelayedHours = (task: any) => {
+  const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
+  const revisionSubmission = taskSubmissions.find(s => s.revision_status === "needs_revision");
+  
+  if (revisionSubmission && revisionSubmission.reviewed_at) {
+    // Show hours since revision was requested
+    return differenceInHours(new Date(), new Date(revisionSubmission.reviewed_at));
+  }
+  
+  // Show hours since task creation
+  return differenceInHours(new Date(), new Date(task.created_at));
+};
+```
+
+### 3. Update Delayed Badge Display (around line 518-523)
+
+Replace the current delayed badge to use the new helper function:
+
+```typescript
+{isDelayed && (
+  <Badge variant="destructive" className="gap-1 animate-pulse">
+    <AlertTriangle className="h-3 w-3" />
+    DELAYED {getDelayedHours(task)}h
+  </Badge>
+)}
+```
+
+### 4. Update Warning Banner Text (around line 359-361)
+
+Update the warning message to reflect the new behavior:
+
+```typescript
+<p className="text-sm text-muted-foreground">
+  {stats.delayed} task{stats.delayed > 1 ? 's have' : ' has'} exceeded their time limit. 
+  Please prioritize {stats.delayed > 1 ? 'these orders' : 'this order'} urgently.
+</p>
+```
+
+## Expected Behavior
+
+| Scenario | Threshold | Delay Calculation |
+|----------|-----------|-------------------|
+| Pending task | 24 hours | From `task.created_at` |
+| Revision requested | 12 hours | From `submission.reviewed_at` |
+
+| Example | Status | Shows |
+|---------|--------|-------|
+| Task created 30h ago, pending | DELAYED 30h | Hours since creation |
+| Revision requested 15h ago | DELAYED 15h | Hours since revision request |
+| Revision requested 8h ago | Not delayed | (under 12h threshold) |
 
 ## Files to Modify
-- `src/components/dashboards/PMDashboard.tsx`
+- `src/components/dashboards/DesignerDashboard.tsx`
 
 ## Summary
-Change the main status badge to show "Partially Delivered" (in blue) for multi-team orders when at least one team has delivered but not all. This makes the partial delivery state immediately visible without relying on the smaller progress badge.
+- Pending tasks remain on a 24-hour delay threshold from creation
+- Revision requests use a shorter 12-hour delay threshold from when the PM requested the revision
+- The delayed badge shows the appropriate hours based on the delay type (creation time vs revision request time)
 
