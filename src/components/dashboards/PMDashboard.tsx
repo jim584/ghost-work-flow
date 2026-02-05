@@ -553,20 +553,53 @@ const PMDashboard = () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Helper to get team delivery status
+  const getTeamDeliveryStatus = (task: any, allSubmissions: any[]) => {
+    const teamSubmissions = allSubmissions?.filter(s => s.task_id === task.id) || [];
+    
+    if (teamSubmissions.length === 0) {
+      return { status: 'pending_delivery', label: 'Pending Delivery', color: 'warning' };
+    }
+    
+    const hasPending = teamSubmissions.some(s => s.revision_status === 'pending_review');
+    const hasRevision = teamSubmissions.some(s => s.revision_status === 'needs_revision');
+    const allApproved = teamSubmissions.every(s => s.revision_status === 'approved');
+    
+    if (hasPending) return { status: 'pending_review', label: 'Pending Review', color: 'blue' };
+    if (hasRevision) return { status: 'needs_revision', label: 'Needs Revision', color: 'destructive' };
+    if (allApproved) return { status: 'approved', label: 'Approved', color: 'success' };
+    return { status: 'in_progress', label: 'In Progress', color: 'default' };
+  };
+
   // Helper to get category for a grouped order (uses primary task, but considers all task submissions)
   const getGroupCategory = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
     const groupSubmissions = group.allTasks.flatMap((task: any) => 
       allSubmissions?.filter(s => s.task_id === task.id) || []
     );
+    
+    // Check if all teams in a multi-team order have at least one submission
+    const tasksWithSubmissions = group.allTasks.filter((task: any) =>
+      allSubmissions?.some(s => s.task_id === task.id)
+    );
+    const allTeamsHaveSubmissions = tasksWithSubmissions.length === group.allTasks.length;
+    
     const hasPendingReview = groupSubmissions.some(s => s.revision_status === 'pending_review');
     const hasNeedsRevision = groupSubmissions.some(s => s.revision_status === 'needs_revision');
-    const allApproved = groupSubmissions.length > 0 && groupSubmissions.every(s => s.revision_status === 'approved');
+    const allSubmissionsApproved = groupSubmissions.length > 0 && groupSubmissions.every(s => s.revision_status === 'approved');
+    
+    // Only truly complete if ALL teams submitted AND all approved
+    const allApproved = allTeamsHaveSubmissions && allSubmissionsApproved;
+    
+    // Check for teams that haven't submitted yet (only for multi-team orders)
+    const hasTeamsPendingDelivery = group.isMultiTeam && !allTeamsHaveSubmissions;
+    
     const isDelayed = group.primaryTask.deadline && new Date(group.primaryTask.deadline) < today && 
                      !['completed', 'approved'].includes(group.primaryTask.status);
     
     if (hasPendingReview) return 'recently_delivered';
     if (hasNeedsRevision) return 'needs_revision';
     if (isDelayed) return 'delayed';
+    if (hasTeamsPendingDelivery) return 'pending_delivery';
     if (allApproved) return 'other';
     if (group.primaryTask.status === 'completed' || group.primaryTask.status === 'approved') return 'other';
     if (group.primaryTask.status === 'pending') return 'pending';
@@ -581,6 +614,7 @@ const PMDashboard = () => {
     pending: groupedOrders.filter(g => g.primaryTask.status === 'pending').length,
     in_progress: groupedOrders.filter(g => g.primaryTask.status === 'in_progress').length,
     needs_revision: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'needs_revision').length,
+    pending_delivery: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'pending_delivery').length,
     total: groupedOrders.length,
   };
 
@@ -614,10 +648,11 @@ const PMDashboard = () => {
     const priorities: Record<string, number> = {
       recently_delivered: 1,
       delayed: 2,
-      pending: 3,
-      in_progress: 4,
-      needs_revision: 5,
-      other: 6,
+      pending_delivery: 3,
+      pending: 4,
+      in_progress: 5,
+      needs_revision: 6,
+      other: 7,
     };
     return priorities[category] || 99;
   };
@@ -682,7 +717,7 @@ const PMDashboard = () => {
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
       const category = getGroupCategory(group, submissions || []);
-      return ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision'].includes(category);
+      return ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(category);
     }
     // Handle specific category filters
     if (['recently_delivered', 'delayed', 'needs_revision'].includes(statusFilter)) {
@@ -1009,6 +1044,7 @@ const PMDashboard = () => {
                   if (category === 'recently_delivered') return 'border-l-4 border-l-green-500 bg-green-50/10';
                   if (category === 'delayed') return 'border-l-4 border-l-red-500 bg-red-50/10';
                   if (category === 'needs_revision') return 'border-l-4 border-l-orange-500 bg-orange-50/10';
+                  if (category === 'pending_delivery') return 'border-l-4 border-l-yellow-500 bg-yellow-50/10';
                   return '';
                 };
 
@@ -1021,6 +1057,9 @@ const PMDashboard = () => {
                   }
                   if (category === 'needs_revision') {
                     return <Badge className="bg-orange-500 text-white">Needs Revision</Badge>;
+                  }
+                  if (category === 'pending_delivery') {
+                    return <Badge className="bg-yellow-500 text-white">Awaiting Team Delivery</Badge>;
                   }
                   return null;
                 };
@@ -1309,20 +1348,42 @@ const PMDashboard = () => {
                             {group.allTasks.map((teamTask: any) => {
                               const teamSubmissions = submissions?.filter(s => s.task_id === teamTask.id) || [];
                               const teamName = teamTask.teams?.name || "Unknown Team";
+                              const teamStatus = getTeamDeliveryStatus(teamTask, submissions || []);
+                              
+                              const getTeamStatusBadge = () => {
+                                switch (teamStatus.status) {
+                                  case 'pending_delivery':
+                                    return <Badge className="bg-yellow-500 text-white text-xs">Pending Delivery</Badge>;
+                                  case 'pending_review':
+                                    return <Badge className="bg-blue-500 text-white text-xs">Pending Review</Badge>;
+                                  case 'needs_revision':
+                                    return <Badge variant="destructive" className="text-xs">Needs Revision</Badge>;
+                                  case 'approved':
+                                    return <Badge className="bg-green-500 text-white text-xs">Approved</Badge>;
+                                  default:
+                                    return <Badge variant="secondary" className="text-xs">In Progress</Badge>;
+                                }
+                              };
                               
                               return (
                                 <AccordionItem key={teamTask.id} value={teamTask.id} className="border rounded-lg bg-background">
                                   <AccordionTrigger className="px-4 py-2 hover:no-underline">
                                     <div className="flex items-center justify-between w-full pr-4">
                                       <span className="font-medium">{teamName}</span>
-                                      <Badge variant="secondary" className="ml-2">
-                                        {teamSubmissions.length} file(s)
-                                      </Badge>
+                                      <div className="flex items-center gap-2">
+                                        {getTeamStatusBadge()}
+                                        <Badge variant="outline" className="ml-1">
+                                          {teamSubmissions.length} file(s)
+                                        </Badge>
+                                      </div>
                                     </div>
                                   </AccordionTrigger>
                                   <AccordionContent className="px-4 pb-4">
                                     {teamSubmissions.length === 0 ? (
-                                      <p className="text-sm text-muted-foreground">No files submitted yet</p>
+                                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                                        <Clock className="h-4 w-4 text-yellow-500" />
+                                        <span>Awaiting file upload from designer</span>
+                                      </div>
                                     ) : (
                                       <div className="space-y-2">
                                         {teamSubmissions.map((submission: any) => (
