@@ -248,11 +248,35 @@ const DesignerDashboard = () => {
   }) || [];
 
   const isTaskDelayed = (task: any) => {
-    const createdAt = new Date(task.created_at);
-    const hoursSinceCreation = differenceInHours(new Date(), createdAt);
-    // Task is delayed if it's been more than 24 hours and still pending or needs revision
-    const needsRevision = tasksNeedingRevision.some(t => t.id === task.id);
-    return hoursSinceCreation > 24 && (task.status === "pending" || needsRevision);
+    const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
+    const revisionSubmission = taskSubmissions.find(s => s.revision_status === "needs_revision");
+    
+    if (revisionSubmission && revisionSubmission.reviewed_at) {
+      // Revision request: 12-hour threshold from when revision was requested
+      const hoursSinceRevision = differenceInHours(new Date(), new Date(revisionSubmission.reviewed_at));
+      return hoursSinceRevision > 12;
+    }
+    
+    // Pending task: 24-hour threshold from creation
+    if (task.status === "pending") {
+      const hoursSinceCreation = differenceInHours(new Date(), new Date(task.created_at));
+      return hoursSinceCreation > 24;
+    }
+    
+    return false;
+  };
+
+  const getDelayedHours = (task: any) => {
+    const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
+    const revisionSubmission = taskSubmissions.find(s => s.revision_status === "needs_revision");
+    
+    if (revisionSubmission && revisionSubmission.reviewed_at) {
+      // Show hours since revision was requested
+      return differenceInHours(new Date(), new Date(revisionSubmission.reviewed_at));
+    }
+    
+    // Show hours since task creation
+    return differenceInHours(new Date(), new Date(task.created_at));
   };
 
   const delayedTasks = tasks?.filter(isTaskDelayed) || [];
@@ -357,7 +381,7 @@ const DesignerDashboard = () => {
                 <div>
                   <h3 className="font-semibold text-destructive">Urgent: {stats.delayed} Delayed Order{stats.delayed > 1 ? 's' : ''}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {stats.delayed} task{stats.delayed > 1 ? 's have' : ' has'} been pending for more than 24 hours. Please prioritize {stats.delayed > 1 ? 'these orders' : 'this order'} urgently.
+                    {stats.delayed} task{stats.delayed > 1 ? 's have' : ' has'} exceeded their time limit. Please prioritize {stats.delayed > 1 ? 'these orders' : 'this order'} urgently.
                   </p>
                 </div>
                 <Button
@@ -487,8 +511,6 @@ const DesignerDashboard = () => {
                 const isExpanded = expandedTaskId === task.id;
                 const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
                 const isDelayed = isTaskDelayed(task);
-                const createdAt = new Date(task.created_at);
-                const hoursSinceCreation = differenceInHours(new Date(), createdAt);
                 const taskType = getTaskType(task);
                 
                 return (
@@ -518,7 +540,7 @@ const DesignerDashboard = () => {
                           {isDelayed && (
                             <Badge variant="destructive" className="gap-1 animate-pulse">
                               <AlertTriangle className="h-3 w-3" />
-                              DELAYED {hoursSinceCreation}h
+                              DELAYED {getDelayedHours(task)}h
                             </Badge>
                           )}
                           {hasRevision && (
