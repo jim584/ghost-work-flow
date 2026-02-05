@@ -664,8 +664,8 @@ const PMDashboard = () => {
   const getCategoryPriority = (category: string) => {
     const priorities: Record<string, number> = {
       recently_delivered: 1,
-      delayed: 2,
-      pending_delivery: 3,
+      pending_delivery: 2,  // Partial deliveries show high - PM needs to track remaining teams
+      delayed: 3,
       pending: 4,
       in_progress: 5,
       needs_revision: 6,
