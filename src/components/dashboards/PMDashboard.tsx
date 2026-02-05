@@ -1135,10 +1135,27 @@ const PMDashboard = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(task.status)} shadow-sm`}>
-                            {task.status.replace("_", " ")}
-                          </Badge>
-                          {task.status === "pending" && (
+                          {(() => {
+                            // Check for partial delivery status on multi-team orders
+                            if (group.isMultiTeam) {
+                              const progress = getMultiTeamDeliveryProgress(group, submissions || []);
+                              if (progress?.hasPartialDelivery) {
+                                return (
+                                  <Badge className="bg-blue-600 text-white shadow-sm">
+                                    Partially Delivered
+                                  </Badge>
+                                );
+                              }
+                            }
+                            // Default to regular status
+                            return (
+                              <Badge className={`${getStatusColor(task.status)} shadow-sm`}>
+                                {task.status.replace("_", " ")}
+                              </Badge>
+                            );
+                          })()}
+                          {/* Delete button - only show if still pending and no deliveries */}
+                          {task.status === "pending" && !getMultiTeamDeliveryProgress(group, submissions || [])?.hasPartialDelivery && (
                             <Button
                               size="sm"
                               variant="ghost"
