@@ -294,6 +294,7 @@ export type Database = {
           number_of_pages: string | null
           number_of_revisions: string | null
           objective: string | null
+          order_group_id: string | null
           platforms: string[] | null
           post_type: string | null
           post_type_required: string | null
@@ -366,6 +367,7 @@ export type Database = {
           number_of_pages?: string | null
           number_of_revisions?: string | null
           objective?: string | null
+          order_group_id?: string | null
           platforms?: string[] | null
           post_type?: string | null
           post_type_required?: string | null
@@ -438,6 +440,7 @@ export type Database = {
           number_of_pages?: string | null
           number_of_revisions?: string | null
           objective?: string | null
+          order_group_id?: string | null
           platforms?: string[] | null
           post_type?: string | null
           post_type_required?: string | null
