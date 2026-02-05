@@ -152,6 +152,9 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManag
         // Determine the project manager ID
         const pmId = showProjectManagerSelector && selectedProjectManagerId ? selectedProjectManagerId : userId;
 
+        // Generate order_group_id only if multiple teams are selected
+        const orderGroupId = selectedTeamIds.length > 1 ? crypto.randomUUID() : null;
+
         // Create a task for each selected team
         const tasksToInsert = selectedTeamIds.map(teamId => ({
           title: formData.logo_name,
@@ -181,9 +184,11 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManag
           transferred_by: isUpsell ? null : (transferredBy || null),
           closed_by: isUpsell ? null : (closedBy || null),
           is_upsell: isUpsell,
+          // Multi-team grouping
+          order_group_id: orderGroupId,
         }));
 
-        const { error } = await supabase.from("tasks").insert(tasksToInsert);
+        const { error } = await supabase.from("tasks").insert(tasksToInsert as any);
 
         if (error) throw error;
 

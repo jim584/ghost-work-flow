@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
 import { format } from "date-fns";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -277,6 +278,49 @@ const PMDashboard = () => {
     enabled: !!tasks?.length,
   });
 
+  // Group tasks by order_group_id for multi-team orders
+  const groupedOrders = useMemo(() => {
+    if (!tasks) return [];
+
+    const groups = new Map<string, {
+      groupId: string;
+      primaryTask: any;
+      allTasks: any[];
+      isMultiTeam: boolean;
+      teamNames: string[];
+    }>();
+
+    tasks.forEach((task: any) => {
+      // Use order_group_id if present, otherwise use task.id (single-team order)
+      const key = task.order_group_id || task.id;
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          groupId: key,
+          primaryTask: task,
+          allTasks: [task],
+          isMultiTeam: !!task.order_group_id,
+          teamNames: [task.teams?.name || "Unknown Team"],
+        });
+      } else {
+        const group = groups.get(key)!;
+        group.allTasks.push(task);
+        if (task.teams?.name && !group.teamNames.includes(task.teams.name)) {
+          group.teamNames.push(task.teams.name);
+        }
+      }
+    });
+
+    return Array.from(groups.values());
+  }, [tasks]);
+
+  // Get all submissions for a grouped order
+  const getGroupSubmissions = (group: typeof groupedOrders[0]) => {
+    if (!submissions) return [];
+    const taskIds = group.allTasks.map((t: any) => t.id);
+    return submissions.filter((s: any) => taskIds.includes(s.task_id));
+  };
+
   const handleDownload = async (filePath: string, fileName: string) => {
     try {
       const { data, error } = await supabase.storage
@@ -509,20 +553,35 @@ const PMDashboard = () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Helper to get category for a grouped order (uses primary task, but considers all task submissions)
+  const getGroupCategory = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
+    const groupSubmissions = group.allTasks.flatMap((task: any) => 
+      allSubmissions?.filter(s => s.task_id === task.id) || []
+    );
+    const hasPendingReview = groupSubmissions.some(s => s.revision_status === 'pending_review');
+    const hasNeedsRevision = groupSubmissions.some(s => s.revision_status === 'needs_revision');
+    const allApproved = groupSubmissions.length > 0 && groupSubmissions.every(s => s.revision_status === 'approved');
+    const isDelayed = group.primaryTask.deadline && new Date(group.primaryTask.deadline) < today && 
+                     !['completed', 'approved'].includes(group.primaryTask.status);
+    
+    if (hasPendingReview) return 'recently_delivered';
+    if (hasNeedsRevision) return 'needs_revision';
+    if (isDelayed) return 'delayed';
+    if (allApproved) return 'other';
+    if (group.primaryTask.status === 'completed' || group.primaryTask.status === 'approved') return 'other';
+    if (group.primaryTask.status === 'pending') return 'pending';
+    if (group.primaryTask.status === 'in_progress') return 'in_progress';
+    return 'other';
+  };
+
+  // Stats now count unique orders (grouped)
   const stats = {
-    recently_delivered: tasks?.filter(t => 
-      submissions?.some(s => s.task_id === t.id && s.revision_status === 'pending_review')
-    ).length || 0,
-    delayed: tasks?.filter(t => 
-      t.deadline && new Date(t.deadline) < today && 
-      !['completed', 'approved'].includes(t.status)
-    ).length || 0,
-    pending: tasks?.filter(t => t.status === 'pending').length || 0,
-    in_progress: tasks?.filter(t => t.status === 'in_progress').length || 0,
-    needs_revision: tasks?.filter(t =>
-      submissions?.some(s => s.task_id === t.id && s.revision_status === 'needs_revision')
-    ).length || 0,
-    total: tasks?.length || 0,
+    recently_delivered: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'recently_delivered').length,
+    delayed: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'delayed').length,
+    pending: groupedOrders.filter(g => g.primaryTask.status === 'pending').length,
+    in_progress: groupedOrders.filter(g => g.primaryTask.status === 'in_progress').length,
+    needs_revision: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'needs_revision').length,
+    total: groupedOrders.length,
   };
 
   const getTaskCategory = (task: any, submissions: any[]) => {
@@ -586,8 +645,11 @@ const PMDashboard = () => {
     return task?.post_type === "Website Design";
   };
 
-  const filteredTasks = tasks?.filter((task) => {
-    // Search filter - if searching, show all matching tasks regardless of status
+  // Filter and sort grouped orders instead of individual tasks
+  const filteredOrders = groupedOrders.filter((group) => {
+    const task = group.primaryTask;
+    
+    // Search filter - if searching, show all matching orders regardless of status
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       const matchesSearch = task.title?.toLowerCase().includes(query) ||
@@ -619,38 +681,40 @@ const PMDashboard = () => {
     // Status filter (only applied when not searching)
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
-      const category = getTaskCategory(task, submissions || []);
+      const category = getGroupCategory(group, submissions || []);
       return ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision'].includes(category);
     }
     // Handle specific category filters
     if (['recently_delivered', 'delayed', 'needs_revision'].includes(statusFilter)) {
-      const category = getTaskCategory(task, submissions || []);
+      const category = getGroupCategory(group, submissions || []);
       return category === statusFilter;
     }
     return task.status === statusFilter;
   }).sort((a, b) => {
     if (statusFilter === 'priority') {
-      const categoryA = getTaskCategory(a, submissions || []);
-      const categoryB = getTaskCategory(b, submissions || []);
+      const categoryA = getGroupCategory(a, submissions || []);
+      const categoryB = getGroupCategory(b, submissions || []);
       const priorityDiff = getCategoryPriority(categoryA) - getCategoryPriority(categoryB);
       
       if (priorityDiff !== 0) return priorityDiff;
       
       // Within same category, sort by date
       if (categoryA === 'recently_delivered') {
-        const submissionA = submissions?.filter(s => s.task_id === a.id).sort((x, y) => 
+        const submissionsA = getGroupSubmissions(a);
+        const submissionsB = getGroupSubmissions(b);
+        const latestA = submissionsA.sort((x: any, y: any) => 
           new Date(y.submitted_at!).getTime() - new Date(x.submitted_at!).getTime()
         )[0];
-        const submissionB = submissions?.filter(s => s.task_id === b.id).sort((x, y) => 
+        const latestB = submissionsB.sort((x: any, y: any) => 
           new Date(y.submitted_at!).getTime() - new Date(x.submitted_at!).getTime()
         )[0];
-        return new Date(submissionB?.submitted_at || 0).getTime() - new Date(submissionA?.submitted_at || 0).getTime();
+        return new Date(latestB?.submitted_at || 0).getTime() - new Date(latestA?.submitted_at || 0).getTime();
       }
       if (categoryA === 'delayed') {
-        return new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime();
+        return new Date(a.primaryTask.deadline!).getTime() - new Date(b.primaryTask.deadline!).getTime();
       }
     }
-    return new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime();
+    return new Date(b.primaryTask.created_at!).getTime() - new Date(a.primaryTask.created_at!).getTime();
   });
 
   return (
@@ -935,10 +999,11 @@ const PMDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {filteredTasks?.map((task) => {
-                const taskSubmissions = submissions?.filter(s => s.task_id === task.id) || [];
-                const isExpanded = expandedTaskId === task.id;
-                const category = getTaskCategory(task, submissions || []);
+              {filteredOrders.map((group) => {
+                const task = group.primaryTask;
+                const groupSubmissions = getGroupSubmissions(group);
+                const isExpanded = expandedTaskId === group.groupId;
+                const category = getGroupCategory(group, submissions || []);
                 
                 const getBorderClass = () => {
                   if (category === 'recently_delivered') return 'border-l-4 border-l-green-500 bg-green-50/10';
@@ -974,7 +1039,7 @@ const PMDashboard = () => {
 
                 return (
                   <div 
-                    key={task.id} 
+                    key={group.groupId} 
                     className={`group border rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden animate-fade-in ${getBorderClass()}`}
                   >
                     {/* Card Header */}
@@ -990,6 +1055,11 @@ const PMDashboard = () => {
                                 #{task.task_number}
                               </span>
                               {getOrderTypeBadge()}
+                              {group.isMultiTeam && (
+                                <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-200">
+                                  {group.teamNames.length} Teams
+                                </Badge>
+                              )}
                               {getCategoryBadge()}
                             </div>
                             <h3 className="font-semibold text-lg mt-1 truncate">{task.title}</h3>
@@ -1083,19 +1153,26 @@ const PMDashboard = () => {
                           </div>
                           <div className="space-y-1">
                             <p className="text-sm font-medium">
-                              {isWebsiteOrder(task) 
-                                ? getDeveloperForTeam(task.team_id) || task.teams?.name
-                                : task.teams?.name
+                              {group.isMultiTeam 
+                                ? `${group.teamNames.length} teams assigned`
+                                : isWebsiteOrder(task) 
+                                  ? getDeveloperForTeam(task.team_id) || task.teams?.name
+                                  : task.teams?.name
                               }
                             </p>
+                            {group.isMultiTeam && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {group.teamNames.join(", ")}
+                              </p>
+                            )}
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" />
                               <span>{format(new Date(task.created_at), 'MMM d, yyyy')}</span>
                             </div>
-                            {taskSubmissions.length > 0 && (
+                            {groupSubmissions.length > 0 && (
                               <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
                                 <FileText className="h-3 w-3" />
-                                <span>{taskSubmissions.length} file(s) submitted</span>
+                                <span>{groupSubmissions.length} file(s) submitted</span>
                               </div>
                             )}
                           </div>
@@ -1196,12 +1273,12 @@ const PMDashboard = () => {
                           </Badge>
                         )}
                       </div>
-                      {taskSubmissions.length > 0 && (
+                      {groupSubmissions.length > 0 && (
                         <Button
                           size="sm"
                           variant="ghost"
                           className="gap-1"
-                          onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                          onClick={() => setExpandedTaskId(isExpanded ? null : group.groupId)}
                         >
                           {isExpanded ? (
                             <>
@@ -1218,84 +1295,180 @@ const PMDashboard = () => {
                       )}
                     </div>
 
-                    {/* Expanded Submissions */}
-                    {isExpanded && taskSubmissions.length > 0 && (
+                    {/* Expanded Submissions - Organized by Team for Multi-Team Orders */}
+                    {isExpanded && groupSubmissions.length > 0 && (
                       <div className="border-t bg-muted/10 p-4 animate-fade-in">
                         <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                           <FileText className="h-4 w-4" />
-                          Submitted Files
+                          Submitted Files {group.isMultiTeam && `(${group.teamNames.length} Teams)`}
                         </h4>
-                        <div className="space-y-2">
-                          {taskSubmissions.map((submission) => (
-                            <div key={submission.id} className="flex items-center gap-3 justify-between bg-background p-3 rounded-lg border hover:border-primary/30 transition-colors">
-                              <FilePreview 
-                                filePath={submission.file_path}
-                                fileName={submission.file_name}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium truncate">{submission.file_name}</p>
-                                  <Badge 
-                                    variant={
-                                      submission.revision_status === "approved" ? "default" :
-                                      submission.revision_status === "needs_revision" ? "destructive" : "secondary"
-                                    }
-                                    className="text-xs"
-                                  >
-                                    {submission.revision_status === "pending_review" ? "Pending Review" : 
-                                     submission.revision_status === "needs_revision" ? "Needs Revision" : "Approved"}
-                                  </Badge>
-                                </div>
-                                {submission.designer_comment && (
-                                  <p className="text-xs text-muted-foreground mt-1 truncate">
-                                    Designer: {submission.designer_comment}
+                        
+                        {group.isMultiTeam ? (
+                          // Multi-team: Show accordion organized by team
+                          <Accordion type="multiple" className="space-y-2">
+                            {group.allTasks.map((teamTask: any) => {
+                              const teamSubmissions = submissions?.filter(s => s.task_id === teamTask.id) || [];
+                              const teamName = teamTask.teams?.name || "Unknown Team";
+                              
+                              return (
+                                <AccordionItem key={teamTask.id} value={teamTask.id} className="border rounded-lg bg-background">
+                                  <AccordionTrigger className="px-4 py-2 hover:no-underline">
+                                    <div className="flex items-center justify-between w-full pr-4">
+                                      <span className="font-medium">{teamName}</span>
+                                      <Badge variant="secondary" className="ml-2">
+                                        {teamSubmissions.length} file(s)
+                                      </Badge>
+                                    </div>
+                                  </AccordionTrigger>
+                                  <AccordionContent className="px-4 pb-4">
+                                    {teamSubmissions.length === 0 ? (
+                                      <p className="text-sm text-muted-foreground">No files submitted yet</p>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {teamSubmissions.map((submission: any) => (
+                                          <div key={submission.id} className="flex items-center gap-3 justify-between bg-muted/30 p-3 rounded-lg border hover:border-primary/30 transition-colors">
+                                            <FilePreview 
+                                              filePath={submission.file_path}
+                                              fileName={submission.file_name}
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-2">
+                                                <p className="text-sm font-medium truncate">{submission.file_name}</p>
+                                                <Badge 
+                                                  variant={
+                                                    submission.revision_status === "approved" ? "default" :
+                                                    submission.revision_status === "needs_revision" ? "destructive" : "secondary"
+                                                  }
+                                                  className="text-xs"
+                                                >
+                                                  {submission.revision_status === "pending_review" ? "Pending Review" : 
+                                                   submission.revision_status === "needs_revision" ? "Needs Revision" : "Approved"}
+                                                </Badge>
+                                              </div>
+                                              {submission.designer_comment && (
+                                                <p className="text-xs text-muted-foreground mt-1 truncate">
+                                                  Designer: {submission.designer_comment}
+                                                </p>
+                                              )}
+                                              <p className="text-xs text-muted-foreground">
+                                                Submitted: {format(new Date(submission.submitted_at!), 'MMM d, yyyy h:mm a')}
+                                              </p>
+                                            </div>
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => handleDownload(submission.file_path, submission.file_name)}
+                                              >
+                                                <Download className="h-3 w-3" />
+                                              </Button>
+                                              {submission.revision_status === "pending_review" && (
+                                                <>
+                                                  <Button
+                                                    size="sm"
+                                                    className="bg-green-600 hover:bg-green-700"
+                                                    onClick={() => handleApproveSubmission.mutate(submission.id)}
+                                                  >
+                                                    Approve
+                                                  </Button>
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                                                    onClick={() => setRevisionDialog({ 
+                                                      open: true, 
+                                                      submissionId: submission.id,
+                                                      fileName: submission.file_name 
+                                                    })}
+                                                  >
+                                                    Request Revision
+                                                  </Button>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </AccordionContent>
+                                </AccordionItem>
+                              );
+                            })}
+                          </Accordion>
+                        ) : (
+                          // Single team: Show flat list as before
+                          <div className="space-y-2">
+                            {groupSubmissions.map((submission: any) => (
+                              <div key={submission.id} className="flex items-center gap-3 justify-between bg-background p-3 rounded-lg border hover:border-primary/30 transition-colors">
+                                <FilePreview 
+                                  filePath={submission.file_path}
+                                  fileName={submission.file_name}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium truncate">{submission.file_name}</p>
+                                    <Badge 
+                                      variant={
+                                        submission.revision_status === "approved" ? "default" :
+                                        submission.revision_status === "needs_revision" ? "destructive" : "secondary"
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {submission.revision_status === "pending_review" ? "Pending Review" : 
+                                       submission.revision_status === "needs_revision" ? "Needs Revision" : "Approved"}
+                                    </Badge>
+                                  </div>
+                                  {submission.designer_comment && (
+                                    <p className="text-xs text-muted-foreground mt-1 truncate">
+                                      Designer: {submission.designer_comment}
+                                    </p>
+                                  )}
+                                  <p className="text-xs text-muted-foreground">
+                                    Submitted: {format(new Date(submission.submitted_at!), 'MMM d, yyyy h:mm a')}
                                   </p>
-                                )}
-                                <p className="text-xs text-muted-foreground">
-                                  Submitted: {format(new Date(submission.submitted_at!), 'MMM d, yyyy h:mm a')}
-                                </p>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleDownload(submission.file_path, submission.file_name)}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </Button>
+                                  {submission.revision_status === "pending_review" && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        className="bg-green-600 hover:bg-green-700"
+                                        onClick={() => handleApproveSubmission.mutate(submission.id)}
+                                      >
+                                        Approve
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                                        onClick={() => setRevisionDialog({ 
+                                          open: true, 
+                                          submissionId: submission.id,
+                                          fileName: submission.file_name 
+                                        })}
+                                      >
+                                        Request Revision
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleDownload(submission.file_path, submission.file_name)}
-                                >
-                                  <Download className="h-3 w-3" />
-                                </Button>
-                                {submission.revision_status === "pending_review" && (
-                                  <>
-                                    <Button
-                                      size="sm"
-                                      className="bg-green-600 hover:bg-green-700"
-                                      onClick={() => handleApproveSubmission.mutate(submission.id)}
-                                    >
-                                      Approve
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                                      onClick={() => setRevisionDialog({ 
-                                        open: true, 
-                                        submissionId: submission.id,
-                                        fileName: submission.file_name 
-                                      })}
-                                    >
-                                      Request Revision
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 );
               })}
-              {!tasks?.length && (
+              {filteredOrders.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">
                   No tasks yet. Create your first task!
                 </p>
