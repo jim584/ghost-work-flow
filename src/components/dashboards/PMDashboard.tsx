@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw } from "lucide-react";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useProjectManagers } from "@/hooks/useProjectManagers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -684,6 +685,7 @@ const PMDashboard = () => {
                 )}
               </div>
             )}
+            <NotificationBell userId={user!.id} />
             <Button onClick={signOut} variant="outline" size="sm">
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
