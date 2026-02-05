@@ -190,8 +190,10 @@ const DesignerDashboard = () => {
         });
       }
 
-      // Update task status after all files are uploaded (only if not a revision)
-      if (!hasRevision) {
+      // Update task status to completed only if:
+      // 1. Not a revision upload AND
+      // 2. Task is not already completed/approved (adding more files)
+      if (!hasRevision && selectedTask.status !== "completed" && selectedTask.status !== "approved") {
         const { error: statusError } = await supabase
           .from("tasks")
           .update({ status: "completed" })
@@ -202,8 +204,13 @@ const DesignerDashboard = () => {
 
       queryClient.invalidateQueries({ queryKey: ["designer-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["designer-submissions"] });
+      const isAddingMoreFiles = selectedTask.status === "completed" || selectedTask.status === "approved";
       toast({ 
-        title: hasRevision ? "Revision uploaded successfully" : "All designs uploaded successfully",
+        title: hasRevision 
+          ? "Revision uploaded successfully" 
+          : isAddingMoreFiles 
+            ? "Additional files uploaded successfully"
+            : "All designs uploaded successfully",
         description: `${files.length} file(s) submitted for review`
       });
       setSelectedTask(null);
@@ -595,7 +602,7 @@ const DesignerDashboard = () => {
                             Start
                           </Button>
                         )}
-                        {task.status === "in_progress" && (
+                        {task.status === "in_progress" && !hasRevision && (
                           <Button size="sm" onClick={() => setSelectedTask(task)}>
                             <Upload className="mr-2 h-4 w-4" />
                             Upload
@@ -610,6 +617,19 @@ const DesignerDashboard = () => {
                           >
                             <Upload className="mr-2 h-4 w-4" />
                             Upload Revision
+                          </Button>
+                        )}
+                        {/* Add Files button for completed/approved tasks */}
+                        {taskSubmissions.length > 0 && 
+                         (task.status === "completed" || task.status === "approved") && 
+                         !hasRevision && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => setSelectedTask(task)}
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Add Files
                           </Button>
                         )}
                       </div>
