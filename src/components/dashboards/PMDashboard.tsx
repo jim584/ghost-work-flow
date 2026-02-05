@@ -242,16 +242,34 @@ const PMDashboard = () => {
   });
 
   // Fetch revenue from closed new customer orders (non-upsell)
+  // Count unique orders only once by order_group_id for multi-team orders
   const { data: closedNewCustomerRevenue } = useQuery({
     queryKey: ["pm-closed-revenue", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("amount_total")
+        .select("amount_total, order_group_id")
         .eq("closed_by", user!.id)
         .eq("is_upsell", false);
       if (error) throw error;
-      const total = data?.reduce((sum, task) => sum + (Number(task.amount_total) || 0), 0) || 0;
+      
+      // Deduplicate by order_group_id - count each multi-team order only once
+      const seenOrderGroups = new Set<string>();
+      let total = 0;
+      
+      data?.forEach(task => {
+        if (task.order_group_id) {
+          // Multi-team order - only count if we haven't seen this group
+          if (!seenOrderGroups.has(task.order_group_id)) {
+            seenOrderGroups.add(task.order_group_id);
+            total += Number(task.amount_total) || 0;
+          }
+        } else {
+          // Single-team order - always count
+          total += Number(task.amount_total) || 0;
+        }
+      });
+      
       return total;
     },
     enabled: !!user?.id,
