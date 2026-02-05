@@ -313,6 +313,8 @@ export function NotificationBell({ userId }: { userId: string }) {
         return '🔄';
       case 'task_delayed':
         return '⚠️';
+      case 'file_uploaded':
+        return '📤';
       default:
         return '📢';
     }
