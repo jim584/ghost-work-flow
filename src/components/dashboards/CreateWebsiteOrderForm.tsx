@@ -688,11 +688,12 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
             !formData.industry || 
             !formData.number_of_pages ||
             (showProjectManagerSelector && !closedBy) ||
-            uploading
+            uploading ||
+            createWebsiteOrder.isPending
           }
           className="w-full"
         >
-          {uploading ? "Creating Website Order..." : "Create Website Order"}
+          {uploading || createWebsiteOrder.isPending ? "Creating Website Order..." : "Create Website Order"}
         </Button>
       </div>
     </ScrollArea>
