@@ -538,7 +538,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
                 setLogoFiles(prev => [...prev, ...newFiles]);
                 e.target.value = '';
               }}
-              accept="image/*,.ai,.psd,.svg,.eps"
+              accept="image/*,.ai,.psd,.svg,.eps,.zip"
             />
             {logoFiles.length > 0 && (
               <div className="space-y-2">
