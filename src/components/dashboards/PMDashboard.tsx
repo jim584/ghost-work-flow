@@ -1382,7 +1382,7 @@ const PMDashboard = () => {
                             Approve
                           </Button>
                         )}
-                        {task.status === "pending" && !(task as any).accepted_by_pm && task.created_by !== user?.id && (
+                        {task.status === "pending" && !(task as any).accepted_by_pm && task.created_by !== user?.id && task.project_manager_id === user?.id && (
                           <>
                             <Button
                               size="sm"
