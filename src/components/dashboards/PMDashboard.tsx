@@ -185,6 +185,7 @@ const PMDashboard = () => {
           if (task.created_by) userIds.add(task.created_by);
           if (task.transferred_by) userIds.add(task.transferred_by);
           if (task.closed_by) userIds.add(task.closed_by);
+          if (task.project_manager_id) userIds.add(task.project_manager_id);
         });
         
         if (userIds.size > 0) {
@@ -200,6 +201,7 @@ const PMDashboard = () => {
             creator: task.created_by ? profileMap.get(task.created_by) : null,
             transferred_by_profile: task.transferred_by ? profileMap.get(task.transferred_by) : null,
             closed_by_profile: task.closed_by ? profileMap.get(task.closed_by) : null,
+            project_manager_profile: task.project_manager_id ? profileMap.get(task.project_manager_id) : null,
           }));
         }
       }
@@ -225,6 +227,7 @@ const PMDashboard = () => {
           if (task.created_by) userIds.add(task.created_by);
           if (task.transferred_by) userIds.add(task.transferred_by);
           if (task.closed_by) userIds.add(task.closed_by);
+          if (task.project_manager_id) userIds.add(task.project_manager_id);
         });
         
         if (userIds.size > 0) {
@@ -240,6 +243,7 @@ const PMDashboard = () => {
             creator: task.created_by ? profileMap.get(task.created_by) : null,
             transferred_by_profile: task.transferred_by ? profileMap.get(task.transferred_by) : null,
             closed_by_profile: task.closed_by ? profileMap.get(task.closed_by) : null,
+            project_manager_profile: task.project_manager_id ? profileMap.get(task.project_manager_id) : null,
           }));
         }
       }
@@ -1742,7 +1746,11 @@ const PMDashboard = () => {
               {/* Order Attribution */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Order Attribution</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Assigned PM</Label>
+                    <p className="font-medium">{(viewDetailsTask as any)?.project_manager_profile?.full_name || (viewDetailsTask as any)?.project_manager_profile?.email || "N/A"}</p>
+                  </div>
                   <div>
                     <Label className="text-muted-foreground">Transferred By</Label>
                     <p className="font-medium">{(viewDetailsTask as any)?.transferred_by_profile?.full_name || (viewDetailsTask as any)?.transferred_by_profile?.email || "—"}</p>
