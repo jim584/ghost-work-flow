@@ -260,10 +260,12 @@ const PMDashboard = () => {
   // Use allTasks when searching, otherwise use myTasks
   const tasks = searchQuery.trim() ? allTasks : myTasks;
 
+  // Memoize taskIds to avoid recalculating on every render
+  const taskIds = useMemo(() => tasks?.map(t => t.id) || [], [tasks]);
+
   const { data: submissions } = useQuery({
-    queryKey: ["design-submissions", user?.id],
+    queryKey: ["design-submissions", user?.id, taskIds],
     queryFn: async () => {
-      const taskIds = tasks?.map(t => t.id) || [];
       if (!taskIds.length) return [];
       
       const { data, error } = await supabase
@@ -275,7 +277,7 @@ const PMDashboard = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!tasks?.length,
+    enabled: !!taskIds.length,
   });
 
   // Group tasks by order_group_id for multi-team orders
@@ -746,11 +748,14 @@ const PMDashboard = () => {
     if (statusFilter === 'priority') {
       const categoryA = getGroupCategory(a, submissions || []);
       const categoryB = getGroupCategory(b, submissions || []);
-      const priorityDiff = getCategoryPriority(categoryA) - getCategoryPriority(categoryB);
+      const priorityA = getCategoryPriority(categoryA);
+      const priorityB = getCategoryPriority(categoryB);
+      
+      const priorityDiff = priorityA - priorityB;
       
       if (priorityDiff !== 0) return priorityDiff;
       
-      // Within same category, sort by date
+      // Within same category, sort by date or secondary criteria
       if (categoryA === 'recently_delivered') {
         const submissionsA = getGroupSubmissions(a);
         const submissionsB = getGroupSubmissions(b);
@@ -764,6 +769,15 @@ const PMDashboard = () => {
       }
       if (categoryA === 'delayed') {
         return new Date(a.primaryTask.deadline!).getTime() - new Date(b.primaryTask.deadline!).getTime();
+      }
+      // Within pending_delivery, put actual partial deliveries (some teams delivered) first
+      if (categoryA === 'pending_delivery') {
+        const progressA = getMultiTeamDeliveryProgress(a, submissions || []);
+        const progressB = getMultiTeamDeliveryProgress(b, submissions || []);
+        const hasPartialA = progressA?.hasPartialDelivery ? 1 : 0;
+        const hasPartialB = progressB?.hasPartialDelivery ? 1 : 0;
+        // Higher partial = comes first (descending order)
+        if (hasPartialB !== hasPartialA) return hasPartialB - hasPartialA;
       }
     }
     return new Date(b.primaryTask.created_at!).getTime() - new Date(a.primaryTask.created_at!).getTime();
