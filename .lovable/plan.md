@@ -1,55 +1,62 @@
 
-# Clear All Orders for Testing
+# Auto-Accept Self-Assigned Orders by PM
 
 ## Overview
-Delete all existing orders/tasks and related data from the database to start fresh testing.
+When a Project Manager creates an order and assigns themselves as the PM, the "Accept Order" button should not be shown since they've already committed to the order by self-selecting.
 
-## Tables to Clear
+## Current Behavior
+The Accept Order button appears for all pending tasks where `accepted_by_pm` is false, regardless of who created the order.
 
-The following tables need to be cleared in this order (due to foreign key relationships):
+## Proposed Behavior
+The Accept Order button should NOT appear when:
+- The task is pending AND
+- The PM hasn't accepted it yet AND
+- **The current PM created the task themselves** (`task.created_by === user.id`)
 
-1. **design_submissions** - File submissions linked to tasks
-2. **task_delay_notifications** - Delay notifications linked to tasks  
-3. **notifications** - All notifications (many are task-related)
-4. **tasks** - The main orders/tasks table
-5. **sales_targets** - Reset the counters to zero (keep records, just reset counts)
+Instead, for self-assigned orders, show the "Accepted" badge immediately (auto-accepted).
 
-## SQL Migration
+## Implementation
 
-```sql
--- Clear all task-related data for fresh testing
--- Order matters due to foreign key relationships
+### File: `src/components/dashboards/PMDashboard.tsx`
 
--- 1. Delete all design submissions
-DELETE FROM public.design_submissions;
+Update the conditional logic around line 1167 from:
 
--- 2. Delete all task delay notifications
-DELETE FROM public.task_delay_notifications;
-
--- 3. Delete all notifications
-DELETE FROM public.notifications;
-
--- 4. Delete all tasks
-DELETE FROM public.tasks;
-
--- 5. Reset sales target counters (keep the records)
-UPDATE public.sales_targets 
-SET transferred_orders_count = 0,
-    closed_orders_count = 0,
-    upsell_revenue = 0,
-    closed_revenue = 0;
-
--- 6. Reset website order assignment tracker
-UPDATE public.website_order_assignment 
-SET last_assigned_index = 0;
+```tsx
+{task.status === "pending" && !(task as any).accepted_by_pm && (
+  <>
+    <Button ... >Accept Order</Button>
+    <Button ... >Reassign</Button>
+  </>
+)}
+{task.status === "pending" && (task as any).accepted_by_pm && (
+  <Badge ...>Accepted</Badge>
+)}
 ```
 
-## What This Does
-- Removes all orders from Admin, PM, Designer, Developer, and Front Sales dashboards
-- Clears all file submissions
-- Clears all notifications
-- Resets sales performance counters to zero
-- Resets the website auto-assignment rotation
+To:
 
-## After Clearing
-You'll have a clean slate to test the new file upload notification feature end-to-end.
+```tsx
+{task.status === "pending" && !(task as any).accepted_by_pm && task.created_by !== user?.id && (
+  <>
+    <Button ... >Accept Order</Button>
+    <Button ... >Reassign</Button>
+  </>
+)}
+{task.status === "pending" && ((task as any).accepted_by_pm || task.created_by === user?.id) && (
+  <Badge ...>Accepted</Badge>
+)}
+```
+
+## Logic Summary
+
+| Scenario | Accept Button | Accepted Badge | Reassign Button |
+|----------|--------------|----------------|-----------------|
+| PM created & self-assigned | Hidden | Shown | Hidden |
+| Front Sales assigned to PM | Shown | Hidden | Shown |
+| PM clicked Accept | Hidden | Shown | Hidden |
+
+## Why This Works
+- `task.created_by` stores the user ID of whoever created the task
+- When a PM creates an order and selects themselves, `created_by` equals their user ID
+- By checking `task.created_by !== user?.id`, we exclude self-created orders from showing the Accept button
+- The Accepted badge shows for both explicitly accepted orders AND self-assigned orders
