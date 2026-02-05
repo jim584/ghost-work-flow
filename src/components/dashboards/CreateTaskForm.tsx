@@ -828,11 +828,12 @@ export const CreateTaskForm = ({ userId, teams, onSuccess, showProjectManagerSel
             selectedTeamIds.length === 0 || 
             !formData.website_url || 
             (showProjectManagerSelector && !closedBy) ||
-            uploading
+            uploading ||
+            createTask.isPending
           }
           className="w-full"
         >
-          {uploading ? "Creating & Uploading..." : selectedTeamIds.length > 1 ? `Create ${selectedTeamIds.length} Tasks` : "Create Task"}
+          {uploading || createTask.isPending ? "Creating & Uploading..." : selectedTeamIds.length > 1 ? `Create ${selectedTeamIds.length} Tasks` : "Create Task"}
         </Button>
       </div>
     </ScrollArea>

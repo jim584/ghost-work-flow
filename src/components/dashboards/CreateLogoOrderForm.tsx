@@ -621,11 +621,12 @@ export const CreateLogoOrderForm = ({ userId, teams, onSuccess, showProjectManag
             !formData.industry || 
             !formData.deadline || 
             (showProjectManagerSelector && !closedBy) ||
-            uploading
+            uploading ||
+            createLogoOrder.isPending
           }
           className="w-full"
         >
-          {uploading ? "Creating Logo Order..." : `Create Logo Order${selectedTeamIds.length > 1 ? ` (${selectedTeamIds.length} teams)` : ''}`}
+          {uploading || createLogoOrder.isPending ? "Creating Logo Order..." : `Create Logo Order${selectedTeamIds.length > 1 ? ` (${selectedTeamIds.length} teams)` : ''}`}
         </Button>
       </div>
     </ScrollArea>
