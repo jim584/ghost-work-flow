@@ -1,98 +1,141 @@
 
-# Add Additional File Upload Option for Designers
+# Add PM Notifications for Designer File Uploads
 
 ## Overview
-Enable designers to upload additional files to any order at any time, even after initial delivery or revision uploads. This provides flexibility when designers need to add supplementary files, corrections, or additional design variations.
+Implement a notification system so Project Managers are immediately alerted when designers upload files to their tasks. Tasks will appear in Priority View with pending submissions, and PMs will receive real-time notifications.
 
-## Current Behavior
-- Upload button only appears when task status is "in_progress"
-- Upload Revision button only appears when a revision is requested
-- Once task is completed/approved, no upload option is available
+## Current Flow vs. Proposed Flow
 
-## Proposed Changes
+### Current (No PM Notifications)
+```text
+Designer uploads file → Submission created (pending_review) → Task appears in Priority View
+                                                              ↳ PM must manually check dashboard
+```
 
-### File: `src/components/dashboards/DesignerDashboard.tsx`
+### Proposed (With PM Notifications)
+```text
+Designer uploads file → Submission created (pending_review) → Database trigger fires
+                                                              ↳ Creates notification for PM
+                                                              ↳ PM sees notification bell alert
+                                                              ↳ Task appears in Priority View
+```
 
-#### 1. Add "Add More Files" Button for Completed/Approved Tasks
+## Implementation Plan
 
-**Location**: Lines 574-615 (task action buttons area)
+### 1. Database Migration: Create Submission Notification Trigger
 
-Add a new button that appears for tasks that:
-- Have at least one submission already uploaded
-- Are in "completed" or "approved" status (not pending or in_progress)
-- Do not currently need revision
+Create a new database function and trigger that fires when a designer uploads files:
 
+```sql
+-- Function to notify PM when designer uploads files
+CREATE OR REPLACE FUNCTION public.create_submission_notifications()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  task_record RECORD;
+  designer_name TEXT;
+BEGIN
+  -- Get task details including PM
+  SELECT t.id, t.title, t.project_manager_id
+  INTO task_record
+  FROM tasks t
+  WHERE t.id = NEW.task_id;
+  
+  -- Get designer name
+  SELECT COALESCE(full_name, email) INTO designer_name
+  FROM profiles WHERE id = NEW.designer_id;
+  
+  -- Create in-app notification for the PM
+  INSERT INTO public.notifications (user_id, type, title, message, task_id)
+  VALUES (
+    task_record.project_manager_id,
+    'file_uploaded',
+    'New File Uploaded',
+    'Designer ' || COALESCE(designer_name, 'Unknown') || 
+    ' uploaded a file for: ' || task_record.title,
+    NEW.task_id
+  );
+  
+  RETURN NEW;
+END;
+$$;
+
+-- Create trigger on design_submissions table
+CREATE TRIGGER on_submission_created
+  AFTER INSERT ON public.design_submissions
+  FOR EACH ROW
+  EXECUTE FUNCTION public.create_submission_notifications();
+```
+
+### 2. Add NotificationBell to PM Dashboard
+
+**File:** `src/components/dashboards/PMDashboard.tsx`
+
+Add import at top of file:
 ```tsx
-{/* Add Files button for completed tasks */}
-{taskSubmissions.length > 0 && 
- (task.status === "completed" || task.status === "approved") && 
- !hasRevision && (
-  <Button 
-    size="sm" 
-    variant="outline"
-    onClick={() => setSelectedTask(task)}
-  >
-    <Upload className="mr-2 h-4 w-4" />
-    Add Files
+import { NotificationBell } from "@/components/NotificationBell";
+```
+
+Add NotificationBell component in header (before Sign Out button, around line 687):
+```tsx
+<div className="flex items-center gap-4">
+  {/* ...existing stats display... */}
+  <NotificationBell userId={user!.id} />  {/* ADD THIS */}
+  <Button onClick={signOut} variant="outline" size="sm">
+    <LogOut className="mr-2 h-4 w-4" />
+    Sign Out
   </Button>
-)}
+</div>
 ```
 
-#### 2. Modify Upload Logic to Not Change Status When Adding Files
+### 3. Add Icon Mapping for New Notification Type
 
-**Location**: Lines 135-222 (handleFileUpload function)
+**File:** `src/components/NotificationBell.tsx`
 
-Update the upload function to:
-- Detect when adding files to an already completed/approved task
-- Skip the status update in that case
-- Show appropriate success message
-
-The key change is around lines 193-201:
+Update the `getNotificationIcon` function (around line 310):
 ```tsx
-// Only update task status if:
-// 1. Not a revision upload AND
-// 2. Task is not already completed/approved
-if (!hasRevision && selectedTask.status !== "completed" && selectedTask.status !== "approved") {
-  const { error: statusError } = await supabase
-    .from("tasks")
-    .update({ status: "completed" })
-    .eq("id", selectedTask.id);
-
-  if (statusError) throw statusError;
-}
+const getNotificationIcon = (type: string) => {
+  switch (type) {
+    case 'new_task':
+      return '🆕';
+    case 'revision_requested':
+      return '🔄';
+    case 'task_delayed':
+      return '⚠️';
+    case 'file_uploaded':   // ADD THIS
+      return '📤';
+    default:
+      return '📢';
+  }
+};
 ```
 
-#### 3. Update Success Toast Message
+## How It Works After Implementation
 
-Modify the toast message to reflect the action taken:
-```tsx
-const isAddingMoreFiles = selectedTask.status === "completed" || selectedTask.status === "approved";
-toast({ 
-  title: hasRevision 
-    ? "Revision uploaded successfully" 
-    : isAddingMoreFiles 
-      ? "Additional files uploaded successfully"
-      : "All designs uploaded successfully",
-  description: `${files.length} file(s) submitted`
-});
-```
-
-## User Experience
-- Tasks with existing uploads will show an "Add Files" button in the actions area
-- Clicking opens the same upload dialog used for initial uploads
-- Files are added as new submissions without changing the task status
-- Designer can add comments to the new files
-- PM will see all submissions in their dashboard
-
-## Technical Details
-- No database schema changes required
-- Reuses existing upload dialog and file handling logic
-- New submissions are created with the same structure as initial submissions
-- The `revision_status` will default to "pending_review" for new uploads
+1. **Designer uploads file** (initial, revision, or additional via "Add Files")
+2. **Database trigger fires** → Creates notification for the PM
+3. **PM receives real-time notification**:
+   - Bell icon shows unread count badge
+   - Sound alert plays
+   - Toast notification appears
+   - Tab title flashes if not focused
+   - Desktop notification if permitted
+4. **Task appears in Priority View** under "Recently Delivered"
+5. **PM reviews and approves** → Task moves out of Priority View
 
 ## Summary of Changes
-| Location | Change |
-|----------|--------|
-| Lines 574-615 | Add "Add Files" button for completed/approved tasks |
-| Lines 193-201 | Modify status update logic to skip for completed/approved tasks |
-| Lines 205-208 | Update success toast message based on action type |
+
+| File | Change |
+|------|--------|
+| Database | Add `create_submission_notifications()` function and `on_submission_created` trigger |
+| `PMDashboard.tsx` | Add NotificationBell component import and usage in header |
+| `NotificationBell.tsx` | Add `file_uploaded` case to icon mapping |
+
+## User Experience
+- PMs will be immediately notified when any file is uploaded
+- Notification message clearly states which designer uploaded and for which task
+- Clicking notification opens the task in Priority View (already showing in "Recently Delivered")
+- Once all submissions are approved, task moves to "All Tasks"
