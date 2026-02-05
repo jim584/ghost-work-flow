@@ -763,7 +763,7 @@ const DesignerDashboard = () => {
                   setFiles(prev => [...prev, ...newFiles]);
                   e.target.value = '';
                 }}
-                accept="image/*,.pdf,.ai,.psd,.fig,.sketch"
+                accept="image/*,.pdf,.ai,.psd,.fig,.sketch,.zip"
               />
               {files.length > 0 && (
                 <div className="space-y-2">
