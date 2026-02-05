@@ -148,12 +148,35 @@ const PMDashboard = () => {
   const { data: myTasks } = useQuery({
     queryKey: ["pm-tasks", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Get orders assigned to this PM
+      const { data: assignedOrders, error: assignedError } = await supabase
         .from("tasks")
         .select("*, teams(name)")
         .eq("project_manager_id", user!.id)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (assignedError) throw assignedError;
+      
+      // Get orders closed by this PM (but assigned to different PM)
+      const { data: closedOrders, error: closedError } = await supabase
+        .from("tasks")
+        .select("*, teams(name)")
+        .eq("closed_by", user!.id)
+        .neq("project_manager_id", user!.id)
+        .order("created_at", { ascending: false });
+      if (closedError) throw closedError;
+      
+      // Merge and deduplicate by task id
+      const taskMap = new Map<string, any>();
+      assignedOrders?.forEach(task => taskMap.set(task.id, task));
+      closedOrders?.forEach(task => {
+        if (!taskMap.has(task.id)) {
+          taskMap.set(task.id, task);
+        }
+      });
+      
+      const data = Array.from(taskMap.values()).sort(
+        (a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()
+      );
       
       // Fetch creator, transferred_by, and closed_by profiles separately
       if (data && data.length > 0) {
