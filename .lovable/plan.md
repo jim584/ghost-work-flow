@@ -1,95 +1,72 @@
 
-# Show Partial Team Delivery Status on Card Front
+
+# Update Status Badge for Partially Delivered Orders
 
 ## Problem
-When a multi-team order has partial deliveries (e.g., Team A delivered, Team B hasn't), the PM needs to see this at a glance on the card front without expanding it.
+When a multi-team order has partial deliveries (e.g., Team A delivered, Team B hasn't), the status badge still shows the raw database status like "pending" instead of reflecting the actual "Partially Delivered" state.
 
 ## Current State
-- The `pending_delivery` category shows "Awaiting Team Delivery" badge
-- But this doesn't distinguish between "no teams delivered" vs "some teams delivered"
-- PMs must expand the card to see which teams have delivered
+- Line 1138-1140 shows: `{task.status.replace("_", " ")}` (e.g., "pending")
+- The "X/Y Teams Delivered" badge is shown, but the main status badge doesn't change
 
 ## Solution
-Add a visual indicator on the card front that shows partial delivery status for multi-team orders.
+Update the status badge logic to show "Partially Delivered" for multi-team orders when at least one team has delivered but not all.
 
 ## Implementation
 
 ### File: `src/components/dashboards/PMDashboard.tsx`
 
-### 1. Add Helper Function to Count Delivered Teams
-Calculate how many teams have delivered vs total teams:
+### Update Status Badge Section (around line 1137-1141)
+
+Replace the static status badge with dynamic logic:
 
 ```typescript
-const getMultiTeamDeliveryProgress = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
-  if (!group.isMultiTeam) return null;
-  
-  const teamsWithDeliveries = group.allTasks.filter((task: any) =>
-    allSubmissions?.some(s => s.task_id === task.id)
-  ).length;
-  
-  const totalTeams = group.allTasks.length;
-  
-  return {
-    delivered: teamsWithDeliveries,
-    total: totalTeams,
-    hasPartialDelivery: teamsWithDeliveries > 0 && teamsWithDeliveries < totalTeams
-  };
-};
-```
-
-### 2. Update Card Header to Show Partial Delivery Indicator
-In the card header section (around line 1097), add a new badge when there are partial deliveries:
-
-```typescript
-{group.isMultiTeam && (
-  <>
-    <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-200">
-      {group.teamNames.length} Teams
-    </Badge>
-    {(() => {
+<div className="flex items-center gap-2 flex-shrink-0">
+  {(() => {
+    // Check for partial delivery status on multi-team orders
+    if (group.isMultiTeam) {
       const progress = getMultiTeamDeliveryProgress(group, submissions || []);
       if (progress?.hasPartialDelivery) {
         return (
-          <Badge className="bg-blue-500 text-white animate-pulse">
-            {progress.delivered}/{progress.total} Teams Delivered
+          <Badge className="bg-blue-600 text-white shadow-sm">
+            Partially Delivered
           </Badge>
         );
       }
-      return null;
-    })()}
-  </>
-)}
+    }
+    // Default to regular status
+    return (
+      <Badge className={`${getStatusColor(task.status)} shadow-sm`}>
+        {task.status.replace("_", " ")}
+      </Badge>
+    );
+  })()}
+  {/* Delete button - only show if still pending and no deliveries */}
+  {task.status === "pending" && !getMultiTeamDeliveryProgress(group, submissions || [])?.hasPartialDelivery && (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="h-8 w-8 p-0 hover:bg-destructive/10"
+      onClick={() => setDeleteTaskId(task.id)}
+    >
+      <Trash2 className="h-4 w-4 text-destructive" />
+    </Button>
+  )}
+</div>
 ```
-
-### 3. Visual Design Options
-
-**Option A: Badge with count**
-```text
-[Logo] [2 Teams] [1/2 Teams Delivered] [Awaiting Team Delivery]
-```
-
-**Option B: More descriptive badge**
-```text
-[Logo] [2 Teams] [Team A Delivered - Team B Pending]
-```
-
-**Recommended: Option A** - Simple "X/Y Teams Delivered" badge that:
-- Is compact and scannable
-- Uses blue color to indicate partial progress
-- Subtle animation (pulse) to draw attention
-- Shows alongside the existing "Awaiting Team Delivery" badge for context
 
 ### Expected Result
 
-| Scenario | Card Front Display |
-|----------|-------------------|
-| Multi-team, no deliveries | `[2 Teams] [Awaiting Team Delivery]` |
-| Multi-team, 1 of 2 delivered | `[2 Teams] [1/2 Teams Delivered] [Awaiting Team Delivery]` |
-| Multi-team, all delivered pending review | `[2 Teams] [Delivered - Awaiting Review]` |
-| Single team | `[Team Name]` (no teams badge) |
+| Scenario | Status Badge |
+|----------|-------------|
+| Multi-team, no deliveries | `pending` (yellow) |
+| Multi-team, 1 of 2 delivered | `Partially Delivered` (blue) |
+| Multi-team, all delivered pending review | `pending` or `in_progress` |
+| Single team | Normal status from database |
 
 ## Files to Modify
 - `src/components/dashboards/PMDashboard.tsx`
 
 ## Summary
-Add a "X/Y Teams Delivered" badge on multi-team order cards when at least one team has delivered but not all, giving PMs immediate visibility into partial delivery progress without expanding the card.
+Change the main status badge to show "Partially Delivered" (in blue) for multi-team orders when at least one team has delivered but not all. This makes the partial delivery state immediately visible without relying on the smaller progress badge.
+
