@@ -11,11 +11,11 @@ const Index = () => {
         <div className="max-w-4xl mx-auto text-center space-y-8">
           <div className="space-y-4">
             <h1 className="text-5xl md:text-6xl font-bold text-foreground">
-              Design Team
-              <span className="text-primary block mt-2">Task Manager</span>
+              RT
+              <span className="text-primary block mt-2">CRM</span>
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Manage tasks across design teams with complete anonymity.
+              ResearchTeq CRM — Manage tasks across design teams efficiently.
               Streamline workflows from assignment to approval.
             </p>
           </div>
@@ -30,9 +30,9 @@ const Index = () => {
           <div className="grid md:grid-cols-3 gap-8 mt-16">
             <div className="space-y-3 p-6 rounded-lg bg-card border">
               <Shield className="h-12 w-12 text-primary mx-auto" />
-              <h3 className="text-xl font-semibold">Designer Anonymity</h3>
+              <h3 className="text-xl font-semibold">Secure & Reliable</h3>
               <p className="text-muted-foreground">
-                Complete privacy for designers. Tasks are team-based with no individual exposure.
+                Role-based access control ensures the right people see the right data.
               </p>
             </div>
             <div className="space-y-3 p-6 rounded-lg bg-card border">
