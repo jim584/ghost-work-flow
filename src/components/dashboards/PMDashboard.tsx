@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban } from "lucide-react";
 
 import { useProjectManagers } from "@/hooks/useProjectManagers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -68,6 +68,8 @@ const PMDashboard = () => {
   const [reassignDialog, setReassignDialog] = useState<{ open: boolean; taskId: string; currentPmId: string } | null>(null);
   const [reassignReason, setReassignReason] = useState("");
   const [selectedNewPmId, setSelectedNewPmId] = useState("");
+  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; taskId: string; orderGroupId?: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   const { data: projectManagers = [] } = useProjectManagers();
 
@@ -597,6 +599,50 @@ const PMDashboard = () => {
     },
   });
 
+  const cancelOrder = useMutation({
+    mutationFn: async ({ taskId, reason, orderGroupId }: { taskId: string; reason: string; orderGroupId?: string }) => {
+      if (orderGroupId) {
+        // Cancel all tasks in the order group
+        const tasksToCancel = myTasks?.filter(t => t.order_group_id === orderGroupId) || [];
+        for (const t of tasksToCancel) {
+          const { error } = await supabase
+            .from("tasks")
+            .update({ 
+              status: "cancelled" as any, 
+              cancellation_reason: reason,
+              cancelled_at: new Date().toISOString(),
+            } as any)
+            .eq("id", t.id);
+          if (error) throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from("tasks")
+          .update({ 
+            status: "cancelled" as any, 
+            cancellation_reason: reason,
+            cancelled_at: new Date().toISOString(),
+          } as any)
+          .eq("id", taskId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["all-tasks-search"] });
+      toast({ title: "Order cancelled successfully" });
+      setCancelDialog(null);
+      setCancelReason("");
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error cancelling order",
+        description: error.message,
+      });
+    },
+  });
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -658,8 +704,9 @@ const PMDashboard = () => {
     const hasTeamsPendingDelivery = group.isMultiTeam && !allTeamsHaveSubmissions;
     
     const isDelayed = group.primaryTask.deadline && new Date(group.primaryTask.deadline) < today && 
-                     !['completed', 'approved'].includes(group.primaryTask.status);
+                     !['completed', 'approved', 'cancelled'].includes(group.primaryTask.status);
     
+    if (group.primaryTask.status === 'cancelled') return 'cancelled';
     if (hasPendingReview) return 'recently_delivered';
     if (hasNeedsRevision) return 'needs_revision';
     if (isDelayed) return 'delayed';
@@ -679,6 +726,7 @@ const PMDashboard = () => {
     in_progress: groupedOrders.filter(g => g.primaryTask.status === 'in_progress').length,
     needs_revision: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'needs_revision').length,
     pending_delivery: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'pending_delivery').length,
+    cancelled: groupedOrders.filter(g => g.primaryTask.status === 'cancelled').length,
     total: groupedOrders.length,
   };
 
@@ -689,7 +737,9 @@ const PMDashboard = () => {
     // Only consider all approved if there are submissions AND all are approved
     const allApproved = taskSubmissions.length > 0 && taskSubmissions.every(s => s.revision_status === 'approved');
     const isDelayed = task.deadline && new Date(task.deadline) < today && 
-                     !['completed', 'approved'].includes(task.status);
+                     !['completed', 'approved', 'cancelled'].includes(task.status);
+    
+    if (task.status === 'cancelled') return 'cancelled';
     
     // Check for pending work items first - these always show in priority
     if (hasPendingReview) return 'recently_delivered';
@@ -731,6 +781,8 @@ const PMDashboard = () => {
         return "bg-primary text-primary-foreground";
       case "approved":
         return "bg-success text-success-foreground";
+      case "cancelled":
+        return "bg-destructive text-destructive-foreground";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -784,7 +836,7 @@ const PMDashboard = () => {
       return ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(category);
     }
     // Handle specific category filters
-    if (['recently_delivered', 'delayed', 'needs_revision'].includes(statusFilter)) {
+    if (['recently_delivered', 'delayed', 'needs_revision', 'cancelled'].includes(statusFilter)) {
       const category = getGroupCategory(group, submissions || []);
       return category === statusFilter;
     }
@@ -930,7 +982,7 @@ const PMDashboard = () => {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-5 mb-8">
+        <div className="grid gap-4 md:grid-cols-6 mb-8">
           <Card 
             className={`border-l-4 border-l-green-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'recently_delivered' ? 'ring-2 ring-green-500' : ''}`}
             onClick={() => setStatusFilter('recently_delivered')}
@@ -998,6 +1050,20 @@ const PMDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold">{stats.needs_revision}</div>
               <p className="text-xs text-muted-foreground">Requires changes</p>
+            </CardContent>
+          </Card>
+          
+          <Card 
+            className={`border-l-4 border-l-gray-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'cancelled' ? 'ring-2 ring-gray-500' : ''}`}
+            onClick={() => setStatusFilter('cancelled')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Cancelled</CardTitle>
+              <Ban className="h-4 w-4 text-gray-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.cancelled}</div>
+              <p className="text-xs text-muted-foreground">Cancelled orders</p>
             </CardContent>
           </Card>
         </div>
@@ -1121,6 +1187,7 @@ const PMDashboard = () => {
                   if (category === 'delayed') return 'border-l-4 border-l-red-500 bg-red-50/10';
                   if (category === 'needs_revision') return 'border-l-4 border-l-orange-500 bg-orange-50/10';
                   if (category === 'pending_delivery') return 'border-l-4 border-l-yellow-500 bg-yellow-50/10';
+                  if (category === 'cancelled') return 'border-l-4 border-l-gray-500 bg-gray-50/10 opacity-75';
                   return '';
                 };
 
@@ -1136,6 +1203,9 @@ const PMDashboard = () => {
                   }
                   if (category === 'pending_delivery') {
                     return <Badge className="bg-yellow-500 text-white">Awaiting Team Delivery</Badge>;
+                  }
+                  if (category === 'cancelled') {
+                    return <Badge className="bg-gray-500 text-white">Cancelled</Badge>;
                   }
                   return null;
                 };
@@ -1416,6 +1486,28 @@ const PMDashboard = () => {
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Accepted
                           </Badge>
+                        )}
+                        {/* Cancel button - show before delivery (no submissions) and not already cancelled */}
+                        {task.status !== "cancelled" && task.status !== "approved" && groupSubmissions.length === 0 && task.project_manager_id === user?.id && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-destructive/50 text-destructive hover:bg-destructive/10 hover-scale"
+                            onClick={() => setCancelDialog({ 
+                              open: true, 
+                              taskId: task.id,
+                              orderGroupId: group.isMultiTeam ? group.groupId : undefined
+                            })}
+                          >
+                            <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                            Cancel Order
+                          </Button>
+                        )}
+                        {/* Show cancellation reason for cancelled orders */}
+                        {task.status === "cancelled" && (task as any).cancellation_reason && (
+                          <p className="text-xs text-muted-foreground italic">
+                            Reason: {(task as any).cancellation_reason}
+                          </p>
                         )}
                       </div>
                       {groupSubmissions.length > 0 && (
@@ -2150,6 +2242,45 @@ const PMDashboard = () => {
               className="w-full"
             >
               Reassign Task
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cancelDialog?.open || false} onOpenChange={(open) => {
+        if (!open) {
+          setCancelDialog(null);
+          setCancelReason("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Order</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to cancel this order? This action will move it to cancelled orders.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason">Cancellation Reason *</Label>
+              <Textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Explain why this order is being cancelled..."
+                rows={4}
+              />
+            </div>
+            <Button
+              onClick={() => cancelDialog && cancelOrder.mutate({ 
+                taskId: cancelDialog.taskId, 
+                reason: cancelReason,
+                orderGroupId: cancelDialog.orderGroupId
+              })}
+              disabled={!cancelReason.trim()}
+              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Cancel Order
             </Button>
           </div>
         </DialogContent>
