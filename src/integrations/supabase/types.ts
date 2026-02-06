@@ -265,6 +265,8 @@ export type Database = {
           business_email: string | null
           business_name: string | null
           business_phone: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
           closed_by: string | null
           competitors_inspiration: string | null
           content_provided: boolean | null
@@ -338,6 +340,8 @@ export type Database = {
           business_email?: string | null
           business_name?: string | null
           business_phone?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
           closed_by?: string | null
           competitors_inspiration?: string | null
           content_provided?: boolean | null
@@ -411,6 +415,8 @@ export type Database = {
           business_email?: string | null
           business_name?: string | null
           business_phone?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
           closed_by?: string | null
           competitors_inspiration?: string | null
           content_provided?: boolean | null
@@ -628,7 +634,12 @@ export type Database = {
         | "designer"
         | "developer"
         | "front_sales"
-      task_status: "pending" | "in_progress" | "completed" | "approved"
+      task_status:
+        | "pending"
+        | "in_progress"
+        | "completed"
+        | "approved"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -763,7 +774,13 @@ export const Constants = {
         "developer",
         "front_sales",
       ],
-      task_status: ["pending", "in_progress", "completed", "approved"],
+      task_status: [
+        "pending",
+        "in_progress",
+        "completed",
+        "approved",
+        "cancelled",
+      ],
     },
   },
 } as const
