@@ -298,6 +298,7 @@ const DesignerDashboard = () => {
     delayed: delayedTasks.length,
     logo: logoTasks.length,
     social_media: socialMediaTasks.length,
+    cancelled: tasks?.filter((t) => t.status === "cancelled").length || 0,
   };
 
   const getStatusColor = (status: string) => {
@@ -451,7 +452,7 @@ const DesignerDashboard = () => {
           </Button>
         </div>
         
-        <div className="grid gap-6 md:grid-cols-4 mb-8">
+        <div className="grid gap-6 md:grid-cols-5 mb-8">
           <Card 
             className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === null ? 'ring-2 ring-primary' : ''}`}
             onClick={() => setStatusFilter(null)}
@@ -498,6 +499,19 @@ const DesignerDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{stats.needs_revision}</div>
+            </CardContent>
+          </Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'cancelled' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('cancelled')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Cancelled</CardTitle>
+              <Ban className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.cancelled}</div>
+              <p className="text-xs text-muted-foreground">Cancelled orders</p>
             </CardContent>
           </Card>
         </div>
