@@ -1417,9 +1417,54 @@ const PMDashboard = () => {
                               }
                             </p>
                             {group.isMultiTeam && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {group.teamNames.join(", ")}
-                              </p>
+                              <div className="space-y-1 mt-1">
+                                {group.allTasks.map((t: any) => {
+                                  const teamSubmissions = (submissions || []).filter((s: any) => s.task_id === t.id);
+                                  const hasDelivery = teamSubmissions.length > 0;
+                                  const hasPendingReview = teamSubmissions.some((s: any) => s.revision_status === 'pending_review');
+                                  const hasNeedsRevision = teamSubmissions.some((s: any) => s.revision_status === 'needs_revision');
+                                  const isApproved = t.status === 'approved';
+                                  
+                                  let statusIcon = "○";
+                                  let statusColor = "text-muted-foreground";
+                                  let statusText = "Pending";
+                                  
+                                  if (isApproved) {
+                                    statusIcon = "✓";
+                                    statusColor = "text-green-600";
+                                    statusText = "Approved";
+                                  } else if (hasNeedsRevision) {
+                                    statusIcon = "↻";
+                                    statusColor = "text-orange-500";
+                                    statusText = "Revision";
+                                  } else if (hasPendingReview) {
+                                    statusIcon = "●";
+                                    statusColor = "text-blue-500";
+                                    statusText = "Delivered";
+                                  } else if (hasDelivery) {
+                                    statusIcon = "●";
+                                    statusColor = "text-blue-500";
+                                    statusText = "Delivered";
+                                  } else if (t.status === 'in_progress') {
+                                    statusIcon = "◉";
+                                    statusColor = "text-yellow-500";
+                                    statusText = "Working";
+                                  } else if (t.status === 'completed') {
+                                    statusIcon = "●";
+                                    statusColor = "text-primary";
+                                    statusText = "Completed";
+                                  }
+                                  
+                                  return (
+                                    <div key={t.id} className="flex items-center justify-between text-xs">
+                                      <span className="truncate">{t.teams?.name || "Unknown"}</span>
+                                      <span className={`${statusColor} font-medium flex items-center gap-1`}>
+                                        {statusIcon} {statusText}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             )}
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" />

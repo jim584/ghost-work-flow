@@ -241,6 +241,21 @@ const DesignerDashboard = () => {
         .update({ status })
         .eq("id", taskId);
       if (error) throw error;
+
+      // Notify PM when designer starts working
+      if (status === "in_progress") {
+        const task = tasks?.find(t => t.id === taskId);
+        if (task) {
+          const designerName = profile?.full_name || "A designer";
+          await supabase.from("notifications").insert({
+            user_id: task.project_manager_id,
+            type: "task_started",
+            title: "Designer Started Working",
+            message: `${designerName} started working on: ${task.title}`,
+            task_id: taskId,
+          });
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["designer-tasks"] });
