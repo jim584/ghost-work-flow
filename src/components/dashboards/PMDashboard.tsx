@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban } from "lucide-react";
 
 import { useProjectManagers } from "@/hooks/useProjectManagers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,16 +22,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
 import { format } from "date-fns";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 const PMDashboard = () => {
   const { user, signOut } = useAuth();
@@ -57,8 +47,7 @@ const PMDashboard = () => {
   const [taskType, setTaskType] = useState<"social_media" | "logo" | "website" | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
-  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
-  const [deleteReason, setDeleteReason] = useState("");
+  
   const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
   const [revisionNotes, setRevisionNotes] = useState("");
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
@@ -69,7 +58,7 @@ const PMDashboard = () => {
   const [reassignDialog, setReassignDialog] = useState<{ open: boolean; taskId: string; currentPmId: string } | null>(null);
   const [reassignReason, setReassignReason] = useState("");
   const [selectedNewPmId, setSelectedNewPmId] = useState("");
-  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; taskId: string; orderGroupId?: string } | null>(null);
+  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; taskId: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
 
   const { data: projectManagers = [] } = useProjectManagers();
@@ -526,55 +515,7 @@ const PMDashboard = () => {
     },
   });
 
-  const deleteTask = useMutation({
-    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
-      // Only delete the specific task, not the entire order group
-      const task = myTasks?.find(t => t.id === taskId);
-      if (!task) throw new Error("Task not found");
-
-      const { error } = await supabase
-        .from("tasks")
-        .update({
-          status: "cancelled" as any,
-          cancellation_reason: reason,
-          cancelled_at: new Date().toISOString(),
-          is_deleted: true,
-        } as any)
-        .eq("id", taskId);
-      if (error) throw error;
-
-      // Notify designers in this task's team
-      const { data: teamMembers } = await supabase
-        .from("team_members")
-        .select("user_id")
-        .eq("team_id", task.team_id);
-
-      if (teamMembers) {
-        for (const member of teamMembers) {
-          await supabase.from("notifications").insert({
-            user_id: member.user_id,
-            type: "order_cancelled",
-            title: "Order Deleted",
-            message: `Order #${task.task_number} "${task.title}" has been removed from your team. Reason: ${reason}`,
-            task_id: taskId,
-          });
-        }
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
-      toast({ title: "Order deleted successfully" });
-      setDeleteTaskId(null);
-      setDeleteReason("");
-    },
-    onError: (error: any) => {
-      toast({
-        variant: "destructive",
-        title: "Error deleting order",
-        description: error.message,
-      });
-    },
-  });
+  
 
   const reassignTask = useMutation({
     mutationFn: async ({ taskId, newPmId, reason }: { taskId: string; newPmId: string; reason: string }) => {
@@ -628,38 +569,35 @@ const PMDashboard = () => {
   });
 
   const cancelOrder = useMutation({
-    mutationFn: async ({ taskId, reason, orderGroupId }: { taskId: string; reason: string; orderGroupId?: string }) => {
-      const tasksToCancel = orderGroupId 
-        ? (myTasks?.filter(t => t.order_group_id === orderGroupId) || [])
-        : (myTasks?.filter(t => t.id === taskId) || []);
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
+      const task = myTasks?.find(t => t.id === taskId);
+      if (!task) throw new Error("Task not found");
 
-      for (const t of tasksToCancel) {
-        const { error } = await supabase
-          .from("tasks")
-          .update({ 
-            status: "cancelled" as any, 
-            cancellation_reason: reason,
-            cancelled_at: new Date().toISOString(),
-          } as any)
-          .eq("id", t.id);
-        if (error) throw error;
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          status: "cancelled" as any, 
+          cancellation_reason: reason,
+          cancelled_at: new Date().toISOString(),
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
 
-        // Notify designers in the task's team
-        const { data: teamMembers } = await supabase
-          .from("team_members")
-          .select("user_id")
-          .eq("team_id", t.team_id);
+      // Notify designers in the task's team
+      const { data: teamMembers } = await supabase
+        .from("team_members")
+        .select("user_id")
+        .eq("team_id", task.team_id);
 
-        if (teamMembers) {
-          for (const member of teamMembers) {
-            await supabase.from("notifications").insert({
-              user_id: member.user_id,
-              type: "order_cancelled",
-              title: "Order Cancelled",
-              message: `Order #${t.task_number} "${t.title}" has been cancelled. Reason: ${reason}`,
-              task_id: t.id,
-            });
-          }
+      if (teamMembers) {
+        for (const member of teamMembers) {
+          await supabase.from("notifications").insert({
+            user_id: member.user_id,
+            type: "order_cancelled",
+            title: "Order Cancelled",
+            message: `Order #${task.task_number} "${task.title}" has been cancelled. Reason: ${reason}`,
+            task_id: taskId,
+          });
         }
       }
     },
@@ -1319,15 +1257,15 @@ const PMDashboard = () => {
                               </Badge>
                             );
                           })()}
-                          {/* Delete button for single-team orders only */}
-                          {!group.isMultiTeam && task.status === "pending" && !(submissions || []).some((s: any) => s.task_id === task.id) && (
+                          {/* Cancel button for single-team orders - show for pending/in_progress, not completed/approved/cancelled */}
+                          {!group.isMultiTeam && (task.status === "pending" || task.status === "in_progress") && task.project_manager_id === user?.id && (
                             <Button
                               size="sm"
                               variant="ghost"
                               className="h-8 w-8 p-0 hover:bg-destructive/10"
-                              onClick={() => setDeleteTaskId(task.id)}
+                              onClick={() => setCancelDialog({ open: true, taskId: task.id })}
                             >
-                              <Trash2 className="h-4 w-4 text-destructive" />
+                              <XCircle className="h-4 w-4 text-destructive" />
                             </Button>
                           )}
                         </div>
@@ -1450,7 +1388,7 @@ const PMDashboard = () => {
                                     statusText = "Completed";
                                   }
                                   
-                                  const canDelete = t.status === 'pending' && !hasDelivery;
+                                  const canCancel = (t.status === 'pending' || t.status === 'in_progress') && t.status !== 'completed' && t.status !== 'approved' && t.status !== 'cancelled';
                                   
                                   return (
                                     <div key={t.id} className="flex items-center justify-between text-xs">
@@ -1459,12 +1397,12 @@ const PMDashboard = () => {
                                         <span className={`${statusColor} font-medium flex items-center gap-1`}>
                                           {statusIcon} {statusText}
                                         </span>
-                                        {canDelete && (
+                                        {canCancel && (
                                           <button
                                             className="ml-1 p-0.5 rounded hover:bg-destructive/10"
-                                            onClick={(e) => { e.stopPropagation(); setDeleteTaskId(t.id); }}
+                                            onClick={(e) => { e.stopPropagation(); setCancelDialog({ open: true, taskId: t.id }); }}
                                           >
-                                            <Trash2 className="h-3 w-3 text-destructive" />
+                                            <XCircle className="h-3 w-3 text-destructive" />
                                           </button>
                                         )}
                                       </span>
@@ -1581,7 +1519,8 @@ const PMDashboard = () => {
                           </Badge>
                         )}
                         {/* Cancel button - show before delivery (no submissions) and not already cancelled */}
-                        {task.status !== "cancelled" && task.status !== "approved" && groupSubmissions.length === 0 && task.project_manager_id === user?.id && (
+                        {/* Cancel button in expanded view - for non-multi-team, show for pending/in_progress */}
+                        {!group.isMultiTeam && (task.status === "pending" || task.status === "in_progress") && task.project_manager_id === user?.id && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1589,7 +1528,6 @@ const PMDashboard = () => {
                             onClick={() => setCancelDialog({ 
                               open: true, 
                               taskId: task.id,
-                              orderGroupId: group.isMultiTeam ? group.groupId : undefined
                             })}
                           >
                             <XCircle className="h-3.5 w-3.5 mr-1.5" />
@@ -2286,34 +2224,7 @@ const PMDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteTaskId} onOpenChange={(open) => { if (!open) { setDeleteTaskId(null); setDeleteReason(""); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Order</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will cancel the order and notify assigned designers. Please provide a reason.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-2">
-            <Textarea
-              placeholder="Enter reason for deletion (required)"
-              value={deleteReason}
-              onChange={(e) => setDeleteReason(e.target.value)}
-              className="min-h-[80px]"
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteTaskId && deleteReason.trim() && deleteTask.mutate({ taskId: deleteTaskId, reason: deleteReason.trim() })}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={!deleteReason.trim()}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      
 
       <Dialog open={reassignDialog?.open || false} onOpenChange={(open) => {
         if (!open) {
@@ -2397,7 +2308,6 @@ const PMDashboard = () => {
               onClick={() => cancelDialog && cancelOrder.mutate({ 
                 taskId: cancelDialog.taskId, 
                 reason: cancelReason,
-                orderGroupId: cancelDialog.orderGroupId
               })}
               disabled={!cancelReason.trim()}
               className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
