@@ -1319,8 +1319,8 @@ const PMDashboard = () => {
                               </Badge>
                             );
                           })()}
-                          {/* Delete button - only show if this task is still pending and no deliveries */}
-                          {task.status === "pending" && !(submissions || []).some((s: any) => s.task_id === task.id) && (
+                          {/* Delete button for single-team orders only */}
+                          {!group.isMultiTeam && task.status === "pending" && !(submissions || []).some((s: any) => s.task_id === task.id) && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -1450,11 +1450,23 @@ const PMDashboard = () => {
                                     statusText = "Completed";
                                   }
                                   
+                                  const canDelete = t.status === 'pending' && !hasDelivery;
+                                  
                                   return (
                                     <div key={t.id} className="flex items-center justify-between text-xs">
                                       <span className="truncate">{t.teams?.name || "Unknown"}</span>
-                                      <span className={`${statusColor} font-medium flex items-center gap-1`}>
-                                        {statusIcon} {statusText}
+                                      <span className="flex items-center gap-1">
+                                        <span className={`${statusColor} font-medium flex items-center gap-1`}>
+                                          {statusIcon} {statusText}
+                                        </span>
+                                        {canDelete && (
+                                          <button
+                                            className="ml-1 p-0.5 rounded hover:bg-destructive/10"
+                                            onClick={(e) => { e.stopPropagation(); setDeleteTaskId(t.id); }}
+                                          >
+                                            <Trash2 className="h-3 w-3 text-destructive" />
+                                          </button>
+                                        )}
                                       </span>
                                     </div>
                                   );
