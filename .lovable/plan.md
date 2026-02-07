@@ -1,37 +1,36 @@
 
-# Monthly Performance Section for Designer Dashboard
+# Fix: "Accepted" Badge Incorrectly Shown to Order Creator
 
-## Overview
-Add a collapsible "Monthly Performance" section to the Designer Dashboard that shows:
-1. A summary card with the total completed orders for the current month
-2. A list of current month's completed orders
-3. A collapsible section showing previous month's completed orders
+## The Problem
+When a PM creates an order but assigns a **different** PM, the "Accepted" badge still appears on the creator's dashboard. This happens because the current logic is:
 
-The section automatically reflects the correct month boundaries (1st to last day).
+```
+(task.accepted_by_pm || task.created_by === user?.id)
+```
 
-## What will be added
+The `task.created_by === user?.id` part was intended to auto-show "Accepted" for self-assigned orders, but it doesn't verify that the creator is also the assigned PM.
 
-### Monthly Performance Section (placed between the stat cards and the task list)
-- **Current Month Summary Card**: Displays the current month name/year and the count of completed orders (status = "completed" or "approved") created or completed within the current month
-- **Current Month Orders Table**: A list showing task number, title, business name, completion date, and status for each completed order this month
-- **Previous Month Section**: A collapsible area showing the same information for the prior month, so designers can compare their progress
+## The Fix
+**File:** `src/components/dashboards/PMDashboard.tsx` (line 1492)
 
-### How it updates automatically
-- The section uses `date-fns` to calculate `startOfMonth` and `endOfMonth` boundaries dynamically -- no manual reset needed. On the 1st of each month, the "current month" section naturally starts fresh and the old month rolls into "previous month."
+Update the condition to also check that the current user is the assigned project manager:
+
+**Before:**
+```
+task.created_by === user?.id
+```
+
+**After:**
+```
+(task.created_by === user?.id && task.project_manager_id === user?.id)
+```
+
+This ensures the auto-accepted badge only appears when the PM both created **and** is assigned to the order. If they created it but assigned someone else, no badge will show on their view -- the assigned PM will see the "Accept Order" button instead.
 
 ## Technical Details
-
-### File Changes
-**`src/components/dashboards/DesignerDashboard.tsx`**:
-1. Import `startOfMonth`, `endOfMonth`, `subMonths`, `isWithinInterval` from `date-fns` (already partially imported).
-2. Add computed variables that filter the existing `tasks` data:
-   - `currentMonthCompleted`: tasks with status "completed" or "approved" where `updated_at` falls within the current month
-   - `previousMonthCompleted`: same filter but for the previous month
-3. Add a new section in the JSX (between the stats grid and the task list card) containing:
-   - A summary card showing current month name and completed count
-   - A table listing current month completed orders (task #, title, business name, date)
-   - A collapsible "Previous Month" section with the same table layout
-4. Import `ChevronRight` icon and use `Collapsible` component for the previous month toggle.
-5. Add `Calendar` icon from lucide-react for the section header.
-
-No database changes or new queries are needed -- all data comes from the existing `tasks` query which already fetches all tasks for the designer's teams.
+- **Single line change** in `src/components/dashboards/PMDashboard.tsx` at line 1492
+- Change the condition from:
+  `((task as any).accepted_by_pm || task.created_by === user?.id)`
+  to:
+  `((task as any).accepted_by_pm || (task.created_by === user?.id && task.project_manager_id === user?.id))`
+- No database or migration changes needed
