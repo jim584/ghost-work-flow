@@ -58,6 +58,7 @@ const PMDashboard = () => {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
   const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
   const [revisionNotes, setRevisionNotes] = useState("");
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
@@ -526,23 +527,54 @@ const PMDashboard = () => {
   });
 
   const deleteTask = useMutation({
-    mutationFn: async (taskId: string) => {
-      const { error } = await supabase
-        .from("tasks")
-        .delete()
-        .eq("id", taskId)
-        .eq("status", "pending");
-      if (error) throw error;
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
+      // Find the task to check for order_group_id
+      const task = myTasks?.find(t => t.id === taskId);
+      const tasksToCancel = task?.order_group_id
+        ? (myTasks?.filter(t => t.order_group_id === task.order_group_id) || [])
+        : [task].filter(Boolean);
+
+      for (const t of tasksToCancel) {
+        if (!t) continue;
+        const { error } = await supabase
+          .from("tasks")
+          .update({
+            status: "cancelled" as any,
+            cancellation_reason: reason,
+            cancelled_at: new Date().toISOString(),
+          } as any)
+          .eq("id", t.id);
+        if (error) throw error;
+
+        // Notify designers in the task's team
+        const { data: teamMembers } = await supabase
+          .from("team_members")
+          .select("user_id")
+          .eq("team_id", t.team_id);
+
+        if (teamMembers) {
+          for (const member of teamMembers) {
+            await supabase.from("notifications").insert({
+              user_id: member.user_id,
+              type: "order_cancelled",
+              title: "Order Deleted",
+              message: `Order #${t.task_number} "${t.title}" has been deleted. Reason: ${reason}`,
+              task_id: t.id,
+            });
+          }
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
-      toast({ title: "Task deleted successfully" });
+      toast({ title: "Order deleted successfully" });
       setDeleteTaskId(null);
+      setDeleteReason("");
     },
     onError: (error: any) => {
       toast({
         variant: "destructive",
-        title: "Error deleting task",
+        title: "Error deleting order",
         description: error.message,
       });
     },
@@ -2201,20 +2233,28 @@ const PMDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteTaskId} onOpenChange={() => setDeleteTaskId(null)}>
+      <AlertDialog open={!!deleteTaskId} onOpenChange={(open) => { if (!open) { setDeleteTaskId(null); setDeleteReason(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogTitle>Delete Order</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this task? This action cannot be undone.
-              Only pending tasks can be deleted.
+              This will cancel the order and notify assigned designers. Please provide a reason.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="py-2">
+            <Textarea
+              placeholder="Enter reason for deletion (required)"
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              className="min-h-[80px]"
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteTaskId && deleteTask.mutate(deleteTaskId)}
+              onClick={() => deleteTaskId && deleteReason.trim() && deleteTask.mutate({ taskId: deleteTaskId, reason: deleteReason.trim() })}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!deleteReason.trim()}
             >
               Delete
             </AlertDialogAction>
