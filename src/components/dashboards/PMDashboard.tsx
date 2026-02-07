@@ -1835,6 +1835,27 @@ const PMDashboard = () => {
                 </div>
               </div>
 
+              {/* Cancellation Details - Only for Cancelled Orders */}
+              {viewDetailsTask?.status === "cancelled" && (
+                <div className="space-y-3 bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                  <h3 className="font-semibold text-lg text-destructive">Cancellation Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Cancelled At</Label>
+                      <p className="font-medium">{(viewDetailsTask as any)?.cancelled_at ? new Date((viewDetailsTask as any).cancelled_at).toLocaleString() : "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Status</Label>
+                      <Badge className="bg-destructive text-destructive-foreground">Cancelled</Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Reason</Label>
+                    <p className="font-medium whitespace-pre-wrap">{(viewDetailsTask as any)?.cancellation_reason || "No reason provided"}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Order Attribution */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Order Attribution</h3>
