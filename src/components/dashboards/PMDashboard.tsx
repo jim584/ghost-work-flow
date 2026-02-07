@@ -1320,7 +1320,7 @@ const PMDashboard = () => {
                             // Default to regular status
                             return (
                               <Badge className={`${getStatusColor(task.status)} shadow-sm`}>
-                                {task.status.replace("_", " ")}
+                                {task.status === 'cancelled' && (task as any).is_deleted ? 'deleted' : task.status.replace("_", " ")}
                               </Badge>
                             );
                           })()}
