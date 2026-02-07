@@ -528,41 +528,36 @@ const PMDashboard = () => {
 
   const deleteTask = useMutation({
     mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
-      // Find the task to check for order_group_id
+      // Only delete the specific task, not the entire order group
       const task = myTasks?.find(t => t.id === taskId);
-      const tasksToCancel = task?.order_group_id
-        ? (myTasks?.filter(t => t.order_group_id === task.order_group_id) || [])
-        : [task].filter(Boolean);
+      if (!task) throw new Error("Task not found");
 
-      for (const t of tasksToCancel) {
-        if (!t) continue;
-        const { error } = await supabase
-          .from("tasks")
-          .update({
-            status: "cancelled" as any,
-            cancellation_reason: reason,
-            cancelled_at: new Date().toISOString(),
-            is_deleted: true,
-          } as any)
-          .eq("id", t.id);
-        if (error) throw error;
+      const { error } = await supabase
+        .from("tasks")
+        .update({
+          status: "cancelled" as any,
+          cancellation_reason: reason,
+          cancelled_at: new Date().toISOString(),
+          is_deleted: true,
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
 
-        // Notify designers in the task's team
-        const { data: teamMembers } = await supabase
-          .from("team_members")
-          .select("user_id")
-          .eq("team_id", t.team_id);
+      // Notify designers in this task's team
+      const { data: teamMembers } = await supabase
+        .from("team_members")
+        .select("user_id")
+        .eq("team_id", task.team_id);
 
-        if (teamMembers) {
-          for (const member of teamMembers) {
-            await supabase.from("notifications").insert({
-              user_id: member.user_id,
-              type: "order_cancelled",
-              title: "Order Deleted",
-              message: `Order #${t.task_number} "${t.title}" has been deleted. Reason: ${reason}`,
-              task_id: t.id,
-            });
-          }
+      if (teamMembers) {
+        for (const member of teamMembers) {
+          await supabase.from("notifications").insert({
+            user_id: member.user_id,
+            type: "order_cancelled",
+            title: "Order Deleted",
+            message: `Order #${task.task_number} "${task.title}" has been removed from your team. Reason: ${reason}`,
+            task_id: taskId,
+          });
         }
       }
     },
