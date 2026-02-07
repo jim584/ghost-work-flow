@@ -287,6 +287,7 @@ export type Database = {
           headline_main_text: string | null
           id: string
           industry: string | null
+          is_deleted: boolean
           is_upsell: boolean
           logo_style: string | null
           logo_type: string | null
@@ -362,6 +363,7 @@ export type Database = {
           headline_main_text?: string | null
           id?: string
           industry?: string | null
+          is_deleted?: boolean
           is_upsell?: boolean
           logo_style?: string | null
           logo_type?: string | null
@@ -437,6 +439,7 @@ export type Database = {
           headline_main_text?: string | null
           id?: string
           industry?: string | null
+          is_deleted?: boolean
           is_upsell?: boolean
           logo_style?: string | null
           logo_type?: string | null

@@ -89,6 +89,7 @@ const DesignerDashboard = () => {
         .from("tasks")
         .select("*, teams(name)")
         .in("team_id", teamIds)
+        .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
