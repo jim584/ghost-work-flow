@@ -1,77 +1,37 @@
 
-# Add Assigned Project Manager to View Details
+# Monthly Performance Section for Designer Dashboard
 
-## Summary
-Add an "Assigned Project Manager" field to the View Details dialog in the PM Dashboard so users can always see who is responsible for an order, regardless of whether they are viewing the order as the closer, transferrer, or the PM themselves.
+## Overview
+Add a collapsible "Monthly Performance" section to the Designer Dashboard that shows:
+1. A summary card with the total completed orders for the current month
+2. A list of current month's completed orders
+3. A collapsible section showing previous month's completed orders
 
-## Current State
-- The View Details dialog shows "Transferred By", "Closed By", and "Created By" in the Order Attribution section
-- The `project_manager_id` exists on the task but no profile lookup is done for it
-- Users who are the closer (but not the PM) cannot see who the assigned PM is
+The section automatically reflects the correct month boundaries (1st to last day).
 
-## Implementation
+## What will be added
 
-### 1. Update Task Queries to Fetch PM Profile
+### Monthly Performance Section (placed between the stat cards and the task list)
+- **Current Month Summary Card**: Displays the current month name/year and the count of completed orders (status = "completed" or "approved") created or completed within the current month
+- **Current Month Orders Table**: A list showing task number, title, business name, completion date, and status for each completed order this month
+- **Previous Month Section**: A collapsible area showing the same information for the prior month, so designers can compare their progress
 
-**File: `src/components/dashboards/PMDashboard.tsx`**
-
-Modify the `myTasks` query to:
-- Add `project_manager_id` to the set of user IDs being fetched for profile lookup
-- Map the PM profile to a new `project_manager_profile` field on each task
-
-Similarly update the `allTasks` query (used for search) to include the same mapping.
-
-### 2. Update View Details Dialog
-
-Add a new field in the "Order Attribution" section to display the Assigned Project Manager:
-
-```text
-Order Attribution Section:
-┌───────────────────────────────────────────────────┐
-│  Assigned PM      │  Transferred By   │ Closed By│
-│  Nick             │  Jordan           │ Jordan   │
-└───────────────────────────────────────────────────┘
-  Created by: [small muted text]
-```
-
-The "Assigned PM" field will show `project_manager_profile.full_name` or fallback to email.
-
----
+### How it updates automatically
+- The section uses `date-fns` to calculate `startOfMonth` and `endOfMonth` boundaries dynamically -- no manual reset needed. On the 1st of each month, the "current month" section naturally starts fresh and the old month rolls into "previous month."
 
 ## Technical Details
 
-### Query Changes (myTasks)
+### File Changes
+**`src/components/dashboards/DesignerDashboard.tsx`**:
+1. Import `startOfMonth`, `endOfMonth`, `subMonths`, `isWithinInterval` from `date-fns` (already partially imported).
+2. Add computed variables that filter the existing `tasks` data:
+   - `currentMonthCompleted`: tasks with status "completed" or "approved" where `updated_at` falls within the current month
+   - `previousMonthCompleted`: same filter but for the previous month
+3. Add a new section in the JSX (between the stats grid and the task list card) containing:
+   - A summary card showing current month name and completed count
+   - A table listing current month completed orders (task #, title, business name, date)
+   - A collapsible "Previous Month" section with the same table layout
+4. Import `ChevronRight` icon and use `Collapsible` component for the previous month toggle.
+5. Add `Calendar` icon from lucide-react for the section header.
 
-```typescript
-// Add project_manager_id to the userIds set
-data.forEach(task => {
-  if (task.created_by) userIds.add(task.created_by);
-  if (task.transferred_by) userIds.add(task.transferred_by);
-  if (task.closed_by) userIds.add(task.closed_by);
-  if (task.project_manager_id) userIds.add(task.project_manager_id);  // NEW
-});
-
-// Map the project manager profile
-return data.map(task => ({
-  ...task,
-  creator: task.created_by ? profileMap.get(task.created_by) : null,
-  transferred_by_profile: task.transferred_by ? profileMap.get(task.transferred_by) : null,
-  closed_by_profile: task.closed_by ? profileMap.get(task.closed_by) : null,
-  project_manager_profile: task.project_manager_id ? profileMap.get(task.project_manager_id) : null,  // NEW
-}));
-```
-
-### UI Changes (View Details Dialog)
-
-Update the Order Attribution section to include a 3-column grid with:
-1. **Assigned PM** - Shows the project manager's name
-2. **Transferred By** - Existing field
-3. **Closed By** - Existing field
-
-## Files to Modify
-- `src/components/dashboards/PMDashboard.tsx`
-  - Lines ~184-186: Add `project_manager_id` to userIds set in `myTasks` query
-  - Lines ~200-202: Add `project_manager_profile` mapping in `myTasks` query
-  - Lines ~224-226: Add `project_manager_id` to userIds set in `allTasks` query
-  - Lines ~240-242: Add `project_manager_profile` mapping in `allTasks` query
-  - Lines ~1742-1758: Update Order Attribution section in View Details dialog
+No database changes or new queries are needed -- all data comes from the existing `tasks` query which already fetches all tasks for the designer's teams.
