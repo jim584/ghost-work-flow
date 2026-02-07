@@ -315,6 +315,8 @@ export function NotificationBell({ userId }: { userId: string }) {
         return '⚠️';
       case 'file_uploaded':
         return '📤';
+      case 'order_cancelled':
+        return '❌';
       default:
         return '📢';
     }
