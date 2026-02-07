@@ -7,14 +7,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Image, Palette, Ban } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Image, Palette, Ban, Calendar, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
-import { differenceInHours, format } from "date-fns";
+import { differenceInHours, format, startOfMonth, endOfMonth, subMonths, isWithinInterval } from "date-fns";
 import { useDesignerNotifications } from "@/hooks/useDesignerNotifications";
 import { NotificationBell } from "@/components/NotificationBell";
 
@@ -49,6 +51,7 @@ const DesignerDashboard = () => {
   const [taskTypeFilter, setTaskTypeFilter] = useState<string | null>(null);
   const [userTeams, setUserTeams] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [prevMonthOpen, setPrevMonthOpen] = useState(false);
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -515,6 +518,92 @@ const DesignerDashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Monthly Performance Section */}
+        {(() => {
+          const now = new Date();
+          const curStart = startOfMonth(now);
+          const curEnd = endOfMonth(now);
+          const prevStart = startOfMonth(subMonths(now, 1));
+          const prevEnd = endOfMonth(subMonths(now, 1));
+
+          const currentMonthCompleted = tasks?.filter(t =>
+            (t.status === "completed" || t.status === "approved") &&
+            t.updated_at &&
+            isWithinInterval(new Date(t.updated_at), { start: curStart, end: curEnd })
+          ) || [];
+
+          const previousMonthCompleted = tasks?.filter(t =>
+            (t.status === "completed" || t.status === "approved") &&
+            t.updated_at &&
+            isWithinInterval(new Date(t.updated_at), { start: prevStart, end: prevEnd })
+          ) || [];
+
+          const OrdersTable = ({ orders }: { orders: typeof currentMonthCompleted }) => (
+            orders.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No completed orders.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Task #</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Business</TableHead>
+                    <TableHead>Completed</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.map(order => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-mono">#{order.task_number}</TableCell>
+                      <TableCell>{order.title}</TableCell>
+                      <TableCell>{order.business_name || "—"}</TableCell>
+                      <TableCell>{order.updated_at ? format(new Date(order.updated_at), "MMM d, yyyy") : "—"}</TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )
+          );
+
+          return (
+            <Card className="mb-8">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <CardTitle>Monthly Performance</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Current month summary */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-lg">{format(now, "MMMM yyyy")}</h3>
+                    <Badge variant="secondary" className="text-base px-3 py-1">
+                      {currentMonthCompleted.length} completed
+                    </Badge>
+                  </div>
+                  <OrdersTable orders={currentMonthCompleted} />
+                </div>
+
+                {/* Previous month collapsible */}
+                <Collapsible open={prevMonthOpen} onOpenChange={setPrevMonthOpen}>
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full">
+                    <ChevronRight className={`h-4 w-4 transition-transform ${prevMonthOpen ? "rotate-90" : ""}`} />
+                    {format(subMonths(now, 1), "MMMM yyyy")} — {previousMonthCompleted.length} completed
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3">
+                    <OrdersTable orders={previousMonthCompleted} />
+                  </CollapsibleContent>
+                </Collapsible>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         <Card>
           <CardHeader>
