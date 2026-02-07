@@ -1386,6 +1386,10 @@ const PMDashboard = () => {
                                     statusIcon = "●";
                                     statusColor = "text-primary";
                                     statusText = "Completed";
+                                  } else if (t.status === 'cancelled') {
+                                    statusIcon = "✕";
+                                    statusColor = "text-destructive";
+                                    statusText = "Cancelled";
                                   }
                                   
                                   const canCancel = (t.status === 'pending' || t.status === 'in_progress') && t.status !== 'completed' && t.status !== 'approved' && t.status !== 'cancelled';
