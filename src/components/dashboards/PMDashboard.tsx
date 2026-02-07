@@ -542,6 +542,7 @@ const PMDashboard = () => {
             status: "cancelled" as any,
             cancellation_reason: reason,
             cancelled_at: new Date().toISOString(),
+            is_deleted: true,
           } as any)
           .eq("id", t.id);
         if (error) throw error;
