@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Image, Palette } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Image, Palette, Ban } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -310,6 +310,8 @@ const DesignerDashboard = () => {
         return "bg-primary text-primary-foreground";
       case "approved":
         return "bg-success text-success-foreground";
+      case "cancelled":
+        return "bg-destructive text-destructive-foreground";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -516,7 +518,7 @@ const DesignerDashboard = () => {
                 return (
                   <div 
                     key={task.id} 
-                    className={`border rounded-lg ${hasRevision ? 'border-destructive border-2 bg-destructive/5' : ''} ${isDelayed ? 'border-destructive border-2 bg-destructive/10' : ''}`}
+                    className={`border rounded-lg ${task.status === 'cancelled' ? 'border-gray-400 bg-muted/30 opacity-75' : ''} ${hasRevision ? 'border-destructive border-2 bg-destructive/5' : ''} ${isDelayed ? 'border-destructive border-2 bg-destructive/10' : ''}`}
                   >
                     <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                       <div className="space-y-1 flex-1">
@@ -537,6 +539,12 @@ const DesignerDashboard = () => {
                             </Badge>
                           )}
                           <h3 className="font-semibold">{task.title}</h3>
+                          {task.status === 'cancelled' && (
+                            <Badge variant="destructive" className="gap-1">
+                              <Ban className="h-3 w-3" />
+                              Cancelled
+                            </Badge>
+                          )}
                           {isDelayed && (
                             <Badge variant="destructive" className="gap-1 animate-pulse">
                               <AlertTriangle className="h-3 w-3" />
@@ -551,6 +559,12 @@ const DesignerDashboard = () => {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
+                        {task.status === 'cancelled' && (task as any).cancellation_reason && (
+                          <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded text-sm">
+                            <span className="font-medium text-destructive">Cancellation Reason: </span>
+                            <span className="text-foreground">{(task as any).cancellation_reason}</span>
+                          </div>
+                        )}
                         <div className="text-sm text-muted-foreground">
                           Created: <span className="font-medium">{format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
                         </div>
@@ -1082,6 +1096,27 @@ const DesignerDashboard = () => {
                   <h3 className="font-semibold text-lg border-b pb-2">Additional Notes & Instructions</h3>
                   <div className="p-3 bg-muted/30 rounded">
                     <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.notes_extra_instructions}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Cancellation Details */}
+              {viewDetailsTask?.status === "cancelled" && (
+                <div className="space-y-3 bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                  <h3 className="font-semibold text-lg text-destructive">Cancellation Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Cancelled At</Label>
+                      <p className="font-medium">{(viewDetailsTask as any)?.cancelled_at ? new Date((viewDetailsTask as any).cancelled_at).toLocaleString() : "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Status</Label>
+                      <Badge className="bg-destructive text-destructive-foreground">Cancelled</Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Reason</Label>
+                    <p className="font-medium whitespace-pre-wrap">{(viewDetailsTask as any)?.cancellation_reason || "No reason provided"}</p>
                   </div>
                 </div>
               )}

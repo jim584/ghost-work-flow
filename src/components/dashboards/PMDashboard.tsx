@@ -601,21 +601,11 @@ const PMDashboard = () => {
 
   const cancelOrder = useMutation({
     mutationFn: async ({ taskId, reason, orderGroupId }: { taskId: string; reason: string; orderGroupId?: string }) => {
-      if (orderGroupId) {
-        // Cancel all tasks in the order group
-        const tasksToCancel = myTasks?.filter(t => t.order_group_id === orderGroupId) || [];
-        for (const t of tasksToCancel) {
-          const { error } = await supabase
-            .from("tasks")
-            .update({ 
-              status: "cancelled" as any, 
-              cancellation_reason: reason,
-              cancelled_at: new Date().toISOString(),
-            } as any)
-            .eq("id", t.id);
-          if (error) throw error;
-        }
-      } else {
+      const tasksToCancel = orderGroupId 
+        ? (myTasks?.filter(t => t.order_group_id === orderGroupId) || [])
+        : (myTasks?.filter(t => t.id === taskId) || []);
+
+      for (const t of tasksToCancel) {
         const { error } = await supabase
           .from("tasks")
           .update({ 
@@ -623,8 +613,26 @@ const PMDashboard = () => {
             cancellation_reason: reason,
             cancelled_at: new Date().toISOString(),
           } as any)
-          .eq("id", taskId);
+          .eq("id", t.id);
         if (error) throw error;
+
+        // Notify designers in the task's team
+        const { data: teamMembers } = await supabase
+          .from("team_members")
+          .select("user_id")
+          .eq("team_id", t.team_id);
+
+        if (teamMembers) {
+          for (const member of teamMembers) {
+            await supabase.from("notifications").insert({
+              user_id: member.user_id,
+              type: "order_cancelled",
+              title: "Order Cancelled",
+              message: `Order #${t.task_number} "${t.title}" has been cancelled. Reason: ${reason}`,
+              task_id: t.id,
+            });
+          }
+        }
       }
     },
     onSuccess: () => {
