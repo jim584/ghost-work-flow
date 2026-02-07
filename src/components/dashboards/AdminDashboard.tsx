@@ -1387,7 +1387,7 @@ const AdminDashboard = () => {
                       <div className="flex items-center gap-2">
                         {getCategoryBadge()}
                         <Badge className={getStatusColor(task.status)}>
-                          {task.status.replace("_", " ")}
+                          {task.status === 'cancelled' && (task as any).is_deleted ? 'deleted' : task.status.replace("_", " ")}
                         </Badge>
                         {task.status === "pending" && (task as any).accepted_by_pm && (
                           <Badge className="bg-green-100 text-green-700 border-green-300">
