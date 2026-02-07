@@ -1489,7 +1489,7 @@ const PMDashboard = () => {
                             </Button>
                           </>
                         )}
-                        {task.status === "pending" && ((task as any).accepted_by_pm || task.created_by === user?.id) && (
+                        {task.status === "pending" && ((task as any).accepted_by_pm || (task.created_by === user?.id && task.project_manager_id === user?.id)) && (
                           <Badge className="bg-green-100 text-green-700 border-green-300">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Accepted
