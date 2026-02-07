@@ -1246,7 +1246,7 @@ const PMDashboard = () => {
                     return <Badge className="bg-yellow-500 text-white">Awaiting Team Delivery</Badge>;
                   }
                   if (category === 'cancelled') {
-                    return <Badge className="bg-gray-500 text-white">Cancelled</Badge>;
+                    return <Badge className="bg-gray-500 text-white">{(task as any).is_deleted ? 'Deleted' : 'Cancelled'}</Badge>;
                   }
                   return null;
                 };
@@ -1544,7 +1544,7 @@ const PMDashboard = () => {
                             Cancel Order
                           </Button>
                         )}
-                        {/* Show cancellation reason for cancelled orders */}
+                        {/* Show cancellation/deletion reason for cancelled orders */}
                         {task.status === "cancelled" && (task as any).cancellation_reason && (
                           <p className="text-xs text-muted-foreground italic">
                             Reason: {(task as any).cancellation_reason}
@@ -1876,18 +1876,18 @@ const PMDashboard = () => {
                 </div>
               </div>
 
-              {/* Cancellation Details - Only for Cancelled Orders */}
+              {/* Cancellation/Deletion Details - Only for Cancelled Orders */}
               {viewDetailsTask?.status === "cancelled" && (
                 <div className="space-y-3 bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-                  <h3 className="font-semibold text-lg text-destructive">Cancellation Details</h3>
+                  <h3 className="font-semibold text-lg text-destructive">{(viewDetailsTask as any)?.is_deleted ? 'Deletion' : 'Cancellation'} Details</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-muted-foreground">Cancelled At</Label>
+                      <Label className="text-muted-foreground">{(viewDetailsTask as any)?.is_deleted ? 'Deleted' : 'Cancelled'} At</Label>
                       <p className="font-medium">{(viewDetailsTask as any)?.cancelled_at ? new Date((viewDetailsTask as any).cancelled_at).toLocaleString() : "N/A"}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Status</Label>
-                      <Badge className="bg-destructive text-destructive-foreground">Cancelled</Badge>
+                      <Badge className="bg-destructive text-destructive-foreground">{(viewDetailsTask as any)?.is_deleted ? 'Deleted' : 'Cancelled'}</Badge>
                     </div>
                   </div>
                   <div>
