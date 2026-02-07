@@ -1324,8 +1324,8 @@ const PMDashboard = () => {
                               </Badge>
                             );
                           })()}
-                          {/* Delete button - only show if still pending and no deliveries */}
-                          {task.status === "pending" && !getMultiTeamDeliveryProgress(group, submissions || [])?.hasPartialDelivery && (
+                          {/* Delete button - only show if ALL tasks in group are still pending and no deliveries */}
+                          {group.allTasks.every((t: any) => t.status === "pending") && !getMultiTeamDeliveryProgress(group, submissions || [])?.hasPartialDelivery && (
                             <Button
                               size="sm"
                               variant="ghost"
