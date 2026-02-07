@@ -52,6 +52,8 @@ const DesignerDashboard = () => {
   const [userTeams, setUserTeams] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [prevMonthOpen, setPrevMonthOpen] = useState(false);
+  const [showAllCurrent, setShowAllCurrent] = useState(false);
+  const [showAllPrevious, setShowAllPrevious] = useState(false);
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -539,36 +541,47 @@ const DesignerDashboard = () => {
             isWithinInterval(new Date(t.updated_at), { start: prevStart, end: prevEnd })
           ) || [];
 
-          const OrdersTable = ({ orders }: { orders: typeof currentMonthCompleted }) => (
-            orders.length === 0 ? (
+          const PREVIEW_LIMIT = 5;
+
+          const OrdersTable = ({ orders, showAll, onToggle }: { orders: typeof currentMonthCompleted; showAll: boolean; onToggle: () => void }) => {
+            if (orders.length === 0) return (
               <p className="text-sm text-muted-foreground py-4 text-center">No completed orders.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Task #</TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Business</TableHead>
-                    <TableHead>Completed</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map(order => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-mono">#{order.task_number}</TableCell>
-                      <TableCell>{order.title}</TableCell>
-                      <TableCell>{order.business_name || "—"}</TableCell>
-                      <TableCell>{order.updated_at ? format(new Date(order.updated_at), "MMM d, yyyy") : "—"}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
-                      </TableCell>
+            );
+            const visible = showAll ? orders : orders.slice(0, PREVIEW_LIMIT);
+            return (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Task #</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Business</TableHead>
+                      <TableHead>Completed</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )
-          );
+                  </TableHeader>
+                  <TableBody>
+                    {visible.map(order => (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-mono">#{order.task_number}</TableCell>
+                        <TableCell>{order.title}</TableCell>
+                        <TableCell>{order.business_name || "—"}</TableCell>
+                        <TableCell>{order.updated_at ? format(new Date(order.updated_at), "MMM d, yyyy") : "—"}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {orders.length > PREVIEW_LIMIT && (
+                  <Button variant="ghost" size="sm" onClick={onToggle} className="mt-2 w-full">
+                    {showAll ? `Show less` : `Show all ${orders.length} orders`}
+                  </Button>
+                )}
+              </>
+            );
+          };
 
           return (
             <Card className="mb-8">
@@ -587,7 +600,7 @@ const DesignerDashboard = () => {
                       {currentMonthCompleted.length} completed
                     </Badge>
                   </div>
-                  <OrdersTable orders={currentMonthCompleted} />
+                  <OrdersTable orders={currentMonthCompleted} showAll={showAllCurrent} onToggle={() => setShowAllCurrent(v => !v)} />
                 </div>
 
                 {/* Previous month collapsible */}
@@ -597,7 +610,7 @@ const DesignerDashboard = () => {
                     {format(subMonths(now, 1), "MMMM yyyy")} — {previousMonthCompleted.length} completed
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-3">
-                    <OrdersTable orders={previousMonthCompleted} />
+                    <OrdersTable orders={previousMonthCompleted} showAll={showAllPrevious} onToggle={() => setShowAllPrevious(v => !v)} />
                   </CollapsibleContent>
                 </Collapsible>
               </CardContent>
