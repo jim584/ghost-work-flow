@@ -197,7 +197,8 @@ const DesignerDashboard = () => {
             file_path: filePath,
             file_name: fileName,
             designer_comment: designerComment.trim() || null,
-          });
+            ...(revisionSubmissionId ? { parent_submission_id: revisionSubmissionId } : {}),
+          } as any);
 
         if (submissionError) throw submissionError;
         uploadedCount++;
