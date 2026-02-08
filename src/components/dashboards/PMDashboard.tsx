@@ -1666,31 +1666,6 @@ const PMDashboard = () => {
                                                   Designer: {submission.designer_comment}
                                                 </p>
                                               )}
-                                              {submission.revision_notes && (
-                                                <p className="text-xs text-orange-600 mt-1">
-                                                  Revision requested: {submission.revision_notes}
-                                                </p>
-                                              )}
-                                              {submission.revision_reference_file_path && (
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                  {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
-                                                    const fileNames = submission.revision_reference_file_name?.split('|||') || [];
-                                                    const fileName = fileNames[idx] || `Reference ${idx + 1}`;
-                                                    return (
-                                                      <Button
-                                                        key={idx}
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
-                                                        onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                                      >
-                                                        <Download className="h-2.5 w-2.5 mr-1" />
-                                                        {fileName.trim()}
-                                                      </Button>
-                                                    );
-                                                  })}
-                                                </div>
-                                              )}
                                               <p className="text-xs text-muted-foreground">
                                                 Submitted: {format(new Date(submission.submitted_at!), 'MMM d, yyyy h:mm a')}
                                               </p>
@@ -1730,6 +1705,37 @@ const PMDashboard = () => {
                                               )}
                                             </div>
                                           </div>
+                                          {/* PM Review block */}
+                                          {(submission.revision_notes || submission.revision_reference_file_path) && (
+                                            <div className="ml-8 mt-1 border-l-2 border-orange-300 pl-3">
+                                              <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded-md border border-orange-200 dark:border-orange-800">
+                                                <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">PM Review</p>
+                                                {submission.revision_notes && (
+                                                  <p className="text-xs text-orange-600 dark:text-orange-300">{submission.revision_notes}</p>
+                                                )}
+                                                {submission.revision_reference_file_path && (
+                                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                                    {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
+                                                      const fileNames = submission.revision_reference_file_name?.split('|||') || [];
+                                                      const fileName = fileNames[idx] || `Reference ${idx + 1}`;
+                                                      return (
+                                                        <Button
+                                                          key={idx}
+                                                          size="sm"
+                                                          variant="outline"
+                                                          className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-100"
+                                                          onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                                        >
+                                                          <Download className="h-2.5 w-2.5 mr-1" />
+                                                          {fileName.trim()}
+                                                        </Button>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
                                           {/* Child revision files nested under parent */}
                                           {childRevisions.length > 0 && (
                                             <div className="ml-8 mt-1 space-y-1 border-l-2 border-primary/20 pl-3">
@@ -1812,31 +1818,6 @@ const PMDashboard = () => {
                                       Designer: {submission.designer_comment}
                                     </p>
                                   )}
-                                  {submission.revision_notes && (
-                                    <p className="text-xs text-orange-600 mt-1">
-                                      Revision requested: {submission.revision_notes}
-                                    </p>
-                                  )}
-                                  {submission.revision_reference_file_path && (
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                      {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
-                                        const fileNames = submission.revision_reference_file_name?.split('|||') || [];
-                                        const fileName = fileNames[idx] || `Reference ${idx + 1}`;
-                                        return (
-                                          <Button
-                                            key={idx}
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
-                                            onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                          >
-                                            <Download className="h-2.5 w-2.5 mr-1" />
-                                            {fileName.trim()}
-                                          </Button>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
                                   <p className="text-xs text-muted-foreground">
                                     Submitted: {format(new Date(submission.submitted_at!), 'MMM d, yyyy h:mm a')}
                                   </p>
@@ -1876,6 +1857,37 @@ const PMDashboard = () => {
                                   )}
                                 </div>
                               </div>
+                              {/* PM Review block */}
+                              {(submission.revision_notes || submission.revision_reference_file_path) && (
+                                <div className="ml-8 mt-1 border-l-2 border-orange-300 pl-3">
+                                  <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded-md border border-orange-200 dark:border-orange-800">
+                                    <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">PM Review</p>
+                                    {submission.revision_notes && (
+                                      <p className="text-xs text-orange-600 dark:text-orange-300">{submission.revision_notes}</p>
+                                    )}
+                                    {submission.revision_reference_file_path && (
+                                      <div className="flex flex-wrap gap-1 mt-1.5">
+                                        {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
+                                          const fileNames = submission.revision_reference_file_name?.split('|||') || [];
+                                          const fileName = fileNames[idx] || `Reference ${idx + 1}`;
+                                          return (
+                                            <Button
+                                              key={idx}
+                                              size="sm"
+                                              variant="outline"
+                                              className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-100"
+                                              onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                            >
+                                              <Download className="h-2.5 w-2.5 mr-1" />
+                                              {fileName.trim()}
+                                            </Button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                               {/* Child revision files nested under parent */}
                               {childRevisions.length > 0 && (
                                 <div className="ml-8 mt-1 space-y-1 border-l-2 border-primary/20 pl-3">
