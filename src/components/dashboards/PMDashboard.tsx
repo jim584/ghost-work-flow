@@ -1661,6 +1661,11 @@ const PMDashboard = () => {
                                                   Designer: {submission.designer_comment}
                                                 </p>
                                               )}
+                                              {submission.revision_notes && submission.revision_status === 'needs_revision' && (
+                                                <p className="text-xs text-orange-600 mt-1 truncate">
+                                                  Revision requested: {submission.revision_notes}
+                                                </p>
+                                              )}
                                               <p className="text-xs text-muted-foreground">
                                                 Submitted: {format(new Date(submission.submitted_at!), 'MMM d, yyyy h:mm a')}
                                               </p>
@@ -1734,6 +1739,11 @@ const PMDashboard = () => {
                                   {submission.designer_comment && (
                                     <p className="text-xs text-muted-foreground mt-1 truncate">
                                       Designer: {submission.designer_comment}
+                                    </p>
+                                  )}
+                                  {submission.revision_notes && submission.revision_status === 'needs_revision' && (
+                                    <p className="text-xs text-orange-600 mt-1 truncate">
+                                      Revision requested: {submission.revision_notes}
                                     </p>
                                   )}
                                   <p className="text-xs text-muted-foreground">
