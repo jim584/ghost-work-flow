@@ -1661,12 +1661,12 @@ const PMDashboard = () => {
                                                   Designer: {submission.designer_comment}
                                                 </p>
                                               )}
-                                              {submission.revision_notes && submission.revision_status === 'needs_revision' && (
+                                              {submission.revision_notes && (
                                                 <p className="text-xs text-orange-600 mt-1">
                                                   Revision requested: {submission.revision_notes}
                                                 </p>
                                               )}
-                                              {submission.revision_status === 'needs_revision' && submission.revision_reference_file_path && (
+                                              {submission.revision_reference_file_path && (
                                                 <div className="flex flex-wrap gap-1 mt-1">
                                                   {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
                                                     const fileNames = submission.revision_reference_file_name?.split('|||') || [];
@@ -1761,12 +1761,12 @@ const PMDashboard = () => {
                                       Designer: {submission.designer_comment}
                                     </p>
                                   )}
-                                  {submission.revision_notes && submission.revision_status === 'needs_revision' && (
+                                  {submission.revision_notes && (
                                     <p className="text-xs text-orange-600 mt-1">
                                       Revision requested: {submission.revision_notes}
                                     </p>
                                   )}
-                                  {submission.revision_status === 'needs_revision' && submission.revision_reference_file_path && (
+                                  {submission.revision_reference_file_path && (
                                     <div className="flex flex-wrap gap-1 mt-1">
                                       {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
                                         const fileNames = submission.revision_reference_file_name?.split('|||') || [];
