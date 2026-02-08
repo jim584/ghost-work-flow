@@ -1748,7 +1748,8 @@ const PMDashboard = () => {
                                             <div className="ml-8 mt-1 space-y-1 border-l-2 border-primary/20 pl-3">
                                               <p className="text-xs font-medium text-muted-foreground">Revision(s) delivered:</p>
                                               {childRevisions.map((rev: any) => (
-                                                <div key={rev.id} className="flex items-center gap-3 justify-between bg-green-50 dark:bg-green-950/20 p-2 rounded-md border border-green-200 dark:border-green-800">
+                                                <div key={rev.id} className="space-y-0">
+                                                <div className="flex items-center gap-3 justify-between bg-green-50 dark:bg-green-950/20 p-2 rounded-md border border-green-200 dark:border-green-800">
                                                   <FilePreview filePath={rev.file_path} fileName={rev.file_name} />
                                                   <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-medium truncate">{rev.file_name}</p>
@@ -1766,11 +1767,13 @@ const PMDashboard = () => {
                                                     <Button size="sm" variant="outline" onClick={() => handleDownload(rev.file_path, rev.file_name)}>
                                                       <Download className="h-3 w-3" />
                                                     </Button>
-                                                    {rev.revision_status === "pending_review" && (
+                                                    {(rev.revision_status === "pending_review" || rev.revision_status === "approved") && (
                                                       <>
-                                                        <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveSubmission.mutate(rev.id)}>
-                                                          Approve
-                                                        </Button>
+                                                        {rev.revision_status === "pending_review" && (
+                                                          <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveSubmission.mutate(rev.id)}>
+                                                            Approve
+                                                          </Button>
+                                                        )}
                                                         <Button size="sm" variant="outline" className="border-orange-300 text-orange-600 hover:bg-orange-50"
                                                           onClick={() => setRevisionDialog({ open: true, submissionId: rev.id, fileName: rev.file_name })}>
                                                           Request Revision
@@ -1778,6 +1781,40 @@ const PMDashboard = () => {
                                                       </>
                                                     )}
                                                   </div>
+                                                </div>
+                                                {/* PM Review block for revision delivery */}
+                                                {(rev.revision_notes || rev.revision_reference_file_path) && (
+                                                  <div className="mt-1 border-l-2 border-orange-300 pl-3">
+                                                    <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded-md border border-orange-200 dark:border-orange-800">
+                                                      <div className="flex items-center justify-between mb-1">
+                                                        <p className="text-xs font-medium text-orange-700 dark:text-orange-400">PM Review</p>
+                                                        {rev.reviewed_at && (
+                                                          <p className="text-xs text-orange-500 dark:text-orange-400/70">{format(new Date(rev.reviewed_at), 'MMM d, yyyy h:mm a')}</p>
+                                                        )}
+                                                      </div>
+                                                      {rev.revision_notes && (
+                                                        <p className="text-xs text-orange-600 dark:text-orange-300">{rev.revision_notes}</p>
+                                                      )}
+                                                      {rev.revision_reference_file_path && (
+                                                        <div className="space-y-1.5 mt-1.5">
+                                                          {rev.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
+                                                            const fileNames = rev.revision_reference_file_name?.split('|||') || [];
+                                                            const fileName = fileNames[idx] || `Reference ${idx + 1}`;
+                                                            return (
+                                                              <div key={idx} className="flex items-center gap-2 bg-orange-100/50 dark:bg-orange-900/20 p-1.5 rounded">
+                                                                <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} />
+                                                                <p className="text-xs flex-1 min-w-0 truncate">{fileName.trim()}</p>
+                                                                <Button size="sm" variant="outline" className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-100" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
+                                                                  <Download className="h-2.5 w-2.5" />
+                                                                </Button>
+                                                              </div>
+                                                            );
+                                                          })}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                )}
                                                 </div>
                                               ))}
                                             </div>
@@ -1907,7 +1944,8 @@ const PMDashboard = () => {
                                 <div className="ml-8 mt-1 space-y-1 border-l-2 border-primary/20 pl-3">
                                   <p className="text-xs font-medium text-muted-foreground">Revision(s) delivered:</p>
                                   {childRevisions.map((rev: any) => (
-                                    <div key={rev.id} className="flex items-center gap-3 justify-between bg-green-50 dark:bg-green-950/20 p-2 rounded-md border border-green-200 dark:border-green-800">
+                                    <div key={rev.id} className="space-y-0">
+                                    <div className="flex items-center gap-3 justify-between bg-green-50 dark:bg-green-950/20 p-2 rounded-md border border-green-200 dark:border-green-800">
                                       <FilePreview filePath={rev.file_path} fileName={rev.file_name} />
                                       <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium truncate">{rev.file_name}</p>
@@ -1925,11 +1963,13 @@ const PMDashboard = () => {
                                         <Button size="sm" variant="outline" onClick={() => handleDownload(rev.file_path, rev.file_name)}>
                                           <Download className="h-3 w-3" />
                                         </Button>
-                                        {rev.revision_status === "pending_review" && (
+                                        {(rev.revision_status === "pending_review" || rev.revision_status === "approved") && (
                                           <>
-                                            <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveSubmission.mutate(rev.id)}>
-                                              Approve
-                                            </Button>
+                                            {rev.revision_status === "pending_review" && (
+                                              <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveSubmission.mutate(rev.id)}>
+                                                Approve
+                                              </Button>
+                                            )}
                                             <Button size="sm" variant="outline" className="border-orange-300 text-orange-600 hover:bg-orange-50"
                                               onClick={() => setRevisionDialog({ open: true, submissionId: rev.id, fileName: rev.file_name })}>
                                               Request Revision
@@ -1937,6 +1977,40 @@ const PMDashboard = () => {
                                           </>
                                         )}
                                       </div>
+                                    </div>
+                                    {/* PM Review block for revision delivery */}
+                                    {(rev.revision_notes || rev.revision_reference_file_path) && (
+                                      <div className="mt-1 border-l-2 border-orange-300 pl-3">
+                                        <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded-md border border-orange-200 dark:border-orange-800">
+                                          <div className="flex items-center justify-between mb-1">
+                                            <p className="text-xs font-medium text-orange-700 dark:text-orange-400">PM Review</p>
+                                            {rev.reviewed_at && (
+                                              <p className="text-xs text-orange-500 dark:text-orange-400/70">{format(new Date(rev.reviewed_at), 'MMM d, yyyy h:mm a')}</p>
+                                            )}
+                                          </div>
+                                          {rev.revision_notes && (
+                                            <p className="text-xs text-orange-600 dark:text-orange-300">{rev.revision_notes}</p>
+                                          )}
+                                          {rev.revision_reference_file_path && (
+                                            <div className="space-y-1.5 mt-1.5">
+                                              {rev.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
+                                                const fileNames = rev.revision_reference_file_name?.split('|||') || [];
+                                                const fileName = fileNames[idx] || `Reference ${idx + 1}`;
+                                                return (
+                                                  <div key={idx} className="flex items-center gap-2 bg-orange-100/50 dark:bg-orange-900/20 p-1.5 rounded">
+                                                    <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} />
+                                                    <p className="text-xs flex-1 min-w-0 truncate">{fileName.trim()}</p>
+                                                    <Button size="sm" variant="outline" className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-100" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
+                                                      <Download className="h-2.5 w-2.5" />
+                                                    </Button>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
                                     </div>
                                   ))}
                                 </div>
