@@ -820,34 +820,30 @@ const DesignerDashboard = () => {
                     {isExpanded && taskSubmissions.length > 0 && (
                       <div className="border-t bg-muted/20 p-4">
                         <h4 className="text-sm font-semibold mb-3">Your Uploaded Files:</h4>
-                        <div className="space-y-2">
-                          {/* Group: show parent submissions first, then their revisions nested below */}
+                        <div className="space-y-3">
                           {taskSubmissions
-                            .filter(s => !s.parent_submission_id) // Only top-level (original) submissions
+                            .filter(s => !s.parent_submission_id)
                             .map((submission) => {
-                              // Find revisions for this parent
-                              const revisions = taskSubmissions.filter(s => s.parent_submission_id === submission.id);
-                              
-                              const renderSubmissionRow = (sub: typeof submission, isRevision: boolean) => (
-                                <div key={sub.id} className={`flex items-center gap-3 justify-between p-3 bg-background rounded-md ${isRevision ? 'ml-6 border-l-2 border-orange-300 dark:border-orange-600' : ''}`}>
-                                  <FilePreview 
-                                    filePath={sub.file_path}
-                                    fileName={sub.file_name}
-                                  />
+                              const revisions = taskSubmissions
+                                .filter(s => s.parent_submission_id === submission.id)
+                                .sort((a, b) => new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime());
+
+                              const renderFileBlock = (sub: typeof submission, label?: string) => (
+                                <div className="flex items-center gap-3 justify-between">
+                                  <FilePreview filePath={sub.file_path} fileName={sub.file_name} />
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
                                       <p className="text-sm font-medium truncate">{sub.file_name}</p>
-                                      {isRevision && (
+                                      {label && (
                                         <Badge variant="outline" className="text-xs border-orange-400 text-orange-600 dark:text-orange-400">
                                           <RefreshCw className="h-2.5 w-2.5 mr-1" />
-                                          Revision
+                                          {label}
                                         </Badge>
                                       )}
                                       <Badge
                                         variant={
                                           sub.revision_status === "approved" ? "default" :
-                                          sub.revision_status === "needs_revision" ? "destructive" : 
-                                          "secondary"
+                                          sub.revision_status === "needs_revision" ? "destructive" : "secondary"
                                         }
                                         className="text-xs"
                                       >
@@ -855,59 +851,12 @@ const DesignerDashboard = () => {
                                       </Badge>
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                      {isRevision ? 'Revision delivered' : 'Delivered'}: {sub.submitted_at ? format(new Date(sub.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
+                                      {label ? 'Revision delivered' : 'Delivered'}: {sub.submitted_at ? format(new Date(sub.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
                                     </p>
                                     {sub.designer_comment && (
                                       <div className="mt-2 p-2 bg-primary/10 rounded text-xs">
                                         <span className="font-medium text-primary">Your comment:</span>
                                         <p className="text-muted-foreground mt-1">{sub.designer_comment}</p>
-                                      </div>
-                                    )}
-                                    {sub.revision_notes && (
-                                      <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
-                                        <div className="flex items-center justify-between mb-1">
-                                          <span className="font-medium text-destructive">Revision requested:</span>
-                                          {sub.reviewed_at && (
-                                            <span className="text-xs text-muted-foreground">
-                                              {format(new Date(sub.reviewed_at), 'MMM d, yyyy h:mm a')}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <p className="text-muted-foreground mt-1">{sub.revision_notes}</p>
-                                        {sub.revision_reference_file_path && (
-                                          <div className="mt-3 space-y-2">
-                                            <span className="text-xs font-medium text-muted-foreground">Reference files:</span>
-                                            <div className="flex flex-wrap gap-3">
-                                              {sub.revision_reference_file_path.split("|||").map((filePath, fileIndex) => {
-                                                const fileNames = sub.revision_reference_file_name?.split("|||") || [];
-                                                const fileName = fileNames[fileIndex] || `Reference ${fileIndex + 1}`;
-                                                return (
-                                                  <div key={fileIndex} className="flex flex-col items-center gap-1">
-                                                    <div 
-                                                      className="cursor-pointer hover:opacity-80 transition-opacity"
-                                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                                    >
-                                                      <FilePreview 
-                                                        filePath={filePath.trim()} 
-                                                        fileName={fileName.trim()} 
-                                                        className="w-16 h-16"
-                                                      />
-                                                    </div>
-                                                    <Button
-                                                      size="sm"
-                                                      variant="ghost"
-                                                      className="h-6 px-2 text-xs"
-                                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                                    >
-                                                      <Download className="h-3 w-3 mr-1" />
-                                                      Download
-                                                    </Button>
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          </div>
-                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -925,11 +874,7 @@ const DesignerDashboard = () => {
                                         Upload Revision
                                       </Button>
                                     )}
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleDownload(sub.file_path, sub.file_name)}
-                                    >
+                                    <Button size="sm" variant="outline" onClick={() => handleDownload(sub.file_path, sub.file_name)}>
                                       <Download className="h-4 w-4" />
                                     </Button>
                                   </div>
@@ -937,17 +882,69 @@ const DesignerDashboard = () => {
                               );
 
                               return (
-                                <div key={submission.id}>
-                                  {renderSubmissionRow(submission, false)}
-                                  {/* Render revisions nested directly below the parent */}
-                                  {revisions.map(rev => renderSubmissionRow(rev, true))}
+                                <div key={submission.id} className="p-3 bg-background rounded-md border space-y-0">
+                                  {/* Original file */}
+                                  {renderFileBlock(submission)}
+
+                                  {/* PM revision request block (if any) */}
+                                  {submission.revision_notes && (
+                                    <div className="mt-3 p-2 bg-destructive/10 rounded text-xs">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="font-medium text-destructive">Revision requested:</span>
+                                        {submission.reviewed_at && (
+                                          <span className="text-xs text-muted-foreground">
+                                            {format(new Date(submission.reviewed_at), 'MMM d, yyyy h:mm a')}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
+                                      {submission.revision_reference_file_path && (
+                                        <div className="mt-3 space-y-2">
+                                          <span className="text-xs font-medium text-muted-foreground">Reference files:</span>
+                                          <div className="flex flex-wrap gap-3">
+                                            {submission.revision_reference_file_path.split("|||").map((filePath, fileIndex) => {
+                                              const fileNames = submission.revision_reference_file_name?.split("|||") || [];
+                                              const fileName = fileNames[fileIndex] || `Reference ${fileIndex + 1}`;
+                                              return (
+                                                <div key={fileIndex} className="flex flex-col items-center gap-1">
+                                                  <div className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
+                                                    <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} className="w-16 h-16" />
+                                                  </div>
+                                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
+                                                    <Download className="h-3 w-3 mr-1" /> Download
+                                                  </Button>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Revision deliveries inside the same card */}
+                                  {revisions.map((rev, idx) => (
+                                    <div key={rev.id} className="mt-3 pt-3 border-t border-dashed border-orange-300 dark:border-orange-600">
+                                      {renderFileBlock(rev, `Revision ${idx + 1}`)}
+                                      {/* If this revision also has feedback */}
+                                      {rev.revision_notes && (
+                                        <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
+                                          <div className="flex items-center justify-between mb-1">
+                                            <span className="font-medium text-destructive">Revision requested:</span>
+                                            {rev.reviewed_at && (
+                                              <span className="text-xs text-muted-foreground">
+                                                {format(new Date(rev.reviewed_at), 'MMM d, yyyy h:mm a')}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className="text-muted-foreground mt-1">{rev.revision_notes}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
                               );
                             })}
-                          {/* Also show any orphan submissions (parent_submission_id set but parent not in this task's submissions) */}
-                          {taskSubmissions
-                            .filter(s => s.parent_submission_id && !taskSubmissions.some(p => p.id === s.parent_submission_id && !p.parent_submission_id))
-                            .length === 0 ? null : null}
                         </div>
                       </div>
                     )}
