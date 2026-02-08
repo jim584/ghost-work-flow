@@ -21,6 +21,7 @@ export type Database = {
           file_name: string
           file_path: string
           id: string
+          parent_submission_id: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           revision_notes: string | null
@@ -36,6 +37,7 @@ export type Database = {
           file_name: string
           file_path: string
           id?: string
+          parent_submission_id?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           revision_notes?: string | null
@@ -51,6 +53,7 @@ export type Database = {
           file_name?: string
           file_path?: string
           id?: string
+          parent_submission_id?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           revision_notes?: string | null
@@ -66,6 +69,13 @@ export type Database = {
             columns: ["designer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "design_submissions_parent_submission_id_fkey"
+            columns: ["parent_submission_id"]
+            isOneToOne: false
+            referencedRelation: "design_submissions"
             referencedColumns: ["id"]
           },
           {

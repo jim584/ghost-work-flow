@@ -1636,8 +1636,11 @@ const PMDashboard = () => {
                                       </div>
                                     ) : (
                                       <div className="space-y-2">
-                                        {teamSubmissions.map((submission: any) => (
-                                          <div key={submission.id} className="flex items-center gap-3 justify-between bg-muted/30 p-3 rounded-lg border hover:border-primary/30 transition-colors">
+                                        {teamSubmissions.filter((s: any) => !s.parent_submission_id).map((submission: any) => {
+                                          const childRevisions = teamSubmissions.filter((s: any) => s.parent_submission_id === submission.id);
+                                          return (
+                                          <div key={submission.id} className="space-y-0">
+                                          <div className="flex items-center gap-3 justify-between bg-muted/30 p-3 rounded-lg border hover:border-primary/30 transition-colors">
                                             <FilePreview 
                                               filePath={submission.file_path}
                                               fileName={submission.file_name}
@@ -1648,12 +1651,14 @@ const PMDashboard = () => {
                                                 <Badge 
                                                   variant={
                                                     submission.revision_status === "approved" ? "default" :
-                                                    submission.revision_status === "needs_revision" ? "destructive" : "secondary"
+                                                    submission.revision_status === "needs_revision" ? "destructive" : 
+                                                    submission.revision_status === "revised" ? "outline" : "secondary"
                                                   }
                                                   className="text-xs"
                                                 >
                                                   {submission.revision_status === "pending_review" ? "Pending Review" : 
-                                                   submission.revision_status === "needs_revision" ? "Needs Revision" : "Approved"}
+                                                   submission.revision_status === "needs_revision" ? "Needs Revision" : 
+                                                   submission.revision_status === "revised" ? "Revised" : "Approved"}
                                                 </Badge>
                                               </div>
                                               {submission.designer_comment && (
@@ -1725,7 +1730,48 @@ const PMDashboard = () => {
                                               )}
                                             </div>
                                           </div>
-                                        ))}
+                                          {/* Child revision files nested under parent */}
+                                          {childRevisions.length > 0 && (
+                                            <div className="ml-8 mt-1 space-y-1 border-l-2 border-primary/20 pl-3">
+                                              <p className="text-xs font-medium text-muted-foreground">Revision(s) delivered:</p>
+                                              {childRevisions.map((rev: any) => (
+                                                <div key={rev.id} className="flex items-center gap-3 justify-between bg-green-50 dark:bg-green-950/20 p-2 rounded-md border border-green-200 dark:border-green-800">
+                                                  <FilePreview filePath={rev.file_path} fileName={rev.file_name} />
+                                                  <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium truncate">{rev.file_name}</p>
+                                                    {rev.designer_comment && (
+                                                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                                                        Designer: {rev.designer_comment}
+                                                      </p>
+                                                    )}
+                                                    <p className="text-xs text-muted-foreground">
+                                                      {format(new Date(rev.submitted_at!), 'MMM d, yyyy h:mm a')}
+                                                    </p>
+                                                  </div>
+                                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                                    <Badge variant="secondary" className="text-xs">Revision</Badge>
+                                                    <Button size="sm" variant="outline" onClick={() => handleDownload(rev.file_path, rev.file_name)}>
+                                                      <Download className="h-3 w-3" />
+                                                    </Button>
+                                                    {rev.revision_status === "pending_review" && (
+                                                      <>
+                                                        <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveSubmission.mutate(rev.id)}>
+                                                          Approve
+                                                        </Button>
+                                                        <Button size="sm" variant="outline" className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                                                          onClick={() => setRevisionDialog({ open: true, submissionId: rev.id, fileName: rev.file_name })}>
+                                                          Request Revision
+                                                        </Button>
+                                                      </>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                          </div>
+                                          );
+                                        })}
                                       </div>
                                     )}
                                   </AccordionContent>
@@ -1736,8 +1782,11 @@ const PMDashboard = () => {
                         ) : (
                           // Single team: Show flat list as before
                           <div className="space-y-2">
-                            {groupSubmissions.map((submission: any) => (
-                              <div key={submission.id} className="flex items-center gap-3 justify-between bg-background p-3 rounded-lg border hover:border-primary/30 transition-colors">
+                            {groupSubmissions.filter((s: any) => !s.parent_submission_id).map((submission: any) => {
+                              const childRevisions = groupSubmissions.filter((s: any) => s.parent_submission_id === submission.id);
+                              return (
+                              <div key={submission.id} className="space-y-0">
+                              <div className="flex items-center gap-3 justify-between bg-background p-3 rounded-lg border hover:border-primary/30 transition-colors">
                                 <FilePreview 
                                   filePath={submission.file_path}
                                   fileName={submission.file_name}
@@ -1748,12 +1797,14 @@ const PMDashboard = () => {
                                     <Badge 
                                       variant={
                                         submission.revision_status === "approved" ? "default" :
-                                        submission.revision_status === "needs_revision" ? "destructive" : "secondary"
+                                        submission.revision_status === "needs_revision" ? "destructive" : 
+                                        submission.revision_status === "revised" ? "outline" : "secondary"
                                       }
                                       className="text-xs"
                                     >
                                       {submission.revision_status === "pending_review" ? "Pending Review" : 
-                                       submission.revision_status === "needs_revision" ? "Needs Revision" : "Approved"}
+                                       submission.revision_status === "needs_revision" ? "Needs Revision" : 
+                                       submission.revision_status === "revised" ? "Revised" : "Approved"}
                                     </Badge>
                                   </div>
                                   {submission.designer_comment && (
@@ -1825,7 +1876,48 @@ const PMDashboard = () => {
                                   )}
                                 </div>
                               </div>
-                            ))}
+                              {/* Child revision files nested under parent */}
+                              {childRevisions.length > 0 && (
+                                <div className="ml-8 mt-1 space-y-1 border-l-2 border-primary/20 pl-3">
+                                  <p className="text-xs font-medium text-muted-foreground">Revision(s) delivered:</p>
+                                  {childRevisions.map((rev: any) => (
+                                    <div key={rev.id} className="flex items-center gap-3 justify-between bg-green-50 dark:bg-green-950/20 p-2 rounded-md border border-green-200 dark:border-green-800">
+                                      <FilePreview filePath={rev.file_path} fileName={rev.file_name} />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">{rev.file_name}</p>
+                                        {rev.designer_comment && (
+                                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                                            Designer: {rev.designer_comment}
+                                          </p>
+                                        )}
+                                        <p className="text-xs text-muted-foreground">
+                                          {format(new Date(rev.submitted_at!), 'MMM d, yyyy h:mm a')}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        <Badge variant="secondary" className="text-xs">Revision</Badge>
+                                        <Button size="sm" variant="outline" onClick={() => handleDownload(rev.file_path, rev.file_name)}>
+                                          <Download className="h-3 w-3" />
+                                        </Button>
+                                        {rev.revision_status === "pending_review" && (
+                                          <>
+                                            <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveSubmission.mutate(rev.id)}>
+                                              Approve
+                                            </Button>
+                                            <Button size="sm" variant="outline" className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                                              onClick={() => setRevisionDialog({ open: true, submissionId: rev.id, fileName: rev.file_name })}>
+                                              Request Revision
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
