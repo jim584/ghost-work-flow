@@ -1662,9 +1662,29 @@ const PMDashboard = () => {
                                                 </p>
                                               )}
                                               {submission.revision_notes && submission.revision_status === 'needs_revision' && (
-                                                <p className="text-xs text-orange-600 mt-1 truncate">
+                                                <p className="text-xs text-orange-600 mt-1">
                                                   Revision requested: {submission.revision_notes}
                                                 </p>
+                                              )}
+                                              {submission.revision_status === 'needs_revision' && submission.revision_reference_file_path && (
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                  {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
+                                                    const fileNames = submission.revision_reference_file_name?.split('|||') || [];
+                                                    const fileName = fileNames[idx] || `Reference ${idx + 1}`;
+                                                    return (
+                                                      <Button
+                                                        key={idx}
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
+                                                        onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                                      >
+                                                        <Download className="h-2.5 w-2.5 mr-1" />
+                                                        {fileName.trim()}
+                                                      </Button>
+                                                    );
+                                                  })}
+                                                </div>
                                               )}
                                               <p className="text-xs text-muted-foreground">
                                                 Submitted: {format(new Date(submission.submitted_at!), 'MMM d, yyyy h:mm a')}
@@ -1742,9 +1762,29 @@ const PMDashboard = () => {
                                     </p>
                                   )}
                                   {submission.revision_notes && submission.revision_status === 'needs_revision' && (
-                                    <p className="text-xs text-orange-600 mt-1 truncate">
+                                    <p className="text-xs text-orange-600 mt-1">
                                       Revision requested: {submission.revision_notes}
                                     </p>
+                                  )}
+                                  {submission.revision_status === 'needs_revision' && submission.revision_reference_file_path && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
+                                        const fileNames = submission.revision_reference_file_name?.split('|||') || [];
+                                        const fileName = fileNames[idx] || `Reference ${idx + 1}`;
+                                        return (
+                                          <Button
+                                            key={idx}
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
+                                            onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                          >
+                                            <Download className="h-2.5 w-2.5 mr-1" />
+                                            {fileName.trim()}
+                                          </Button>
+                                        );
+                                      })}
+                                    </div>
                                   )}
                                   <p className="text-xs text-muted-foreground">
                                     Submitted: {format(new Date(submission.submitted_at!), 'MMM d, yyyy h:mm a')}
