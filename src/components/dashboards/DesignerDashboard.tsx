@@ -52,6 +52,7 @@ const DesignerDashboard = () => {
   const [taskTypeFilter, setTaskTypeFilter] = useState<string | null>(null);
   const [userTeams, setUserTeams] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [performanceOpen, setPerformanceOpen] = useState(false);
   const [prevMonthOpen, setPrevMonthOpen] = useState(false);
   const [showAllCurrent, setShowAllCurrent] = useState(false);
   const [showAllPrevious, setShowAllPrevious] = useState(false);
@@ -614,37 +615,51 @@ const DesignerDashboard = () => {
           };
 
           return (
-            <Card className="mb-8">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  <CardTitle>Monthly Performance</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Current month summary */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-lg">{format(now, "MMMM yyyy")}</h3>
-                    <Badge variant="secondary" className="text-base px-3 py-1">
-                      {currentMonthCompleted.length} completed
-                    </Badge>
-                  </div>
-                  <OrdersTable orders={currentMonthCompleted} showAll={showAllCurrent} onToggle={() => setShowAllCurrent(v => !v)} />
-                </div>
+            <Collapsible open={performanceOpen} onOpenChange={setPerformanceOpen}>
+              <Card className="mb-8">
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-primary" />
+                        <CardTitle>Monthly Performance</CardTitle>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-sm px-2 py-0.5">
+                          {currentMonthCompleted.length} this month
+                        </Badge>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${performanceOpen ? "rotate-180" : ""}`} />
+                      </div>
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-6">
+                    {/* Current month summary */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-lg">{format(now, "MMMM yyyy")}</h3>
+                        <Badge variant="secondary" className="text-base px-3 py-1">
+                          {currentMonthCompleted.length} completed
+                        </Badge>
+                      </div>
+                      <OrdersTable orders={currentMonthCompleted} showAll={showAllCurrent} onToggle={() => setShowAllCurrent(v => !v)} />
+                    </div>
 
-                {/* Previous month collapsible */}
-                <Collapsible open={prevMonthOpen} onOpenChange={setPrevMonthOpen}>
-                  <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full">
-                    <ChevronRight className={`h-4 w-4 transition-transform ${prevMonthOpen ? "rotate-90" : ""}`} />
-                    {format(subMonths(now, 1), "MMMM yyyy")} — {previousMonthCompleted.length} completed
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-3">
-                    <OrdersTable orders={previousMonthCompleted} showAll={showAllPrevious} onToggle={() => setShowAllPrevious(v => !v)} />
-                  </CollapsibleContent>
-                </Collapsible>
-              </CardContent>
-            </Card>
+                    {/* Previous month collapsible */}
+                    <Collapsible open={prevMonthOpen} onOpenChange={setPrevMonthOpen}>
+                      <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full">
+                        <ChevronRight className={`h-4 w-4 transition-transform ${prevMonthOpen ? "rotate-90" : ""}`} />
+                        {format(subMonths(now, 1), "MMMM yyyy")} — {previousMonthCompleted.length} completed
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-3">
+                        <OrdersTable orders={previousMonthCompleted} showAll={showAllPrevious} onToggle={() => setShowAllPrevious(v => !v)} />
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           );
         })()}
 
