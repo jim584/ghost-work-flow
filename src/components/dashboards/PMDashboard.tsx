@@ -1714,21 +1714,23 @@ const PMDashboard = () => {
                                                   <p className="text-xs text-orange-600 dark:text-orange-300">{submission.revision_notes}</p>
                                                 )}
                                                 {submission.revision_reference_file_path && (
-                                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                                  <div className="space-y-1.5 mt-1.5">
                                                     {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
                                                       const fileNames = submission.revision_reference_file_name?.split('|||') || [];
                                                       const fileName = fileNames[idx] || `Reference ${idx + 1}`;
                                                       return (
-                                                        <Button
-                                                          key={idx}
-                                                          size="sm"
-                                                          variant="outline"
-                                                          className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-100"
-                                                          onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                                        >
-                                                          <Download className="h-2.5 w-2.5 mr-1" />
-                                                          {fileName.trim()}
-                                                        </Button>
+                                                        <div key={idx} className="flex items-center gap-2 bg-orange-100/50 dark:bg-orange-900/20 p-1.5 rounded">
+                                                          <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} />
+                                                          <p className="text-xs flex-1 min-w-0 truncate">{fileName.trim()}</p>
+                                                          <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-100"
+                                                            onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                                          >
+                                                            <Download className="h-2.5 w-2.5" />
+                                                          </Button>
+                                                        </div>
                                                       );
                                                     })}
                                                   </div>
@@ -1866,21 +1868,23 @@ const PMDashboard = () => {
                                       <p className="text-xs text-orange-600 dark:text-orange-300">{submission.revision_notes}</p>
                                     )}
                                     {submission.revision_reference_file_path && (
-                                      <div className="flex flex-wrap gap-1 mt-1.5">
+                                      <div className="space-y-1.5 mt-1.5">
                                         {submission.revision_reference_file_path.split('|||').map((filePath: string, idx: number) => {
                                           const fileNames = submission.revision_reference_file_name?.split('|||') || [];
                                           const fileName = fileNames[idx] || `Reference ${idx + 1}`;
                                           return (
-                                            <Button
-                                              key={idx}
-                                              size="sm"
-                                              variant="outline"
-                                              className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-100"
-                                              onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                            >
-                                              <Download className="h-2.5 w-2.5 mr-1" />
-                                              {fileName.trim()}
-                                            </Button>
+                                            <div key={idx} className="flex items-center gap-2 bg-orange-100/50 dark:bg-orange-900/20 p-1.5 rounded">
+                                              <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} />
+                                              <p className="text-xs flex-1 min-w-0 truncate">{fileName.trim()}</p>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-100"
+                                                onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                              >
+                                                <Download className="h-2.5 w-2.5" />
+                                              </Button>
+                                            </div>
                                           );
                                         })}
                                       </div>
