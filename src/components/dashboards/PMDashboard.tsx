@@ -622,6 +622,11 @@ const PMDashboard = () => {
 
   // Helper to get team delivery status
   const getTeamDeliveryStatus = (task: any, allSubmissions: any[]) => {
+    // Check if the task is cancelled first
+    if (task.status === 'cancelled') {
+      return { status: 'cancelled', label: 'Cancelled', color: 'destructive' };
+    }
+    
     const teamSubmissions = allSubmissions?.filter(s => s.task_id === task.id) || [];
     
     if (teamSubmissions.length === 0) {
@@ -1595,6 +1600,8 @@ const PMDashboard = () => {
                               
                               const getTeamStatusBadge = () => {
                                 switch (teamStatus.status) {
+                                  case 'cancelled':
+                                    return <Badge variant="destructive" className="text-xs">Cancelled</Badge>;
                                   case 'pending_delivery':
                                     return <Badge className="bg-yellow-500 text-white text-xs">Pending Delivery</Badge>;
                                   case 'pending_review':
