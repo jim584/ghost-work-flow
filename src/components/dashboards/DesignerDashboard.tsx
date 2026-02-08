@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Image, Palette, Ban, Calendar, ChevronRight } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Image, Palette, Ban, Calendar, ChevronRight, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -41,6 +41,7 @@ const DesignerDashboard = () => {
   });
   
   const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [revisionSubmissionId, setRevisionSubmissionId] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<{[key: number]: string}>({});
   const [uploading, setUploading] = useState(false);
@@ -148,18 +149,29 @@ const DesignerDashboard = () => {
 
       // Check if this is a revision upload
       const taskSubmissions = submissions?.filter(s => s.task_id === selectedTask.id) || [];
-      const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
+      const isRevisionUpload = !!revisionSubmissionId;
 
-      // If uploading revision, mark old "needs_revision" submissions as "revised"
-      if (hasRevision) {
-        const revisionsToUpdate = taskSubmissions.filter(s => s.revision_status === "needs_revision");
-        for (const submission of revisionsToUpdate) {
-          const { error: updateError } = await supabase
-            .from("design_submissions")
-            .update({ revision_status: "revised" })
-            .eq("id", submission.id);
-          
-          if (updateError) throw updateError;
+      // If uploading revision for a specific submission, mark only that one as "revised"
+      if (isRevisionUpload) {
+        const { error: updateError } = await supabase
+          .from("design_submissions")
+          .update({ revision_status: "revised" })
+          .eq("id", revisionSubmissionId);
+        
+        if (updateError) throw updateError;
+      } else {
+        // Legacy: check if any need revision (for task-level uploads like "Add Files")
+        const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
+        if (hasRevision) {
+          const revisionsToUpdate = taskSubmissions.filter(s => s.revision_status === "needs_revision");
+          for (const submission of revisionsToUpdate) {
+            const { error: updateError } = await supabase
+              .from("design_submissions")
+              .update({ revision_status: "revised" })
+              .eq("id", submission.id);
+            
+            if (updateError) throw updateError;
+          }
         }
       }
 
@@ -199,7 +211,7 @@ const DesignerDashboard = () => {
       // Update task status to completed only if:
       // 1. Not a revision upload AND
       // 2. Task is not already completed/approved (adding more files)
-      if (!hasRevision && selectedTask.status !== "completed" && selectedTask.status !== "approved") {
+      if (!isRevisionUpload && selectedTask.status !== "completed" && selectedTask.status !== "approved") {
         const { error: statusError } = await supabase
           .from("tasks")
           .update({ status: "completed" })
@@ -212,7 +224,7 @@ const DesignerDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ["designer-submissions"] });
       const isAddingMoreFiles = selectedTask.status === "completed" || selectedTask.status === "approved";
       toast({ 
-        title: hasRevision 
+        title: isRevisionUpload 
           ? "Revision uploaded successfully" 
           : isAddingMoreFiles 
             ? "Additional files uploaded successfully"
@@ -220,6 +232,7 @@ const DesignerDashboard = () => {
         description: `${files.length} file(s) submitted for review`
       });
       setSelectedTask(null);
+      setRevisionSubmissionId(null);
       setFiles([]);
       setFilePreviews({});
       setDesignerComment("");
@@ -781,10 +794,10 @@ const DesignerDashboard = () => {
                             size="sm" 
                             variant="default"
                             className="bg-orange-600 hover:bg-orange-700"
-                            onClick={() => setSelectedTask(task)}
+                            onClick={() => setExpandedTaskId(task.id)}
                           >
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload Revision
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            View Revisions
                           </Button>
                         )}
                         {/* Add Files button for completed/approved tasks */}
@@ -884,13 +897,28 @@ const DesignerDashboard = () => {
                                       </div>
                                     )}
                                  </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDownload(submission.file_path, submission.file_name)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
+                               <div className="flex items-center gap-2 flex-shrink-0">
+                                 {submission.revision_status === "needs_revision" && (
+                                   <Button
+                                     size="sm"
+                                     className="bg-orange-600 hover:bg-orange-700"
+                                     onClick={() => {
+                                       setRevisionSubmissionId(submission.id);
+                                       setSelectedTask(task);
+                                     }}
+                                   >
+                                     <Upload className="h-3 w-3 mr-1" />
+                                     Upload Revision
+                                   </Button>
+                                 )}
+                                 <Button
+                                   size="sm"
+                                   variant="outline"
+                                   onClick={() => handleDownload(submission.file_path, submission.file_name)}
+                                 >
+                                   <Download className="h-4 w-4" />
+                                 </Button>
+                               </div>
                             </div>
                           ))}
                         </div>
@@ -909,10 +937,10 @@ const DesignerDashboard = () => {
         </Card>
       </main>
 
-      <Dialog open={!!selectedTask} onOpenChange={() => setSelectedTask(null)}>
+      <Dialog open={!!selectedTask} onOpenChange={() => { setSelectedTask(null); setRevisionSubmissionId(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upload Design</DialogTitle>
+            <DialogTitle>{revisionSubmissionId ? "Upload Revision" : "Upload Design"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
