@@ -657,38 +657,48 @@ const PMDashboard = () => {
 
   // Helper to get category for a grouped order (uses primary task, but considers all task submissions)
   const getGroupCategory = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
-    const groupSubmissions = group.allTasks.flatMap((task: any) => 
+    // For multi-team orders, separate active vs cancelled tasks
+    const activeTasks = group.allTasks.filter((t: any) => t.status !== 'cancelled');
+    const allCancelled = activeTasks.length === 0;
+    
+    // Only mark as cancelled if ALL tasks in the group are cancelled
+    if (allCancelled) return 'cancelled';
+    
+    // Use active tasks for submission evaluation (ignore cancelled teams)
+    const groupSubmissions = activeTasks.flatMap((task: any) => 
       allSubmissions?.filter(s => s.task_id === task.id) || []
     );
     
-    // Check if all teams in a multi-team order have at least one submission
-    const tasksWithSubmissions = group.allTasks.filter((task: any) =>
+    // Check if all active teams have at least one submission
+    const tasksWithSubmissions = activeTasks.filter((task: any) =>
       allSubmissions?.some(s => s.task_id === task.id)
     );
-    const allTeamsHaveSubmissions = tasksWithSubmissions.length === group.allTasks.length;
+    const allTeamsHaveSubmissions = tasksWithSubmissions.length === activeTasks.length;
     
     const hasPendingReview = groupSubmissions.some(s => s.revision_status === 'pending_review');
     const hasNeedsRevision = groupSubmissions.some(s => s.revision_status === 'needs_revision');
     const allSubmissionsApproved = groupSubmissions.length > 0 && groupSubmissions.every(s => s.revision_status === 'approved');
     
-    // Only truly complete if ALL teams submitted AND all approved
+    // Only truly complete if ALL active teams submitted AND all approved
     const allApproved = allTeamsHaveSubmissions && allSubmissionsApproved;
     
-    // Check for teams that haven't submitted yet (only for multi-team orders)
+    // Check for active teams that haven't submitted yet (only for multi-team orders)
     const hasTeamsPendingDelivery = group.isMultiTeam && !allTeamsHaveSubmissions;
     
-    const isDelayed = group.primaryTask.deadline && new Date(group.primaryTask.deadline) < today && 
-                     !['completed', 'approved', 'cancelled'].includes(group.primaryTask.status);
+    // Use the first active task for status checks instead of primaryTask (which might be cancelled)
+    const representativeTask = activeTasks[0] || group.primaryTask;
     
-    if (group.primaryTask.status === 'cancelled') return 'cancelled';
+    const isDelayed = representativeTask.deadline && new Date(representativeTask.deadline) < today && 
+                     !['completed', 'approved', 'cancelled'].includes(representativeTask.status);
+    
     if (hasPendingReview) return 'recently_delivered';
     if (hasNeedsRevision) return 'needs_revision';
     if (isDelayed) return 'delayed';
     if (hasTeamsPendingDelivery) return 'pending_delivery';
     if (allApproved) return 'other';
-    if (group.primaryTask.status === 'completed' || group.primaryTask.status === 'approved') return 'other';
-    if (group.primaryTask.status === 'pending') return 'pending';
-    if (group.primaryTask.status === 'in_progress') return 'in_progress';
+    if (representativeTask.status === 'completed' || representativeTask.status === 'approved') return 'other';
+    if (representativeTask.status === 'pending') return 'pending';
+    if (representativeTask.status === 'in_progress') return 'in_progress';
     return 'other';
   };
 
@@ -700,7 +710,7 @@ const PMDashboard = () => {
     in_progress: groupedOrders.filter(g => g.primaryTask.status === 'in_progress').length,
     needs_revision: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'needs_revision').length,
     pending_delivery: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'pending_delivery').length,
-    cancelled: groupedOrders.filter(g => g.primaryTask.status === 'cancelled').length,
+    cancelled: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'cancelled').length,
     total: groupedOrders.length,
   };
 
