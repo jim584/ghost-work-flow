@@ -1752,11 +1752,12 @@ const PMDashboard = () => {
                                           {childRevisions.length > 0 && (
                                             <div className="ml-8 mt-1 space-y-1 border-l-2 border-primary/20 pl-3">
                                               <p className="text-xs font-medium text-muted-foreground">Revision(s) delivered:</p>
-                                              {childRevisions.map((rev: any) => (
+                                              {childRevisions.map((rev: any, idx: number) => (
                                                 <div key={rev.id} className="space-y-0">
                                                 <div className="flex items-center gap-3 justify-between bg-green-50 dark:bg-green-950/20 p-2 rounded-md border border-green-200 dark:border-green-800">
                                                   <FilePreview filePath={rev.file_path} fileName={rev.file_name} />
                                                   <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
                                                     <p className="text-sm font-medium truncate">{rev.file_name}</p>
                                                     {rev.designer_comment && (
                                                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -1768,7 +1769,11 @@ const PMDashboard = () => {
                                                     </p>
                                                   </div>
                                                   <div className="flex items-center gap-2 flex-shrink-0">
-                                                    <Badge variant="secondary" className="text-xs">Revision</Badge>
+                                                    <Badge variant="outline" className="text-xs border-orange-400 text-orange-600 dark:text-orange-400">
+                                                      <RefreshCw className="h-2.5 w-2.5 mr-1" />
+                                                      Revision {idx + 1}
+                                                    </Badge>
+                                                    </div>
                                                     <Button size="sm" variant="outline" onClick={() => handleDownload(rev.file_path, rev.file_name)}>
                                                       <Download className="h-3 w-3" />
                                                     </Button>
@@ -1953,12 +1958,18 @@ const PMDashboard = () => {
                               {childRevisions.length > 0 && (
                                 <div className="ml-8 mt-1 space-y-1 border-l-2 border-primary/20 pl-3">
                                   <p className="text-xs font-medium text-muted-foreground">Revision(s) delivered:</p>
-                                  {childRevisions.map((rev: any) => (
+                                  {childRevisions.map((rev: any, idx: number) => (
                                     <div key={rev.id} className="space-y-0">
                                     <div className="flex items-center gap-3 justify-between bg-green-50 dark:bg-green-950/20 p-2 rounded-md border border-green-200 dark:border-green-800">
                                       <FilePreview filePath={rev.file_path} fileName={rev.file_name} />
                                       <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
                                         <p className="text-sm font-medium truncate">{rev.file_name}</p>
+                                        <Badge variant="outline" className="text-xs border-orange-400 text-orange-600 dark:text-orange-400">
+                                          <RefreshCw className="h-2.5 w-2.5 mr-1" />
+                                          Revision {idx + 1}
+                                        </Badge>
+                                        </div>
                                         {rev.designer_comment && (
                                           <p className="text-xs text-muted-foreground mt-0.5 truncate">
                                             Designer: {rev.designer_comment}
@@ -1969,7 +1980,6 @@ const PMDashboard = () => {
                                         </p>
                                       </div>
                                       <div className="flex items-center gap-2 flex-shrink-0">
-                                        <Badge variant="secondary" className="text-xs">Revision</Badge>
                                         <Button size="sm" variant="outline" onClick={() => handleDownload(rev.file_path, rev.file_name)}>
                                           <Download className="h-3 w-3" />
                                         </Button>
