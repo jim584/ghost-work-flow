@@ -1709,7 +1709,12 @@ const PMDashboard = () => {
                                           {(submission.revision_notes || submission.revision_reference_file_path) && (
                                             <div className="ml-8 mt-1 border-l-2 border-orange-300 pl-3">
                                               <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded-md border border-orange-200 dark:border-orange-800">
-                                                <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">PM Review</p>
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <p className="text-xs font-medium text-orange-700 dark:text-orange-400">PM Review</p>
+                                                  {submission.reviewed_at && (
+                                                    <p className="text-xs text-orange-500 dark:text-orange-400/70">{format(new Date(submission.reviewed_at), 'MMM d, yyyy h:mm a')}</p>
+                                                  )}
+                                                </div>
                                                 {submission.revision_notes && (
                                                   <p className="text-xs text-orange-600 dark:text-orange-300">{submission.revision_notes}</p>
                                                 )}
@@ -1863,7 +1868,12 @@ const PMDashboard = () => {
                               {(submission.revision_notes || submission.revision_reference_file_path) && (
                                 <div className="ml-8 mt-1 border-l-2 border-orange-300 pl-3">
                                   <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded-md border border-orange-200 dark:border-orange-800">
-                                    <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">PM Review</p>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className="text-xs font-medium text-orange-700 dark:text-orange-400">PM Review</p>
+                                      {submission.reviewed_at && (
+                                        <p className="text-xs text-orange-500 dark:text-orange-400/70">{format(new Date(submission.reviewed_at), 'MMM d, yyyy h:mm a')}</p>
+                                      )}
+                                    </div>
                                     {submission.revision_notes && (
                                       <p className="text-xs text-orange-600 dark:text-orange-300">{submission.revision_notes}</p>
                                     )}
