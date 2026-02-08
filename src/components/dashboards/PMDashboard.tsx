@@ -1637,7 +1637,12 @@ const PMDashboard = () => {
                                     ) : (
                                       <div className="space-y-2">
                                         {teamSubmissions.filter((s: any) => !s.parent_submission_id).map((submission: any) => {
-                                          const childRevisions = teamSubmissions.filter((s: any) => s.parent_submission_id === submission.id);
+                                          const collectChain = (parentId: string): any[] => {
+                                            const children = teamSubmissions.filter((s: any) => s.parent_submission_id === parentId)
+                                              .sort((a: any, b: any) => new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime());
+                                            return children.flatMap((child: any) => [child, ...collectChain(child.id)]);
+                                          };
+                                          const childRevisions = collectChain(submission.id);
                                           return (
                                           <div key={submission.id} className="space-y-0">
                                           <div className="flex items-center gap-3 justify-between bg-muted/30 p-3 rounded-lg border hover:border-primary/30 transition-colors">
@@ -1833,7 +1838,12 @@ const PMDashboard = () => {
                           // Single team: Show flat list as before
                           <div className="space-y-2">
                             {groupSubmissions.filter((s: any) => !s.parent_submission_id).map((submission: any) => {
-                              const childRevisions = groupSubmissions.filter((s: any) => s.parent_submission_id === submission.id);
+                              const collectChain = (parentId: string): any[] => {
+                                const children = groupSubmissions.filter((s: any) => s.parent_submission_id === parentId)
+                                  .sort((a: any, b: any) => new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime());
+                                return children.flatMap((child: any) => [child, ...collectChain(child.id)]);
+                              };
+                              const childRevisions = collectChain(submission.id);
                               return (
                               <div key={submission.id} className="space-y-0">
                               <div className="flex items-center gap-3 justify-between bg-background p-3 rounded-lg border hover:border-primary/30 transition-colors">

@@ -824,9 +824,14 @@ const DesignerDashboard = () => {
                           {taskSubmissions
                             .filter(s => !s.parent_submission_id)
                             .map((submission) => {
-                              const revisions = taskSubmissions
-                                .filter(s => s.parent_submission_id === submission.id)
-                                .sort((a, b) => new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime());
+                              // Recursively collect the full revision chain
+                              const collectChain = (parentId: string): typeof taskSubmissions => {
+                                const children = taskSubmissions
+                                  .filter(s => s.parent_submission_id === parentId)
+                                  .sort((a, b) => new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime());
+                                return children.flatMap(child => [child, ...collectChain(child.id)]);
+                              };
+                              const revisions = collectChain(submission.id);
 
                               const renderFileBlock = (sub: typeof submission, label?: string) => (
                                 <div className="flex items-center gap-3 justify-between">
