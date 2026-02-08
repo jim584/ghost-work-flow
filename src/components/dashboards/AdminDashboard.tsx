@@ -193,7 +193,7 @@ const AdminDashboard = () => {
         .select(`
           team_id,
           user_id,
-          profiles!team_members_user_id_fkey(id, full_name, email)
+          profiles!team_members_user_id_profiles_fkey(id, full_name, email)
         `);
       if (error) throw error;
       return data;
