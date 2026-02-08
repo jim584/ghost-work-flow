@@ -1673,15 +1673,17 @@ const PMDashboard = () => {
                                               >
                                                 <Download className="h-3 w-3" />
                                               </Button>
-                                              {submission.revision_status === "pending_review" && (
+                                              {(submission.revision_status === "pending_review" || submission.revision_status === "approved") && (
                                                 <>
-                                                  <Button
-                                                    size="sm"
-                                                    className="bg-green-600 hover:bg-green-700"
-                                                    onClick={() => handleApproveSubmission.mutate(submission.id)}
-                                                  >
-                                                    Approve
-                                                  </Button>
+                                                  {submission.revision_status === "pending_review" && (
+                                                    <Button
+                                                      size="sm"
+                                                      className="bg-green-600 hover:bg-green-700"
+                                                      onClick={() => handleApproveSubmission.mutate(submission.id)}
+                                                    >
+                                                      Approve
+                                                    </Button>
+                                                  )}
                                                   <Button
                                                     size="sm"
                                                     variant="outline"
@@ -1746,15 +1748,17 @@ const PMDashboard = () => {
                                   >
                                     <Download className="h-3 w-3" />
                                   </Button>
-                                  {submission.revision_status === "pending_review" && (
+                                  {(submission.revision_status === "pending_review" || submission.revision_status === "approved") && (
                                     <>
-                                      <Button
-                                        size="sm"
-                                        className="bg-green-600 hover:bg-green-700"
-                                        onClick={() => handleApproveSubmission.mutate(submission.id)}
-                                      >
-                                        Approve
-                                      </Button>
+                                      {submission.revision_status === "pending_review" && (
+                                        <Button
+                                          size="sm"
+                                          className="bg-green-600 hover:bg-green-700"
+                                          onClick={() => handleApproveSubmission.mutate(submission.id)}
+                                        >
+                                          Approve
+                                        </Button>
+                                      )}
                                       <Button
                                         size="sm"
                                         variant="outline"
