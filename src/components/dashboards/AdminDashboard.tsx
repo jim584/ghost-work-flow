@@ -1043,10 +1043,16 @@ const AdminDashboard = () => {
     const allApproved = allTeamsHaveSubmissions && allSubmissionsApproved;
     const hasTeamsPendingDelivery = group.isMultiTeam && !allTeamsHaveSubmissions;
     const representativeTask = activeTasks[0] || group.primaryTask;
-    const isDelayed = activeTasks.some((t: any) => 
+    const isDeadlineDelayed = activeTasks.some((t: any) => 
       t.deadline && new Date(t.deadline) < today && 
       !['completed', 'approved', 'cancelled'].includes(t.status)
     );
+    const now = new Date();
+    const isRevisionDelayed = groupSubmissions.some(s => 
+      s.revision_status === 'needs_revision' && s.reviewed_at && 
+      (now.getTime() - new Date(s.reviewed_at).getTime()) > 24 * 60 * 60 * 1000
+    );
+    const isDelayed = isDeadlineDelayed || isRevisionDelayed;
     
     const categories: string[] = [];
     if (hasPendingReview) categories.push('recently_delivered');
@@ -1079,8 +1085,14 @@ const AdminDashboard = () => {
     const hasPendingReview = taskSubmissions.some(s => s.revision_status === 'pending_review');
     const hasNeedsRevision = taskSubmissions.some(s => s.revision_status === 'needs_revision');
     const allApproved = taskSubmissions.length > 0 && taskSubmissions.every(s => s.revision_status === 'approved');
-    const isDelayed = task.deadline && new Date(task.deadline) < today && 
+    const isDeadlineDelayed = task.deadline && new Date(task.deadline) < today && 
                      !['completed', 'approved'].includes(task.status);
+    const nowTask = new Date();
+    const isRevisionDelayed = taskSubmissions.some(s => 
+      s.revision_status === 'needs_revision' && s.reviewed_at && 
+      (nowTask.getTime() - new Date(s.reviewed_at).getTime()) > 24 * 60 * 60 * 1000
+    );
+    const isDelayed = isDeadlineDelayed || isRevisionDelayed;
     
     if (task.status === 'cancelled') return 'cancelled';
     if (hasPendingReview) return 'recently_delivered';
@@ -1848,9 +1860,22 @@ const AdminDashboard = () => {
                   if (!allCats.includes('delayed')) return null;
                   const now = new Date();
                   const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
+                  
+                  // Check deadline-based delay
                   const delayedTask = activeTasks.find((t: any) => t.deadline && new Date(t.deadline) < now && !['completed', 'approved', 'cancelled'].includes(t.status));
-                  const hoursOverdue = delayedTask ? Math.floor((now.getTime() - new Date(delayedTask.deadline).getTime()) / (1000 * 60 * 60)) : 0;
-                  return <Badge className="bg-red-500 text-white">DELAYED — {hoursOverdue} hour{hoursOverdue !== 1 ? 's' : ''} overdue</Badge>;
+                  const deadlineHours = delayedTask ? Math.floor((now.getTime() - new Date(delayedTask.deadline).getTime()) / (1000 * 60 * 60)) : 0;
+                  
+                  // Check revision-based delay (24h+ since revision requested)
+                  const groupSubs = submissions?.filter(s => activeTasks.some((t: any) => t.id === s.task_id)) || [];
+                  const delayedRevision = groupSubs.find(s => 
+                    s.revision_status === 'needs_revision' && s.reviewed_at && 
+                    (now.getTime() - new Date(s.reviewed_at).getTime()) > 24 * 60 * 60 * 1000
+                  );
+                  const revisionHours = delayedRevision ? Math.floor((now.getTime() - new Date(delayedRevision.reviewed_at).getTime()) / (1000 * 60 * 60)) : 0;
+                  
+                  const maxHours = Math.max(deadlineHours, revisionHours);
+                  const label = revisionHours > deadlineHours ? 'Revision delayed' : 'DELAYED';
+                  return <Badge className="bg-red-500 text-white">{label} — {maxHours} hour{maxHours !== 1 ? 's' : ''} overdue</Badge>;
                 };
 
                 const getOrderTypeIcon = () => {
