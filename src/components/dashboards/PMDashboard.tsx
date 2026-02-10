@@ -696,7 +696,11 @@ const PMDashboard = () => {
     const isDelayed = isDeadlineDelayed || isRevisionDelayed;
 
     const categories: string[] = [];
+    // Use submission data if available, otherwise fall back to task status
+    // This handles closedByMe orders where the user isn't the assigned PM and can't see submissions
+    const hasCompletedTask = activeTasks.some((t: any) => t.status === 'completed');
     if (hasPendingReview) categories.push('recently_delivered');
+    else if (hasCompletedTask && groupSubmissions.length === 0) categories.push('recently_delivered');
     if (hasNeedsRevision) categories.push('needs_revision');
     if (isDelayed) categories.push('delayed');
     if (hasTeamsPendingDelivery) categories.push('pending_delivery');
