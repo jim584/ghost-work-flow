@@ -660,62 +660,59 @@ const PMDashboard = () => {
     };
   };
 
-  // Helper to get category for a grouped order (uses primary task, but considers all task submissions)
-  const getGroupCategory = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
-    // For multi-team orders, separate active vs cancelled tasks
+  // Helper to get ALL applicable categories for a grouped order
+  const getGroupCategories = (group: typeof groupedOrders[0], allSubmissions: any[]): string[] => {
     const activeTasks = group.allTasks.filter((t: any) => t.status !== 'cancelled');
     const allCancelled = activeTasks.length === 0;
-    
-    // Only mark as cancelled if ALL tasks in the group are cancelled
-    if (allCancelled) return 'cancelled';
-    
-    // Use active tasks for submission evaluation (ignore cancelled teams)
+    if (allCancelled) return ['cancelled'];
+
     const groupSubmissions = activeTasks.flatMap((task: any) => 
       allSubmissions?.filter(s => s.task_id === task.id) || []
     );
-    
-    // Check if all active teams have at least one submission
     const tasksWithSubmissions = activeTasks.filter((task: any) =>
       allSubmissions?.some(s => s.task_id === task.id)
     );
     const allTeamsHaveSubmissions = tasksWithSubmissions.length === activeTasks.length;
-    
     const hasPendingReview = groupSubmissions.some(s => s.revision_status === 'pending_review');
     const hasNeedsRevision = groupSubmissions.some(s => s.revision_status === 'needs_revision');
     const allSubmissionsApproved = groupSubmissions.length > 0 && groupSubmissions.every(s => s.revision_status === 'approved');
-    
-    // Only truly complete if ALL active teams submitted AND all approved
     const allApproved = allTeamsHaveSubmissions && allSubmissionsApproved;
-    
-    // Check for active teams that haven't submitted yet (only for multi-team orders)
     const hasTeamsPendingDelivery = group.isMultiTeam && !allTeamsHaveSubmissions;
-    
-    // Use the first active task for status checks instead of primaryTask (which might be cancelled)
     const representativeTask = activeTasks[0] || group.primaryTask;
-    
     const isDelayed = representativeTask.deadline && new Date(representativeTask.deadline) < today && 
                      !['completed', 'approved', 'cancelled'].includes(representativeTask.status);
+
+    const categories: string[] = [];
+    if (hasPendingReview) categories.push('recently_delivered');
+    if (hasNeedsRevision) categories.push('needs_revision');
+    if (isDelayed) categories.push('delayed');
+    if (hasTeamsPendingDelivery) categories.push('pending_delivery');
     
-    if (hasPendingReview) return 'recently_delivered';
-    if (hasNeedsRevision) return 'needs_revision';
-    if (isDelayed) return 'delayed';
-    if (hasTeamsPendingDelivery) return 'pending_delivery';
-    if (allApproved) return 'other';
-    if (representativeTask.status === 'completed' || representativeTask.status === 'approved') return 'other';
-    if (representativeTask.status === 'pending') return 'pending';
-    if (representativeTask.status === 'in_progress') return 'in_progress';
-    return 'other';
+    if (categories.length === 0) {
+      if (allApproved) categories.push('other');
+      else if (representativeTask.status === 'completed' || representativeTask.status === 'approved') categories.push('other');
+      else if (representativeTask.status === 'pending') categories.push('pending');
+      else if (representativeTask.status === 'in_progress') categories.push('in_progress');
+      else categories.push('other');
+    }
+    
+    return categories;
   };
 
-  // Stats now count unique orders (grouped)
+  // Primary category for display/sorting (highest priority)
+  const getGroupCategory = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
+    return getGroupCategories(group, allSubmissions)[0];
+  };
+
+  // Stats now count unique orders (grouped) - an order can count in multiple categories
   const stats = {
-    recently_delivered: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'recently_delivered').length,
-    delayed: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'delayed').length,
+    recently_delivered: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('recently_delivered')).length,
+    delayed: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('delayed')).length,
     pending: groupedOrders.filter(g => g.primaryTask.status === 'pending').length,
     in_progress: groupedOrders.filter(g => g.primaryTask.status === 'in_progress').length,
-    needs_revision: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'needs_revision').length,
-    pending_delivery: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'pending_delivery').length,
-    cancelled: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'cancelled').length,
+    needs_revision: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('needs_revision')).length,
+    pending_delivery: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending_delivery')).length,
+    cancelled: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('cancelled')).length,
     total: groupedOrders.length,
   };
 
@@ -821,13 +818,13 @@ const PMDashboard = () => {
     // Status filter (only applied when not searching)
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
-      const category = getGroupCategory(group, submissions || []);
-      return ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(category);
+      const categories = getGroupCategories(group, submissions || []);
+      return categories.some(c => ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(c));
     }
-    // Handle specific category filters
+    // Handle specific category filters - check all applicable categories
     if (['recently_delivered', 'delayed', 'needs_revision', 'cancelled'].includes(statusFilter)) {
-      const category = getGroupCategory(group, submissions || []);
-      return category === statusFilter;
+      const categories = getGroupCategories(group, submissions || []);
+      return categories.includes(statusFilter);
     }
     return task.status === statusFilter;
   }).sort((a, b) => {

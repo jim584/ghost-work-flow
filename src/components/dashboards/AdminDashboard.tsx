@@ -1024,11 +1024,11 @@ const AdminDashboard = () => {
     };
   };
 
-  // Helper to get category for a grouped order
-  const getGroupCategory = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
+  // Helper to get ALL applicable categories for a grouped order
+  const getGroupCategories = (group: typeof groupedOrders[0], allSubmissions: any[]): string[] => {
     const activeTasks = group.allTasks.filter((t: any) => t.status !== 'cancelled');
     const allCancelled = activeTasks.length === 0;
-    if (allCancelled) return 'cancelled';
+    if (allCancelled) return ['cancelled'];
     
     const groupSubmissions = activeTasks.flatMap((task: any) => 
       allSubmissions?.filter(s => s.task_id === task.id) || []
@@ -1046,15 +1046,26 @@ const AdminDashboard = () => {
     const isDelayed = representativeTask.deadline && new Date(representativeTask.deadline) < today && 
                      !['completed', 'approved', 'cancelled'].includes(representativeTask.status);
     
-    if (hasPendingReview) return 'recently_delivered';
-    if (hasNeedsRevision) return 'needs_revision';
-    if (isDelayed) return 'delayed';
-    if (hasTeamsPendingDelivery) return 'pending_delivery';
-    if (allApproved) return 'other';
-    if (representativeTask.status === 'completed' || representativeTask.status === 'approved') return 'other';
-    if (representativeTask.status === 'pending') return 'pending';
-    if (representativeTask.status === 'in_progress') return 'in_progress';
-    return 'other';
+    const categories: string[] = [];
+    if (hasPendingReview) categories.push('recently_delivered');
+    if (hasNeedsRevision) categories.push('needs_revision');
+    if (isDelayed) categories.push('delayed');
+    if (hasTeamsPendingDelivery) categories.push('pending_delivery');
+    
+    if (categories.length === 0) {
+      if (allApproved) categories.push('other');
+      else if (representativeTask.status === 'completed' || representativeTask.status === 'approved') categories.push('other');
+      else if (representativeTask.status === 'pending') categories.push('pending');
+      else if (representativeTask.status === 'in_progress') categories.push('in_progress');
+      else categories.push('other');
+    }
+    
+    return categories;
+  };
+
+  // Primary category for display/sorting (highest priority)
+  const getGroupCategory = (group: typeof groupedOrders[0], allSubmissions: any[]) => {
+    return getGroupCategories(group, allSubmissions)[0];
   };
 
   const getTaskCategory = (task: any, submissions: any[]) => {
@@ -1090,13 +1101,13 @@ const AdminDashboard = () => {
   };
 
   const stats = {
-    recently_delivered: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'recently_delivered').length,
-    delayed: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'delayed').length,
+    recently_delivered: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('recently_delivered')).length,
+    delayed: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('delayed')).length,
     pending: groupedOrders.filter(g => g.primaryTask.status === 'pending').length,
     in_progress: groupedOrders.filter(g => g.primaryTask.status === 'in_progress').length,
-    needs_revision: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'needs_revision').length,
-    pending_delivery: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'pending_delivery').length,
-    cancelled: groupedOrders.filter(g => getGroupCategory(g, submissions || []) === 'cancelled').length,
+    needs_revision: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('needs_revision')).length,
+    pending_delivery: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending_delivery')).length,
+    cancelled: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('cancelled')).length,
     total: groupedOrders.length,
     completed: tasks?.filter((t) => t.status === "completed").length || 0,
     approved: tasks?.filter((t) => t.status === "approved").length || 0,
@@ -1177,12 +1188,12 @@ const AdminDashboard = () => {
     
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
-      const category = getGroupCategory(group, submissions || []);
-      return ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(category);
+      const categories = getGroupCategories(group, submissions || []);
+      return categories.some(c => ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(c));
     }
     if (['recently_delivered', 'delayed', 'needs_revision', 'cancelled', 'pending_delivery'].includes(statusFilter)) {
-      const category = getGroupCategory(group, submissions || []);
-      return category === statusFilter;
+      const categories = getGroupCategories(group, submissions || []);
+      return categories.includes(statusFilter);
     }
     return task.status === statusFilter;
   }).sort((a, b) => {
