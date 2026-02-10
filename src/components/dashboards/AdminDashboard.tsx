@@ -1043,8 +1043,10 @@ const AdminDashboard = () => {
     const allApproved = allTeamsHaveSubmissions && allSubmissionsApproved;
     const hasTeamsPendingDelivery = group.isMultiTeam && !allTeamsHaveSubmissions;
     const representativeTask = activeTasks[0] || group.primaryTask;
-    const isDelayed = representativeTask.deadline && new Date(representativeTask.deadline) < today && 
-                     !['completed', 'approved', 'cancelled'].includes(representativeTask.status);
+    const isDelayed = activeTasks.some((t: any) => 
+      t.deadline && new Date(t.deadline) < today && 
+      !['completed', 'approved', 'cancelled'].includes(t.status)
+    );
     
     const categories: string[] = [];
     if (hasPendingReview) categories.push('recently_delivered');
