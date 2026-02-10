@@ -1063,8 +1063,10 @@ const AdminDashboard = () => {
     // For multi-team orders, also check individual task statuses
     const hasAnyPending = activeTasks.some((t: any) => t.status === 'pending');
     const hasAnyInProgress = activeTasks.some((t: any) => t.status === 'in_progress');
+    const hasAnyCancelled = group.allTasks.some((t: any) => t.status === 'cancelled');
     if (hasAnyPending) categories.push('pending');
     if (hasAnyInProgress) categories.push('in_progress');
+    if (hasAnyCancelled) categories.push('cancelled');
     
     if (categories.length === 0) {
       if (allApproved) categories.push('other');
