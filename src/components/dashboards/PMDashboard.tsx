@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
-import { format } from "date-fns";
+import { format, subDays, isAfter } from "date-fns";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const PMDashboard = () => {
@@ -158,13 +158,16 @@ const PMDashboard = () => {
       if (closedError) throw closedError;
       
       // Merge and deduplicate by task id
+      // closedOrders only visible for 3 days from creation
+      const threeDaysAgo = subDays(new Date(), 3);
       const taskMap = new Map<string, any>();
       assignedOrders?.forEach(task => taskMap.set(task.id, task));
-      closedOrders?.forEach(task => {
-        if (!taskMap.has(task.id)) {
-          taskMap.set(task.id, task);
-        }
-      });
+      closedOrders?.filter(task => task.created_at && isAfter(new Date(task.created_at), threeDaysAgo))
+        .forEach(task => {
+          if (!taskMap.has(task.id)) {
+            taskMap.set(task.id, task);
+          }
+        });
       
       const data = Array.from(taskMap.values()).sort(
         (a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()

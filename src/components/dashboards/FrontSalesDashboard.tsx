@@ -312,10 +312,9 @@ const FrontSalesDashboard = () => {
   const threeDaysAgo = subDays(new Date(), 3);
 
   const filteredTasks = tasks?.filter((task) => {
-    // Filter by 3 days OR completed/approved status (for My Orders section)
+    // Filter by 3 days from creation date only (for My Orders section)
     const isWithin3Days = task.created_at && isAfter(new Date(task.created_at), threeDaysAgo);
-    const isCompleted = task.status === 'completed' || task.status === 'approved';
-    const passesTimeFilter = isWithin3Days || isCompleted;
+    const passesTimeFilter = isWithin3Days;
     
     // When searching, don't apply the time filter (allow searching all orders)
     if (searchQuery.trim()) {
