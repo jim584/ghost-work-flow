@@ -11,11 +11,11 @@ const Index = () => {
         <div className="max-w-4xl mx-auto text-center space-y-8">
           <div className="space-y-4">
             <h1 className="text-5xl md:text-6xl font-bold text-foreground">
-              RT
-              <span className="text-primary block mt-2">CRM</span>
+              NextGen
+              <span className="text-primary block mt-2">ERP</span>
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              ResearchTeq CRM — Manage tasks across design teams efficiently.
+              NextGen ERP — Manage tasks across design teams efficiently.
               Streamline workflows from assignment to approval.
             </p>
           </div>
