@@ -1189,12 +1189,11 @@ const PMDashboard = () => {
                     return <Badge className="bg-green-500 text-white">Delivered - Awaiting Review</Badge>;
                   }
                   if (category === 'delayed') {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
+                    const now = new Date();
                     const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
-                    const delayedTask = activeTasks.find((t: any) => t.deadline && new Date(t.deadline) < today && !['completed', 'approved', 'cancelled'].includes(t.status));
-                    const daysOverdue = delayedTask ? Math.floor((today.getTime() - new Date(delayedTask.deadline).getTime()) / (1000 * 60 * 60 * 24)) : 0;
-                    return <Badge className="bg-red-500 text-white">DELAYED — {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue</Badge>;
+                    const delayedTask = activeTasks.find((t: any) => t.deadline && new Date(t.deadline) < now && !['completed', 'approved', 'cancelled'].includes(t.status));
+                    const hoursOverdue = delayedTask ? Math.floor((now.getTime() - new Date(delayedTask.deadline).getTime()) / (1000 * 60 * 60)) : 0;
+                    return <Badge className="bg-red-500 text-white">DELAYED — {hoursOverdue} hour{hoursOverdue !== 1 ? 's' : ''} overdue</Badge>;
                   }
                   if (category === 'needs_revision') {
                     return <Badge className="bg-orange-500 text-white">Needs Revision</Badge>;
