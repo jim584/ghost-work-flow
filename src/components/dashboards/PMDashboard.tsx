@@ -839,12 +839,9 @@ const PMDashboard = () => {
       const categories = getGroupCategories(group, submissions || []);
       return categories.some(c => ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(c));
     }
-    // Handle specific category filters - check all applicable categories
-    if (['recently_delivered', 'delayed', 'needs_revision', 'cancelled'].includes(statusFilter)) {
-      const categories = getGroupCategories(group, submissions || []);
-      return categories.includes(statusFilter);
-    }
-    return task.status === statusFilter;
+    // Handle all category filters using getGroupCategories for multi-team support
+    const categories = getGroupCategories(group, submissions || []);
+    return categories.includes(statusFilter);
   }).sort((a, b) => {
     if (statusFilter === 'priority') {
       const categoryA = getGroupCategory(a, submissions || []);
