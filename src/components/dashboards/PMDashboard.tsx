@@ -1398,9 +1398,17 @@ const PMDashboard = () => {
                             <p className="text-sm font-medium">
                               {group.isMultiTeam 
                                 ? `${group.teamNames.length} teams assigned`
-                                : isWebsiteOrder(task) 
-                                  ? getDeveloperForTeam(task.team_id) || task.teams?.name
-                                  : task.teams?.name
+                                : (() => {
+                                    const teamName = isWebsiteOrder(task) 
+                                      ? getDeveloperForTeam(task.team_id) || task.teams?.name
+                                      : task.teams?.name;
+                                    const teamSubs = (submissions || []).filter((s: any) => s.task_id === task.id);
+                                    const hasNeedsRev = teamSubs.some((s: any) => s.revision_status === 'needs_revision');
+                                    const hasPendingRev = teamSubs.some((s: any) => s.revision_status === 'pending_review');
+                                    if (hasNeedsRev) return <>{teamName} — <span className="text-orange-500">Needs Revision</span></>;
+                                    if (hasPendingRev) return <>{teamName} — <span className="text-blue-500">Delivered</span></>;
+                                    return teamName;
+                                  })()
                               }
                             </p>
                             {group.isMultiTeam && (
