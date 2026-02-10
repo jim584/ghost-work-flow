@@ -1189,11 +1189,7 @@ const PMDashboard = () => {
                     return <Badge className="bg-green-500 text-white">Delivered - Awaiting Review</Badge>;
                   }
                   if (category === 'delayed') {
-                    const now = new Date();
-                    const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
-                    const delayedTask = activeTasks.find((t: any) => t.deadline && new Date(t.deadline) < now && !['completed', 'approved', 'cancelled'].includes(t.status));
-                    const hoursOverdue = delayedTask ? Math.floor((now.getTime() - new Date(delayedTask.deadline).getTime()) / (1000 * 60 * 60)) : 0;
-                    return <Badge className="bg-red-500 text-white">DELAYED — {hoursOverdue} hour{hoursOverdue !== 1 ? 's' : ''} overdue</Badge>;
+                    return null; // Handled by getDelayedBadge
                   }
                   if (category === 'needs_revision') {
                     return <Badge className="bg-orange-500 text-white">Needs Revision</Badge>;
@@ -1205,6 +1201,16 @@ const PMDashboard = () => {
                     return <Badge className="bg-gray-500 text-white">{(task as any).is_deleted ? 'Deleted' : 'Cancelled'}</Badge>;
                   }
                   return null;
+                };
+
+                const getDelayedBadge = () => {
+                  const allCats = getGroupCategories(group, submissions || []);
+                  if (!allCats.includes('delayed')) return null;
+                  const now = new Date();
+                  const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
+                  const delayedTask = activeTasks.find((t: any) => t.deadline && new Date(t.deadline) < now && !['completed', 'approved', 'cancelled'].includes(t.status));
+                  const hoursOverdue = delayedTask ? Math.floor((now.getTime() - new Date(delayedTask.deadline).getTime()) / (1000 * 60 * 60)) : 0;
+                  return <Badge className="bg-red-500 text-white">DELAYED — {hoursOverdue} hour{hoursOverdue !== 1 ? 's' : ''} overdue</Badge>;
                 };
                 
                 const getOrderTypeIcon = () => {
@@ -1256,6 +1262,7 @@ const PMDashboard = () => {
                                 </>
                               )}
                               {getCategoryBadge()}
+                              {getDelayedBadge()}
                             </div>
                             <h3 className="font-semibold text-lg mt-1 truncate">{task.title}</h3>
                           </div>
