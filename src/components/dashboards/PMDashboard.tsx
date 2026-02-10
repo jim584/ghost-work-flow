@@ -1543,7 +1543,7 @@ const PMDashboard = () => {
                           <FileText className="h-3.5 w-3.5 mr-1.5" />
                           View Details
                         </Button>
-                        {task.status === "completed" && (
+                        {task.status === "completed" && task.project_manager_id === user?.id && (
                           <Button
                             size="sm"
                             className="bg-green-600 hover:bg-green-700 hover-scale"
