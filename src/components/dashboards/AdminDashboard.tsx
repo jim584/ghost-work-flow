@@ -1003,7 +1003,8 @@ const AdminDashboard = () => {
     }
     const hasPending = teamSubmissions.some(s => s.revision_status === 'pending_review');
     const hasRevision = teamSubmissions.some(s => s.revision_status === 'needs_revision');
-    const allApproved = teamSubmissions.every(s => s.revision_status === 'approved');
+    const activeSubmissions = teamSubmissions.filter(s => s.revision_status !== 'revised');
+    const allApproved = activeSubmissions.length > 0 && activeSubmissions.every(s => s.revision_status === 'approved');
     if (hasPending) return { status: 'pending_review', label: 'Pending Review', color: 'blue' };
     if (hasRevision) return { status: 'needs_revision', label: 'Needs Revision', color: 'destructive' };
     if (allApproved) return { status: 'approved', label: 'Approved', color: 'success' };
