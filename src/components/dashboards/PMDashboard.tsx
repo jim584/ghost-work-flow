@@ -1172,7 +1172,8 @@ const PMDashboard = () => {
                 const task = group.primaryTask;
                 const groupSubmissions = getGroupSubmissions(group);
                 const isExpanded = expandedTaskId === group.groupId;
-                const category = getGroupCategory(group, submissions || []);
+                const allCategories = getGroupCategories(group, submissions || []);
+                const category = (statusFilter && allCategories.includes(statusFilter)) ? statusFilter : getGroupCategory(group, submissions || []);
                 
                 const getBorderClass = () => {
                   if (category === 'recently_delivered') return 'border-l-4 border-l-green-500 bg-green-50/10';
