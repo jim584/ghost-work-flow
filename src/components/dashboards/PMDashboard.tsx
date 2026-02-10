@@ -1732,7 +1732,7 @@ const PMDashboard = () => {
                                               >
                                                 <Download className="h-3 w-3" />
                                               </Button>
-                                              {(submission.revision_status === "pending_review" || submission.revision_status === "approved") && (
+                                              {task.project_manager_id === user?.id && (submission.revision_status === "pending_review" || submission.revision_status === "approved") && (
                                                 <>
                                                   {submission.revision_status === "pending_review" && (
                                                     <Button
@@ -1826,7 +1826,7 @@ const PMDashboard = () => {
                                                     <Button size="sm" variant="outline" onClick={() => handleDownload(rev.file_path, rev.file_name)}>
                                                       <Download className="h-3 w-3" />
                                                     </Button>
-                                                    {(rev.revision_status === "pending_review" || rev.revision_status === "approved") && (
+                                                    {task.project_manager_id === user?.id && (rev.revision_status === "pending_review" || rev.revision_status === "approved") && (
                                                       <>
                                                         {rev.revision_status === "pending_review" && (
                                                           <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveSubmission.mutate(rev.id)}>
@@ -1938,7 +1938,7 @@ const PMDashboard = () => {
                                   >
                                     <Download className="h-3 w-3" />
                                   </Button>
-                                  {(submission.revision_status === "pending_review" || submission.revision_status === "approved") && (
+                                  {task.project_manager_id === user?.id && (submission.revision_status === "pending_review" || submission.revision_status === "approved") && (
                                     <>
                                       {submission.revision_status === "pending_review" && (
                                         <Button
@@ -2032,7 +2032,7 @@ const PMDashboard = () => {
                                         <Button size="sm" variant="outline" onClick={() => handleDownload(rev.file_path, rev.file_name)}>
                                           <Download className="h-3 w-3" />
                                         </Button>
-                                        {(rev.revision_status === "pending_review" || rev.revision_status === "approved") && (
+                                        {task.project_manager_id === user?.id && (rev.revision_status === "pending_review" || rev.revision_status === "approved") && (
                                           <>
                                             {rev.revision_status === "pending_review" && (
                                               <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveSubmission.mutate(rev.id)}>
