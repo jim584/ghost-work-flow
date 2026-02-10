@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar } from "lucide-react";
 import { exportTasksToCSV, exportSalesPerformanceToCSV, exportUsersToCSV } from "@/utils/csvExport";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +23,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { CreateTaskForm } from "./CreateTaskForm";
 import { CreateLogoOrderForm } from "./CreateLogoOrderForm";
 import { CreateWebsiteOrderForm } from "./CreateWebsiteOrderForm";
-import { format, startOfWeek, startOfMonth } from "date-fns";
+import { format, startOfWeek, startOfMonth, endOfMonth, subMonths, isWithinInterval } from "date-fns";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Database } from "@/integrations/supabase/types";
@@ -107,6 +109,10 @@ const AdminDashboard = () => {
   const [cancelReason, setCancelReason] = useState("");
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [taskType, setTaskType] = useState<"social_media" | "logo" | "website" | null>(null);
+  const [designerPerformanceOpen, setDesignerPerformanceOpen] = useState(false);
+  const [prevMonthDesignerOpen, setPrevMonthDesignerOpen] = useState(false);
+  const [showAllCurrentDesigner, setShowAllCurrentDesigner] = useState(false);
+  const [showAllPreviousDesigner, setShowAllPreviousDesigner] = useState(false);
 
   // Helper function to filter tasks by metric type for a specific user
   const getFilteredTasksForMetric = (userId: string, metricType: string) => {
@@ -1523,6 +1529,165 @@ const AdminDashboard = () => {
           </Card>
         </div>
         )}
+
+        {/* Monthly Performance Section - Per Designer */}
+        {viewMode === 'tasks' && (() => {
+          const now = new Date();
+          const curStart = startOfMonth(now);
+          const curEnd = endOfMonth(now);
+          const prevStart = startOfMonth(subMonths(now, 1));
+          const prevEnd = endOfMonth(subMonths(now, 1));
+
+          // Build designer stats from tasks + submissions
+          const designerIds = users?.filter(u => 
+            u.user_roles?.some((r: any) => r.role === 'designer')
+          ).map(u => u.id) || [];
+
+          const designerStats = designerIds.map(designerId => {
+            const designerProfile = users?.find(u => u.id === designerId);
+            const designerName = designerProfile?.full_name || designerProfile?.email || 'Unknown';
+            
+            // Find tasks assigned to this designer's teams
+            const designerTeamIds = developerProfiles
+              ?.filter((tm: any) => tm.user_id === designerId)
+              .map((tm: any) => tm.team_id) || [];
+
+            const designerTasks = tasks?.filter(t => designerTeamIds.includes(t.team_id)) || [];
+
+            const currentMonthCompleted = designerTasks.filter(t =>
+              (t.status === "completed" || t.status === "approved") &&
+              t.updated_at &&
+              isWithinInterval(new Date(t.updated_at), { start: curStart, end: curEnd })
+            );
+
+            const previousMonthCompleted = designerTasks.filter(t =>
+              (t.status === "completed" || t.status === "approved") &&
+              t.updated_at &&
+              isWithinInterval(new Date(t.updated_at), { start: prevStart, end: prevEnd })
+            );
+
+            // Count submissions stats for current month
+            const designerSubmissions = submissions?.filter(s => s.designer_id === designerId) || [];
+            const currentMonthSubmissions = designerSubmissions.filter(s =>
+              s.submitted_at && isWithinInterval(new Date(s.submitted_at), { start: curStart, end: curEnd })
+            );
+            const approvedCount = currentMonthSubmissions.filter(s => s.revision_status === 'approved').length;
+            const revisionCount = currentMonthSubmissions.filter(s => s.revision_status === 'needs_revision').length;
+            const pendingCount = currentMonthSubmissions.filter(s => s.revision_status === 'pending_review').length;
+
+            return {
+              id: designerId,
+              name: designerName,
+              currentMonth: currentMonthCompleted,
+              previousMonth: previousMonthCompleted,
+              totalSubmissions: currentMonthSubmissions.length,
+              approvedCount,
+              revisionCount,
+              pendingCount,
+            };
+          });
+
+          const totalCurrentMonth = designerStats.reduce((sum, d) => sum + d.currentMonth.length, 0);
+
+          return (
+            <Collapsible open={designerPerformanceOpen} onOpenChange={setDesignerPerformanceOpen}>
+              <Card className="mb-8">
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-primary" />
+                        <CardTitle>Monthly Performance — Designers</CardTitle>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-sm px-2 py-0.5">
+                          {totalCurrentMonth} completed this month
+                        </Badge>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${designerPerformanceOpen ? "rotate-180" : ""}`} />
+                      </div>
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-6">
+                    {/* Current Month */}
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3">{format(now, "MMMM yyyy")}</h3>
+                      {designerStats.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">No designers found.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Designer</TableHead>
+                              <TableHead className="text-center">Orders Completed</TableHead>
+                              <TableHead className="text-center">Files Submitted</TableHead>
+                              <TableHead className="text-center">Approved</TableHead>
+                              <TableHead className="text-center">Revisions</TableHead>
+                              <TableHead className="text-center">Pending Review</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {designerStats.map(designer => (
+                              <TableRow key={designer.id}>
+                                <TableCell className="font-medium">{designer.name}</TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant="secondary">{designer.currentMonth.length}</Badge>
+                                </TableCell>
+                                <TableCell className="text-center">{designer.totalSubmissions}</TableCell>
+                                <TableCell className="text-center">
+                                  <span className="text-green-600 font-medium">{designer.approvedCount}</span>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <span className="text-orange-600 font-medium">{designer.revisionCount}</span>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <span className="text-blue-600 font-medium">{designer.pendingCount}</span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+
+                    {/* Previous Month */}
+                    <Collapsible open={prevMonthDesignerOpen} onOpenChange={setPrevMonthDesignerOpen}>
+                      <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full">
+                        <ChevronDown className={`h-4 w-4 transition-transform ${prevMonthDesignerOpen ? "rotate-180" : ""}`} />
+                        {format(subMonths(now, 1), "MMMM yyyy")} — {designerStats.reduce((sum, d) => sum + d.previousMonth.length, 0)} completed
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-3">
+                        {designerStats.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">No data.</p>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Designer</TableHead>
+                                <TableHead className="text-center">Orders Completed</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {designerStats.map(designer => (
+                                <TableRow key={designer.id}>
+                                  <TableCell className="font-medium">{designer.name}</TableCell>
+                                  <TableCell className="text-center">
+                                    <Badge variant="secondary">{designer.previousMonth.length}</Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          );
+        })()}
 
         {viewMode === 'tasks' && (
         <Card>
