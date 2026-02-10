@@ -688,11 +688,15 @@ const PMDashboard = () => {
     if (isDelayed) categories.push('delayed');
     if (hasTeamsPendingDelivery) categories.push('pending_delivery');
     
+    // For multi-team orders, also check individual task statuses
+    const hasAnyPending = activeTasks.some((t: any) => t.status === 'pending');
+    const hasAnyInProgress = activeTasks.some((t: any) => t.status === 'in_progress');
+    if (hasAnyPending) categories.push('pending');
+    if (hasAnyInProgress) categories.push('in_progress');
+    
     if (categories.length === 0) {
       if (allApproved) categories.push('other');
       else if (representativeTask.status === 'completed' || representativeTask.status === 'approved') categories.push('other');
-      else if (representativeTask.status === 'pending') categories.push('pending');
-      else if (representativeTask.status === 'in_progress') categories.push('in_progress');
       else categories.push('other');
     }
     
@@ -708,8 +712,8 @@ const PMDashboard = () => {
   const stats = {
     recently_delivered: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('recently_delivered')).length,
     delayed: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('delayed')).length,
-    pending: groupedOrders.filter(g => g.primaryTask.status === 'pending').length,
-    in_progress: groupedOrders.filter(g => g.primaryTask.status === 'in_progress').length,
+    pending: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending')).length,
+    in_progress: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('in_progress')).length,
     needs_revision: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('needs_revision')).length,
     pending_delivery: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending_delivery')).length,
     cancelled: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('cancelled')).length,
