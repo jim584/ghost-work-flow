@@ -2051,8 +2051,8 @@ const AdminDashboard = () => {
                                   let statusColor = "text-muted-foreground";
                                   let statusText = "Pending";
                                   
-                                  if (isApproved) { statusIcon = "✓"; statusColor = "text-green-600"; statusText = "Approved"; }
-                                  else if (hasNeedsRevision) { statusIcon = "↻"; statusColor = "text-orange-500"; statusText = "Revision"; }
+                                  if (hasNeedsRevision) { statusIcon = "↻"; statusColor = "text-orange-500"; statusText = "Needs Revision"; }
+                                  else if (isApproved) { statusIcon = "✓"; statusColor = "text-green-600"; statusText = "Approved"; }
                                   else if (hasPendingReview || hasDelivery) { statusIcon = "●"; statusColor = "text-blue-500"; statusText = "Delivered"; }
                                   else if (t.status === 'in_progress') { statusIcon = "◉"; statusColor = "text-yellow-500"; statusText = "Working"; }
                                   else if (t.status === 'completed') { statusIcon = "●"; statusColor = "text-primary"; statusText = "Completed"; }
