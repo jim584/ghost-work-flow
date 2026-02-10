@@ -3,11 +3,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban } from "lucide-react";
 import { exportTasksToCSV, exportSalesPerformanceToCSV, exportUsersToCSV } from "@/utils/csvExport";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,9 +17,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FilePreview } from "@/components/FilePreview";
 import { useProjectManagers } from "@/hooks/useProjectManagers";
+import { NotificationBell } from "@/components/NotificationBell";
+import { CreateTaskForm } from "./CreateTaskForm";
+import { CreateLogoOrderForm } from "./CreateLogoOrderForm";
+import { CreateWebsiteOrderForm } from "./CreateWebsiteOrderForm";
 import { format, startOfWeek, startOfMonth } from "date-fns";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Database } from "@/integrations/supabase/types";
 
 // Password validation schema
 const passwordSchema = z.string()
@@ -67,6 +72,7 @@ const AdminDashboard = () => {
   });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
+  const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [editTeamDialog, setEditTeamDialog] = useState<{ open: boolean; teamId: string; currentName: string } | null>(null);
   const [newTeamName, setNewTeamName] = useState("");
   const [viewMode, setViewMode] = useState<'tasks' | 'portfolio' | 'sales_performance'>('tasks');
@@ -97,6 +103,10 @@ const AdminDashboard = () => {
     business_email: "",
     business_phone: "",
   });
+  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; taskId: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [taskType, setTaskType] = useState<"social_media" | "logo" | "website" | null>(null);
 
   // Helper function to filter tasks by metric type for a specific user
   const getFilteredTasksForMetric = (userId: string, metricType: string) => {
@@ -209,6 +219,117 @@ const AdminDashboard = () => {
     }
     return null;
   };
+
+  // Fetch designer teams only (for order creation forms)
+  const { data: designerTeams } = useQuery({
+    queryKey: ["designer-teams"],
+    queryFn: async () => {
+      const { data: designerRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "designer");
+      if (rolesError) throw rolesError;
+      const designerUserIds = designerRoles?.map(r => r.user_id) || [];
+      if (designerUserIds.length === 0) return [];
+      const { data: designerTeamMembers, error: membersError } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .in("user_id", designerUserIds);
+      if (membersError) throw membersError;
+      const designerTeamIds = [...new Set(designerTeamMembers?.map(m => m.team_id) || [])];
+      if (designerTeamIds.length === 0) return [];
+      const { data: teamsData, error: teamsError } = await supabase
+        .from("teams")
+        .select("*")
+        .in("id", designerTeamIds);
+      if (teamsError) throw teamsError;
+      return teamsData;
+    },
+  });
+
+  // Group tasks by order_group_id for multi-team orders
+  const groupedOrders = useMemo(() => {
+    if (!tasks) return [];
+    const groups = new Map<string, {
+      groupId: string;
+      primaryTask: any;
+      allTasks: any[];
+      isMultiTeam: boolean;
+      teamNames: string[];
+    }>();
+    tasks.forEach((task: any) => {
+      const key = task.order_group_id || task.id;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          groupId: key,
+          primaryTask: task,
+          allTasks: [task],
+          isMultiTeam: !!task.order_group_id,
+          teamNames: [task.teams?.name || "Unknown Team"],
+        });
+      } else {
+        const group = groups.get(key)!;
+        group.allTasks.push(task);
+        if (task.teams?.name && !group.teamNames.includes(task.teams.name)) {
+          group.teamNames.push(task.teams.name);
+        }
+      }
+    });
+    return Array.from(groups.values());
+  }, [tasks]);
+
+  // Get all submissions for a grouped order
+  const getGroupSubmissions = (group: typeof groupedOrders[0]) => {
+    if (!submissions) return [];
+    const taskIds = group.allTasks.map((t: any) => t.id);
+    return submissions.filter((s: any) => taskIds.includes(s.task_id));
+  };
+
+  // Cancel order mutation
+  const cancelOrder = useMutation({
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
+      const task = tasks?.find(t => t.id === taskId);
+      if (!task) throw new Error("Task not found");
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          status: "cancelled" as any, 
+          cancellation_reason: reason,
+          cancelled_at: new Date().toISOString(),
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+      // Notify designers in the task's team
+      const { data: teamMembers } = await supabase
+        .from("team_members")
+        .select("user_id")
+        .eq("team_id", task.team_id);
+      if (teamMembers) {
+        for (const member of teamMembers) {
+          await supabase.from("notifications").insert({
+            user_id: member.user_id,
+            type: "order_cancelled",
+            title: "Order Cancelled",
+            message: `Order #${task.task_number} "${task.title}" has been cancelled. Reason: ${reason}`,
+            task_id: taskId,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+      toast({ title: "Order cancelled successfully" });
+      setCancelDialog(null);
+      setCancelReason("");
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error cancelling order",
+        description: error.message,
+      });
+    },
+  });
 
   const { data: submissions } = useQuery({
     queryKey: ["admin-submissions"],
@@ -969,11 +1090,30 @@ const AdminDashboard = () => {
     // Search filter - if searching, show all matching tasks regardless of status
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      return task.title?.toLowerCase().includes(query) ||
+      const matchesSearch = task.title?.toLowerCase().includes(query) ||
         task.task_number?.toString().includes(query) ||
         task.business_name?.toLowerCase().includes(query) ||
         task.description?.toLowerCase().includes(query) ||
         `#${task.task_number}`.includes(query);
+      
+      // Still apply order type filter when searching
+      if (orderTypeFilter) {
+        const matchesOrderType = 
+          (orderTypeFilter === 'logo' && task.post_type === 'Logo Design') ||
+          (orderTypeFilter === 'social_media' && task.post_type !== 'Logo Design' && task.post_type !== 'Website Design') ||
+          (orderTypeFilter === 'website' && task.post_type === 'Website Design');
+        return matchesSearch && matchesOrderType;
+      }
+      return matchesSearch;
+    }
+    
+    // Order type filter
+    if (orderTypeFilter) {
+      const matchesOrderType = 
+        (orderTypeFilter === 'logo' && task.post_type === 'Logo Design') ||
+        (orderTypeFilter === 'social_media' && task.post_type !== 'Logo Design' && task.post_type !== 'Website Design') ||
+        (orderTypeFilter === 'website' && task.post_type === 'Website Design');
+      if (!matchesOrderType) return false;
     }
     
     // Status filter (only applied when not searching)
@@ -1022,6 +1162,7 @@ const AdminDashboard = () => {
             <p className="text-sm text-muted-foreground">Admin Dashboard</p>
           </div>
           <div className="flex gap-2">
+            <NotificationBell userId={user!.id} />
             <Button 
               onClick={() => setShowUserManagement(!showUserManagement)} 
               variant="outline" 
@@ -1178,7 +1319,7 @@ const AdminDashboard = () => {
             </Button>
           </div>
           {viewMode === 'tasks' && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
@@ -1198,6 +1339,38 @@ const AdminDashboard = () => {
                 onClick={() => setStatusFilter(null)}
               >
                 All Tasks
+              </Button>
+              <div className="border-l mx-1" />
+              <Button
+                variant={!orderTypeFilter ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setOrderTypeFilter(null)}
+              >
+                All Types
+              </Button>
+              <Button
+                variant={orderTypeFilter === 'logo' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setOrderTypeFilter('logo')}
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                Logo
+              </Button>
+              <Button
+                variant={orderTypeFilter === 'social_media' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setOrderTypeFilter('social_media')}
+              >
+                <FolderKanban className="h-4 w-4 mr-1" />
+                Social Media
+              </Button>
+              <Button
+                variant={orderTypeFilter === 'website' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setOrderTypeFilter('website')}
+              >
+                <Globe className="h-4 w-4 mr-1" />
+                Website
               </Button>
             </div>
           )}
@@ -1279,8 +1452,113 @@ const AdminDashboard = () => {
 
         {viewMode === 'tasks' && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>All Tasks</CardTitle>
+            <Dialog open={createOrderOpen} onOpenChange={(isOpen) => {
+              setCreateOrderOpen(isOpen);
+              if (!isOpen) setTaskType(null);
+            }}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Task
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl">
+                {!taskType ? (
+                  <div className="space-y-4">
+                    <DialogHeader>
+                      <DialogTitle>Select Task Type</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-3 gap-4">
+                      <Button
+                        variant="outline"
+                        className="h-32 flex flex-col gap-2"
+                        onClick={() => setTaskType("social_media")}
+                      >
+                        <FolderKanban className="h-8 w-8" />
+                        <div className="text-center">
+                          <p className="font-semibold">Social Media Post</p>
+                          <p className="text-xs text-muted-foreground">Create social media content</p>
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-32 flex flex-col gap-2"
+                        onClick={() => setTaskType("logo")}
+                      >
+                        <FileText className="h-8 w-8" />
+                        <div className="text-center">
+                          <p className="font-semibold">Logo Order</p>
+                          <p className="text-xs text-muted-foreground">Create logo design order</p>
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-32 flex flex-col gap-2"
+                        onClick={() => setTaskType("website")}
+                      >
+                        <Globe className="h-8 w-8" />
+                        <div className="text-center">
+                          <p className="font-semibold">Website Order</p>
+                          <p className="text-xs text-muted-foreground">Create website design order</p>
+                        </div>
+                      </Button>
+                    </div>
+                  </div>
+                ) : taskType === "social_media" ? (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Create New Social Media Post Request</DialogTitle>
+                    </DialogHeader>
+                    <CreateTaskForm 
+                      userId={user!.id} 
+                      teams={designerTeams || []} 
+                      onSuccess={() => {
+                        setCreateOrderOpen(false);
+                        setTaskType(null);
+                        queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+                      }}
+                      showProjectManagerSelector={true}
+                      showUpsellToggle={true}
+                    />
+                  </>
+                ) : taskType === "logo" ? (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Create New Logo Order</DialogTitle>
+                    </DialogHeader>
+                    <CreateLogoOrderForm 
+                      userId={user!.id} 
+                      teams={designerTeams || []} 
+                      onSuccess={() => {
+                        setCreateOrderOpen(false);
+                        setTaskType(null);
+                        queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+                      }}
+                      showProjectManagerSelector={true}
+                      showUpsellToggle={true}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Create New Website Order</DialogTitle>
+                    </DialogHeader>
+                    <CreateWebsiteOrderForm 
+                      userId={user!.id} 
+                      onSuccess={() => {
+                        setCreateOrderOpen(false);
+                        setTaskType(null);
+                        queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+                      }}
+                      showProjectManagerSelector={true}
+                      showUpsellToggle={true}
+                    />
+                  </>
+                )}
+              </DialogContent>
+            </Dialog>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -1318,6 +1596,18 @@ const AdminDashboard = () => {
                             #{task.task_number}
                           </span>
                           <h3 className="font-semibold">{task.title}</h3>
+                          {isWebsiteOrder(task) ? (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">Website</Badge>
+                          ) : isLogoOrder(task) ? (
+                            <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">Logo</Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-pink-500/10 text-pink-600 border-pink-200">Social Media</Badge>
+                          )}
+                          {task.order_group_id && (
+                            <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-200">
+                              Multi-Team
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
                         <div className="text-sm text-muted-foreground mb-1">
@@ -1382,6 +1672,17 @@ const AdminDashboard = () => {
                             <RefreshCw className="h-3 w-3 mr-1" />
                             Reassign PM
                           </Button>
+                          {(task.status === "pending" || task.status === "in_progress") && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="hover:bg-destructive/10"
+                              onClick={() => setCancelDialog({ open: true, taskId: task.id })}
+                            >
+                              <XCircle className="h-3 w-3 mr-1 text-destructive" />
+                              <span className="text-destructive">Cancel</span>
+                            </Button>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -2994,6 +3295,42 @@ const AdminDashboard = () => {
             </Button>
             <Button onClick={handleSaveTask} disabled={updateTask.isPending}>
               {updateTask.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Cancel Order Dialog */}
+      <Dialog open={cancelDialog?.open || false} onOpenChange={(open) => {
+        if (!open) {
+          setCancelDialog(null);
+          setCancelReason("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Order</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to cancel this order? This action will notify the assigned designers.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason">Reason for Cancellation *</Label>
+              <Textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Please provide a reason for cancelling this order..."
+                rows={4}
+              />
+            </div>
+            <Button
+              variant="destructive"
+              onClick={() => cancelDialog && cancelOrder.mutate({ taskId: cancelDialog.taskId, reason: cancelReason })}
+              disabled={!cancelReason.trim() || cancelOrder.isPending}
+              className="w-full"
+            >
+              {cancelOrder.isPending ? "Cancelling..." : "Cancel Order"}
             </Button>
           </div>
         </DialogContent>
