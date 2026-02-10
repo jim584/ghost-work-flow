@@ -1424,14 +1424,14 @@ const PMDashboard = () => {
                                   let statusColor = "text-muted-foreground";
                                   let statusText = "Pending";
                                   
-                                  if (isApproved) {
+                                  if (hasNeedsRevision) {
+                                    statusIcon = "↻";
+                                    statusColor = "text-orange-500";
+                                    statusText = "Needs Revision";
+                                  } else if (isApproved) {
                                     statusIcon = "✓";
                                     statusColor = "text-green-600";
                                     statusText = "Approved";
-                                  } else if (hasNeedsRevision) {
-                                    statusIcon = "↻";
-                                    statusColor = "text-orange-500";
-                                    statusText = "Revision";
                                   } else if (hasPendingReview) {
                                     statusIcon = "●";
                                     statusColor = "text-blue-500";
