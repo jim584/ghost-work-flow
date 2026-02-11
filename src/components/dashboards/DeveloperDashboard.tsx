@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -20,7 +20,7 @@ import { useDesignerNotifications } from "@/hooks/useDesignerNotifications";
 import { NotificationBell } from "@/components/NotificationBell";
 
 // SLA Countdown component
-const SlaCountdown = ({ deadline }: { deadline: string }) => {
+const SlaCountdown = ({ deadline, label }: { deadline: string; label?: string }) => {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -37,20 +37,20 @@ const SlaCountdown = ({ deadline }: { deadline: string }) => {
     return (
       <div className="flex items-center gap-1.5 text-destructive">
         <Timer className="h-3.5 w-3.5" />
-        <span className="text-xs font-semibold">OVERDUE by {overdueHours}h {overdueMins}m</span>
+        <span className="text-xs font-semibold">{label || "SLA"} OVERDUE by {overdueHours}h {overdueMins}m</span>
       </div>
     );
   }
 
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
-  const isUrgent = totalMinutes < 120; // less than 2 hours
+  const isUrgent = totalMinutes < 120;
 
   return (
     <div className={`flex items-center gap-1.5 ${isUrgent ? 'text-destructive' : 'text-warning'}`}>
       <Timer className="h-3.5 w-3.5" />
       <span className="text-xs font-semibold">
-        {hours}h {mins}m remaining
+        {label || "SLA"}: {hours}h {mins}m remaining
       </span>
     </div>
   );
@@ -108,6 +108,8 @@ const DeveloperDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>("active");
   const [userTeams, setUserTeams] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [reassignTask, setReassignTask] = useState<any>(null);
+  const [reassignReason, setReassignReason] = useState("");
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -125,13 +127,9 @@ const DeveloperDashboard = () => {
     fetchTeams();
   }, [user?.id]);
 
-  // Enable sound notifications
   useDesignerNotifications(user?.id, userTeams);
 
-  // Helper function to check if a task is a website order
-  const isWebsiteOrder = (task: any) => {
-    return task.post_type === 'Website Design';
-  };
+  const isWebsiteOrder = (task: any) => task.post_type === 'Website Design';
 
   const { data: tasks } = useQuery({
     queryKey: ["developer-tasks", user?.id],
@@ -151,8 +149,6 @@ const DeveloperDashboard = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      
-      // Filter to only website orders
       return data?.filter(isWebsiteOrder) || [];
     },
   });
@@ -171,7 +167,6 @@ const DeveloperDashboard = () => {
     },
   });
 
-  // Fetch project phases for all tasks
   const { data: projectPhases } = useQuery({
     queryKey: ["developer-phases", user?.id],
     queryFn: async () => {
@@ -207,29 +202,85 @@ const DeveloperDashboard = () => {
       
       toast({ title: "Download started" });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error downloading file",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Error downloading file", description: error.message });
     }
   };
 
-  // Acknowledge task mutation
+  // Acknowledge task
   const acknowledgeTask = useMutation({
     mutationFn: async (taskId: string) => {
+      const task = tasks?.find(t => t.id === taskId);
+      const isLate = task?.ack_deadline && new Date(task.ack_deadline) < new Date();
+      
       const { error } = await supabase
         .from("tasks")
         .update({ 
           status: "in_progress" as any, 
-          acknowledged_at: new Date().toISOString() 
+          acknowledged_at: new Date().toISOString(),
+          late_acknowledgement: isLate || false,
         })
         .eq("id", taskId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
-      toast({ title: "Task acknowledged", description: "You've started working on this task." });
+      toast({ title: "Task acknowledged", description: "Status changed to In Progress – Phase 1." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  // Request reassignment
+  const requestReassignment = useMutation({
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
+      // Update task with reassignment request
+      const { error: taskError } = await supabase
+        .from("tasks")
+        .update({ 
+          reassignment_requested_at: new Date().toISOString(),
+          reassignment_request_reason: reason,
+        } as any)
+        .eq("id", taskId);
+      if (taskError) throw taskError;
+
+      // Get task details for notification
+      const task = tasks?.find(t => t.id === taskId);
+
+      // Notify all admins (Development Head)
+      const { data: admins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+      
+      if (admins) {
+        for (const admin of admins) {
+          await supabase.from("notifications").insert({
+            user_id: admin.user_id,
+            type: "reassignment_requested",
+            title: "Reassignment Requested",
+            message: `Developer requested reassignment for: ${task?.title || 'Website Order'}. Reason: ${reason}`,
+            task_id: taskId,
+          });
+        }
+      }
+
+      // Notify the PM
+      if (task?.project_manager_id) {
+        await supabase.from("notifications").insert({
+          user_id: task.project_manager_id,
+          type: "reassignment_requested",
+          title: "Reassignment Requested",
+          message: `Developer requested reassignment for: ${task.title}. Reason: ${reason}`,
+          task_id: taskId,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+      toast({ title: "Reassignment requested", description: "Development Head has been notified." });
+      setReassignTask(null);
+      setReassignReason("");
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -239,13 +290,9 @@ const DeveloperDashboard = () => {
   // Complete phase mutation
   const completePhase = useMutation({
     mutationFn: async ({ taskId, currentPhase, totalPhases }: { taskId: string; currentPhase: number; totalPhases: number }) => {
-      // Mark current phase as completed
       const { error: phaseError } = await supabase
         .from("project_phases")
-        .update({ 
-          status: "completed", 
-          completed_at: new Date().toISOString() 
-        })
+        .update({ status: "completed", completed_at: new Date().toISOString() })
         .eq("task_id", taskId)
         .eq("phase_number", currentPhase);
       
@@ -254,8 +301,6 @@ const DeveloperDashboard = () => {
       const nextPhase = currentPhase + 1;
       
       if (nextPhase <= totalPhases) {
-        // Calculate SLA for next phase
-        // Get developer_id from tasks
         const { data: taskData } = await supabase
           .from("tasks")
           .select("developer_id")
@@ -266,40 +311,25 @@ const DeveloperDashboard = () => {
         if (taskData?.developer_id) {
           try {
             const slaResponse = await supabase.functions.invoke('calculate-sla-deadline', {
-              body: {
-                developer_id: taskData.developer_id,
-                start_time: new Date().toISOString(),
-                sla_hours: 8,
-              },
+              body: { developer_id: taskData.developer_id, start_time: new Date().toISOString(), sla_hours: 9 },
             });
-            if (slaResponse.data?.deadline) {
-              slaDeadline = slaResponse.data.deadline;
-            }
+            if (slaResponse.data?.deadline) slaDeadline = slaResponse.data.deadline;
           } catch (e) {
             console.error("SLA calculation failed:", e);
           }
         }
 
-        // Create next phase
         await supabase.from("project_phases").insert({
-          task_id: taskId,
-          phase_number: nextPhase,
-          sla_hours: 8,
-          sla_deadline: slaDeadline,
-          started_at: new Date().toISOString(),
-          status: "in_progress",
+          task_id: taskId, phase_number: nextPhase, sla_hours: 9,
+          sla_deadline: slaDeadline, started_at: new Date().toISOString(), status: "in_progress",
         });
 
-        // Update task
         await supabase.from("tasks").update({
-          current_phase: nextPhase,
-          sla_deadline: slaDeadline,
+          current_phase: nextPhase, sla_deadline: slaDeadline,
         }).eq("id", taskId);
       } else {
-        // All phases done - mark task as completed
         await supabase.from("tasks").update({
-          status: "completed" as any,
-          current_phase: totalPhases,
+          status: "completed" as any, current_phase: totalPhases,
         }).eq("id", taskId);
       }
     },
@@ -321,63 +351,40 @@ const DeveloperDashboard = () => {
       const teamName = selectedTask.teams.name.replace(/\s+/g, "_");
       let uploadedCount = 0;
 
-      // Check if this is a revision upload
       const taskSubmissions = submissions?.filter(s => s.task_id === selectedTask.id) || [];
       const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
 
-      // If uploading revision, mark old "needs_revision" submissions as "revised"
       if (hasRevision) {
         const revisionsToUpdate = taskSubmissions.filter(s => s.revision_status === "needs_revision");
         for (const submission of revisionsToUpdate) {
-          const { error: updateError } = await supabase
-            .from("design_submissions")
-            .update({ revision_status: "revised" })
-            .eq("id", submission.id);
-          
-          if (updateError) throw updateError;
+          await supabase.from("design_submissions").update({ revision_status: "revised" }).eq("id", submission.id);
         }
       }
 
-      // Upload all files and create submissions
       for (const file of files) {
         const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const timestamp = Date.now();
         const fileName = `${teamName}_Task_${selectedTask.task_number}_${timestamp}_${sanitizedFileName}`;
         const filePath = `${user!.id}/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("design-files")
-          .upload(filePath, file);
-
+        const { error: uploadError } = await supabase.storage.from("design-files").upload(filePath, file);
         if (uploadError) throw uploadError;
 
-        const { error: submissionError } = await supabase
-          .from("design_submissions")
-          .insert({
-            task_id: selectedTask.id,
-            designer_id: user!.id,
-            file_path: filePath,
-            file_name: fileName,
-            designer_comment: developerComment.trim() || null,
-          });
-
+        const { error: submissionError } = await supabase.from("design_submissions").insert({
+          task_id: selectedTask.id, designer_id: user!.id,
+          file_path: filePath, file_name: fileName,
+          designer_comment: developerComment.trim() || null,
+        });
         if (submissionError) throw submissionError;
         uploadedCount++;
-        
-        toast({ 
-          title: `Uploaded ${uploadedCount} of ${files.length} files` 
-        });
+        toast({ title: `Uploaded ${uploadedCount} of ${files.length} files` });
       }
 
-      // For non-revision uploads, complete the current phase
       if (!hasRevision) {
-        const currentPhase = selectedTask.current_phase || 1;
-        const totalPhases = selectedTask.total_phases || 4;
-        
         completePhase.mutate({ 
           taskId: selectedTask.id, 
-          currentPhase, 
-          totalPhases 
+          currentPhase: selectedTask.current_phase || 1, 
+          totalPhases: selectedTask.total_phases || 4 
         });
       }
 
@@ -392,11 +399,7 @@ const DeveloperDashboard = () => {
       setFilePreviews({});
       setDeveloperComment("");
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error uploading files",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Error uploading files", description: error.message });
     } finally {
       setUploading(false);
     }
@@ -404,10 +407,7 @@ const DeveloperDashboard = () => {
 
   const updateTaskStatus = useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string; status: Database["public"]["Enums"]["task_status"] }) => {
-      const { error } = await supabase
-        .from("tasks")
-        .update({ status })
-        .eq("id", taskId);
+      const { error } = await supabase.from("tasks").update({ status }).eq("id", taskId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -422,15 +422,17 @@ const DeveloperDashboard = () => {
   }) || [];
 
   const isTaskDelayed = (task: any) => {
-    // Check SLA deadline first
     if (task.sla_deadline) {
       return new Date(task.sla_deadline) < new Date() && 
         !["completed", "approved", "cancelled"].includes(task.status);
     }
-    const createdAt = new Date(task.created_at);
-    const hoursSinceCreation = differenceInHours(new Date(), createdAt);
+    const hoursSinceCreation = differenceInHours(new Date(), new Date(task.created_at));
     const needsRevision = tasksNeedingRevision.some(t => t.id === task.id);
     return hoursSinceCreation > 24 && (task.status === "pending" || task.status === "assigned" || needsRevision);
+  };
+
+  const isAckOverdue = (task: any) => {
+    return task.status === "assigned" && task.ack_deadline && new Date(task.ack_deadline) < new Date();
   };
 
   const delayedTasks = tasks?.filter(isTaskDelayed) || [];
@@ -438,7 +440,6 @@ const DeveloperDashboard = () => {
   const stats = {
     total: tasks?.length || 0,
     assigned: tasks?.filter((t) => t.status === "assigned").length || 0,
-    pending: tasks?.filter((t) => t.status === "pending").length || 0,
     in_progress: tasks?.filter((t) => t.status === "in_progress").length || 0,
     needs_revision: tasksNeedingRevision.length,
     delayed: delayedTasks.length,
@@ -446,28 +447,22 @@ const DeveloperDashboard = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "assigned":
-        return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
-      case "pending":
-        return "bg-muted text-muted-foreground";
-      case "in_progress":
-        return "bg-warning text-warning-foreground";
-      case "completed":
-        return "bg-primary text-primary-foreground";
-      case "approved":
-        return "bg-success text-success-foreground";
-      default:
-        return "bg-muted text-muted-foreground";
+      case "assigned": return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
+      case "pending": return "bg-muted text-muted-foreground";
+      case "in_progress": return "bg-warning text-warning-foreground";
+      case "completed": return "bg-primary text-primary-foreground";
+      case "approved": return "bg-success text-success-foreground";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 
   const getStatusLabel = (status: string) => {
     if (status === "assigned") return "Awaiting Acknowledgement";
+    if (status === "in_progress") return "In Progress";
     return status.replace("_", " ");
   };
 
   const filteredTasks = tasks?.filter((task) => {
-    // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       return task.title?.toLowerCase().includes(query) ||
@@ -476,24 +471,15 @@ const DeveloperDashboard = () => {
         task.description?.toLowerCase().includes(query) ||
         `#${task.task_number}`.includes(query);
     }
-    
-    // Status filter
     if (statusFilter === "active") {
       return task.status === "assigned" || task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id);
     }
-    if (statusFilter === "delayed") {
-      return isTaskDelayed(task);
-    }
+    if (statusFilter === "delayed") return isTaskDelayed(task);
     if (!statusFilter) return true;
-    if (statusFilter === "needs_revision") {
-      return tasksNeedingRevision.some(t => t.id === task.id);
-    }
-    if (statusFilter === "assigned") {
-      return task.status === "assigned";
-    }
+    if (statusFilter === "needs_revision") return tasksNeedingRevision.some(t => t.id === task.id);
+    if (statusFilter === "assigned") return task.status === "assigned";
     return task.status === statusFilter;
   }).sort((a, b) => {
-    // Sort: assigned first, then delayed, then by date
     if (a.status === "assigned" && b.status !== "assigned") return -1;
     if (a.status !== "assigned" && b.status === "assigned") return 1;
     const aDelayed = isTaskDelayed(a);
@@ -529,16 +515,9 @@ const DeveloperDashboard = () => {
                 <AlertTriangle className="h-6 w-6 text-destructive" />
                 <div>
                   <h3 className="font-semibold text-destructive">Urgent: {stats.delayed} Delayed Order{stats.delayed > 1 ? 's' : ''}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {stats.delayed} task{stats.delayed > 1 ? 's have' : ' has'} exceeded their SLA deadline. Please prioritize urgently.
-                  </p>
+                  <p className="text-sm text-muted-foreground">SLA deadline exceeded. Please prioritize urgently.</p>
                 </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="ml-auto"
-                  onClick={() => setStatusFilter("delayed")}
-                >
+                <Button variant="destructive" size="sm" className="ml-auto" onClick={() => setStatusFilter("delayed")}>
                   View Delayed Tasks
                 </Button>
               </div>
@@ -553,16 +532,9 @@ const DeveloperDashboard = () => {
                 <Play className="h-6 w-6 text-blue-600" />
                 <div>
                   <h3 className="font-semibold text-blue-700 dark:text-blue-400">{stats.assigned} New Order{stats.assigned > 1 ? 's' : ''} Awaiting Acknowledgement</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Please acknowledge to start the SLA timer.
-                  </p>
+                  <p className="text-sm text-muted-foreground">You must acknowledge within 30 working minutes. SLA timer is already running.</p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-auto border-blue-500 text-blue-700 hover:bg-blue-500/10"
-                  onClick={() => setStatusFilter("assigned")}
-                >
+                <Button variant="outline" size="sm" className="ml-auto border-blue-500 text-blue-700 hover:bg-blue-500/10" onClick={() => setStatusFilter("assigned")}>
                   View New Orders
                 </Button>
               </div>
@@ -582,12 +554,7 @@ const DeveloperDashboard = () => {
 
         {statusFilter !== "active" && (
           <div className="mb-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setStatusFilter("active")}
-              className="gap-2"
-            >
+            <Button variant="outline" size="sm" onClick={() => setStatusFilter("active")} className="gap-2">
               <Clock className="h-4 w-4" />
               Back to Active View
             </Button>
@@ -595,72 +562,45 @@ const DeveloperDashboard = () => {
         )}
         
         <div className="grid gap-6 md:grid-cols-5 mb-8">
-          <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === null ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter(null)}
-          >
+          <Card className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === null ? 'ring-2 ring-primary' : ''}`} onClick={() => setStatusFilter(null)}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
               <FolderKanban className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-            </CardContent>
+            <CardContent><div className="text-2xl font-bold">{stats.total}</div></CardContent>
           </Card>
-          <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'assigned' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter('assigned')}
-          >
+          <Card className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'assigned' ? 'ring-2 ring-primary' : ''}`} onClick={() => setStatusFilter('assigned')}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Awaiting Ack</CardTitle>
               <Play className="h-4 w-4 text-blue-500" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.assigned}</div>
-            </CardContent>
+            <CardContent><div className="text-2xl font-bold text-blue-600">{stats.assigned}</div></CardContent>
           </Card>
-          <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'in_progress' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter('in_progress')}
-          >
+          <Card className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'in_progress' ? 'ring-2 ring-primary' : ''}`} onClick={() => setStatusFilter('in_progress')}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">In Progress</CardTitle>
               <Clock className="h-4 w-4 text-warning" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.in_progress}</div>
-            </CardContent>
+            <CardContent><div className="text-2xl font-bold">{stats.in_progress}</div></CardContent>
           </Card>
-          <Card 
-            className={`border-destructive cursor-pointer transition-all hover:shadow-md ${statusFilter === 'needs_revision' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter('needs_revision')}
-          >
+          <Card className={`border-destructive cursor-pointer transition-all hover:shadow-md ${statusFilter === 'needs_revision' ? 'ring-2 ring-primary' : ''}`} onClick={() => setStatusFilter('needs_revision')}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Needs Revision</CardTitle>
               <AlertCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{stats.needs_revision}</div>
-            </CardContent>
+            <CardContent><div className="text-2xl font-bold text-destructive">{stats.needs_revision}</div></CardContent>
           </Card>
-          <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter('pending')}
-          >
+          <Card className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'delayed' ? 'ring-2 ring-primary' : ''}`} onClick={() => setStatusFilter('delayed')}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Delayed</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-destructive" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.pending}</div>
-            </CardContent>
+            <CardContent><div className="text-2xl font-bold text-destructive">{stats.delayed}</div></CardContent>
           </Card>
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Website Orders</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Website Orders</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-4">
               {filteredTasks?.map((task) => {
@@ -668,30 +608,34 @@ const DeveloperDashboard = () => {
                 const isExpanded = expandedTaskId === task.id;
                 const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
                 const isDelayed = isTaskDelayed(task);
-                const createdAt = new Date(task.created_at);
-                const hoursSinceCreation = differenceInHours(new Date(), createdAt);
                 const isAssigned = task.status === "assigned";
+                const ackOverdue = isAckOverdue(task);
+                const hasReassignmentRequest = !!(task as any).reassignment_requested_at;
                 
                 return (
                   <div 
                     key={task.id} 
-                    className={`border rounded-lg ${isAssigned ? 'border-blue-500 border-2 bg-blue-500/5' : ''} ${hasRevision ? 'border-destructive border-2 bg-destructive/5' : ''} ${isDelayed && !isAssigned ? 'border-destructive border-2 bg-destructive/10' : ''}`}
+                    className={`border rounded-lg ${isAssigned ? 'border-blue-500 border-2 bg-blue-500/5' : ''} ${ackOverdue ? 'border-destructive border-2 bg-destructive/5' : ''} ${hasRevision && !isAssigned ? 'border-destructive border-2 bg-destructive/5' : ''} ${isDelayed && !isAssigned && !ackOverdue ? 'border-destructive border-2 bg-destructive/10' : ''}`}
                   >
-                    <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-start justify-between p-4 hover:bg-muted/50 transition-colors">
                       <div className="space-y-1 flex-1">
                         <div className="flex items-center gap-3 flex-wrap">
-                          <span className="font-mono text-sm text-muted-foreground">
-                            #{task.task_number}
-                          </span>
+                          <span className="font-mono text-sm text-muted-foreground">#{task.task_number}</span>
                           <Badge variant="secondary" className="gap-1 bg-primary/10 text-primary">
                             <Globe className="h-3 w-3" />
                             Website Order
                           </Badge>
                           <h3 className="font-semibold">{task.title}</h3>
-                          {isAssigned && (
+                          {isAssigned && !ackOverdue && (
                             <Badge className="gap-1 bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500">
                               <Play className="h-3 w-3" />
-                              NEW - Awaiting Acknowledgement
+                              NEW
+                            </Badge>
+                          )}
+                          {ackOverdue && (
+                            <Badge variant="destructive" className="gap-1 animate-pulse">
+                              <AlertTriangle className="h-3 w-3" />
+                              ACK OVERDUE
                             </Badge>
                           )}
                           {isDelayed && !isAssigned && (
@@ -706,16 +650,32 @@ const DeveloperDashboard = () => {
                               Revision Needed
                             </Badge>
                           )}
+                          {hasReassignmentRequest && (
+                            <Badge variant="outline" className="gap-1 border-orange-500 text-orange-600">
+                              <RotateCcw className="h-3 w-3" />
+                              Reassignment Requested
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
                         
-                        {/* Phase Progress & SLA */}
-                        {task.current_phase && task.total_phases && task.status !== "completed" && task.status !== "approved" && (
+                        {/* SLA & Ack Timers for assigned tasks */}
+                        {isAssigned && (
+                          <div className="mt-2 p-2.5 bg-blue-500/5 border border-blue-200 dark:border-blue-800 rounded-md space-y-1.5">
+                            {task.ack_deadline && (
+                              <SlaCountdown deadline={task.ack_deadline} label="Ack Timer" />
+                            )}
+                            {task.sla_deadline && (
+                              <SlaCountdown deadline={task.sla_deadline} label="9hr SLA" />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Phase Progress & SLA for in-progress tasks */}
+                        {!isAssigned && task.current_phase && task.total_phases && task.status !== "completed" && task.status !== "approved" && (
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
                             <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} />
-                            {task.sla_deadline && (
-                              <SlaCountdown deadline={task.sla_deadline} />
-                            )}
+                            {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} />}
                           </div>
                         )}
 
@@ -725,17 +685,11 @@ const DeveloperDashboard = () => {
                         <div className="text-sm text-muted-foreground">
                           Team: <span className="font-medium">{task.teams?.name}</span>
                           {taskSubmissions.length > 0 && (
-                            <span className="ml-2 text-primary">
-                              • {taskSubmissions.length} file(s) uploaded
-                            </span>
+                            <span className="ml-2 text-primary">• {taskSubmissions.length} file(s) uploaded</span>
                           )}
                         </div>
                         <div className="flex gap-2 mt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setViewDetailsTask(task)}
-                          >
+                          <Button size="sm" variant="outline" onClick={() => setViewDetailsTask(task)}>
                             <FileText className="h-3 w-3 mr-1" />
                             View Details
                           </Button>
@@ -748,17 +702,9 @@ const DeveloperDashboard = () => {
                               return (
                                 <div key={index} className="p-2 bg-muted/30 rounded border">
                                   <div className="flex items-center gap-2 mb-2">
-                                    <FilePreview 
-                                      filePath={filePath.trim()}
-                                      fileName={fileName.trim()}
-                                      className="w-10 h-10"
-                                    />
+                                    <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} className="w-10 h-10" />
                                     <span className="text-xs flex-1 truncate">{fileName.trim()}</span>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                    >
+                                    <Button size="sm" variant="outline" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
                                       <Download className="h-3 w-3" />
                                     </Button>
                                   </div>
@@ -768,38 +714,45 @@ const DeveloperDashboard = () => {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col items-end gap-2 ml-4">
                         <Badge className={hasRevision ? "bg-destructive text-destructive-foreground" : getStatusColor(task.status)}>
                           {hasRevision ? "Revision Needed" : getStatusLabel(task.status)}
                         </Badge>
+                        {task.status === "in_progress" && task.current_phase && (
+                          <span className="text-xs text-muted-foreground">Phase {task.current_phase}</span>
+                        )}
                         {taskSubmissions.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
-                          >
+                          <Button size="sm" variant="ghost" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </Button>
                         )}
-                        {isAssigned && (
-                          <Button
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            onClick={() => acknowledgeTask.mutate(task.id)}
-                            disabled={acknowledgeTask.isPending}
-                          >
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
-                            Acknowledge
-                          </Button>
+                        
+                        {/* Assigned task actions */}
+                        {isAssigned && !hasReassignmentRequest && (
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={() => acknowledgeTask.mutate(task.id)}
+                              disabled={acknowledgeTask.isPending}
+                            >
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                              Acknowledge
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                              onClick={() => setReassignTask(task)}
+                            >
+                              <RotateCcw className="mr-2 h-4 w-4" />
+                              Request Reassignment
+                            </Button>
+                          </div>
                         )}
+                        
                         {task.status === "pending" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              updateTaskStatus.mutate({ taskId: task.id, status: "in_progress" })
-                            }
-                          >
+                          <Button size="sm" variant="outline" onClick={() => updateTaskStatus.mutate({ taskId: task.id, status: "in_progress" })}>
                             Start
                           </Button>
                         )}
@@ -810,12 +763,7 @@ const DeveloperDashboard = () => {
                           </Button>
                         )}
                         {hasRevision && (
-                          <Button 
-                            size="sm" 
-                            variant="default"
-                            className="bg-destructive hover:bg-destructive/90"
-                            onClick={() => setSelectedTask(task)}
-                          >
+                          <Button size="sm" variant="default" className="bg-destructive hover:bg-destructive/90" onClick={() => setSelectedTask(task)}>
                             <Upload className="mr-2 h-4 w-4" />
                             Upload Revision
                           </Button>
@@ -829,86 +777,61 @@ const DeveloperDashboard = () => {
                         <div className="space-y-2">
                           {taskSubmissions.map((submission) => (
                             <div key={submission.id} className="flex items-center gap-3 justify-between p-3 bg-background rounded-md">
-                              <FilePreview 
-                                filePath={submission.file_path}
-                                fileName={submission.file_name}
-                              />
+                              <FilePreview filePath={submission.file_path} fileName={submission.file_name} />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <p className="text-sm font-medium truncate">{submission.file_name}</p>
-                                    <Badge
-                                      variant={
-                                        submission.revision_status === "approved" ? "default" :
-                                        submission.revision_status === "needs_revision" ? "destructive" : 
-                                        "secondary"
-                                      }
-                                      className="text-xs"
-                                    >
-                                      {submission.revision_status?.replace("_", " ")}
-                                    </Badge>
+                                  <Badge
+                                    variant={submission.revision_status === "approved" ? "default" : submission.revision_status === "needs_revision" ? "destructive" : "secondary"}
+                                    className="text-xs"
+                                  >
+                                    {submission.revision_status?.replace("_", " ")}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Delivered: {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
+                                </p>
+                                {submission.designer_comment && (
+                                  <div className="mt-2 p-2 bg-primary/10 rounded text-xs">
+                                    <span className="font-medium text-primary">Your comment:</span>
+                                    <p className="text-muted-foreground mt-1">{submission.designer_comment}</p>
                                   </div>
-                                   <p className="text-xs text-muted-foreground">
-                                     Delivered: {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
-                                   </p>
-                                   {submission.designer_comment && (
-                                     <div className="mt-2 p-2 bg-primary/10 rounded text-xs">
-                                       <span className="font-medium text-primary">Your comment:</span>
-                                       <p className="text-muted-foreground mt-1">{submission.designer_comment}</p>
-                                     </div>
-                                   )}
-                                   {submission.revision_notes && (
-                                     <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
-                                       <div className="flex items-center justify-between mb-1">
-                                         <span className="font-medium text-destructive">Revision requested:</span>
-                                         {submission.reviewed_at && (
-                                           <span className="text-xs text-muted-foreground">
-                                             {format(new Date(submission.reviewed_at), 'MMM d, yyyy h:mm a')}
-                                           </span>
-                                         )}
-                                       </div>
-                                       <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
-                                       {submission.revision_reference_file_path && (
-                                          <div className="mt-3 space-y-2">
-                                            <span className="text-xs font-medium text-muted-foreground">Reference files:</span>
-                                            <div className="flex flex-wrap gap-3">
-                                              {submission.revision_reference_file_path.split("|||").map((filePath, fileIndex) => {
-                                                const fileNames = submission.revision_reference_file_name?.split("|||") || [];
-                                                const fileName = fileNames[fileIndex] || `Reference ${fileIndex + 1}`;
-                                                return (
-                                                  <div key={fileIndex} className="flex flex-col items-center gap-1">
-                                                    <div 
-                                                      className="cursor-pointer hover:opacity-80 transition-opacity"
-                                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                                    >
-                                                      <FilePreview 
-                                                        filePath={filePath.trim()} 
-                                                        fileName={fileName.trim()} 
-                                                        className="w-16 h-16"
-                                                      />
-                                                    </div>
-                                                    <Button
-                                                      size="sm"
-                                                      variant="ghost"
-                                                      className="h-6 px-2 text-xs"
-                                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                                    >
-                                                      <Download className="h-3 w-3 mr-1" />
-                                                      Download
-                                                    </Button>
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          </div>
-                                         )}
+                                )}
+                                {submission.revision_notes && (
+                                  <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="font-medium text-destructive">Revision requested:</span>
+                                      {submission.reviewed_at && (
+                                        <span className="text-xs text-muted-foreground">{format(new Date(submission.reviewed_at), 'MMM d, yyyy h:mm a')}</span>
+                                      )}
+                                    </div>
+                                    <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
+                                    {submission.revision_reference_file_path && (
+                                      <div className="mt-3 space-y-2">
+                                        <span className="text-xs font-medium text-muted-foreground">Reference files:</span>
+                                        <div className="flex flex-wrap gap-3">
+                                          {submission.revision_reference_file_path.split("|||").map((filePath, fileIndex) => {
+                                            const fileNames = submission.revision_reference_file_name?.split("|||") || [];
+                                            const fileName = fileNames[fileIndex] || `Reference ${fileIndex + 1}`;
+                                            return (
+                                              <div key={fileIndex} className="flex flex-col items-center gap-1">
+                                                <div className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
+                                                  <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} className="w-16 h-16" />
+                                                </div>
+                                                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
+                                                  <Download className="h-3 w-3 mr-1" />
+                                                  Download
+                                                </Button>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
                                       </div>
                                     )}
-                                 </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDownload(submission.file_path, submission.file_name)}
-                              >
+                                  </div>
+                                )}
+                              </div>
+                              <Button size="sm" variant="outline" onClick={() => handleDownload(submission.file_path, submission.file_name)}>
                                 <Download className="h-4 w-4" />
                               </Button>
                             </div>
@@ -920,63 +843,47 @@ const DeveloperDashboard = () => {
                 );
               })}
               {!tasks?.length && (
-                <p className="text-center text-muted-foreground py-8">
-                  No website orders assigned to your team yet
-                </p>
+                <p className="text-center text-muted-foreground py-8">No website orders assigned to your team yet</p>
               )}
             </div>
           </CardContent>
         </Card>
       </main>
 
+      {/* Upload Dialog */}
       <Dialog open={!!selectedTask} onOpenChange={() => setSelectedTask(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              Upload Files — Phase {selectedTask?.current_phase || 1} of {selectedTask?.total_phases || 4}
-            </DialogTitle>
+            <DialogTitle>Upload Files — Phase {selectedTask?.current_phase || 1} of {selectedTask?.total_phases || 4}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-muted-foreground mb-2">
-                Task: {selectedTask?.title}
-              </p>
+              <p className="text-sm text-muted-foreground mb-2">Task: {selectedTask?.title}</p>
               {selectedTask?.current_phase && selectedTask?.total_phases && (
                 <div className="mb-3">
                   <PhaseProgress currentPhase={selectedTask.current_phase} totalPhases={selectedTask.total_phases} />
                 </div>
               )}
-              <p className="text-sm text-muted-foreground">
-                Files will be named: {selectedTask?.teams?.name.replace(/\s+/g, "_")}_Task_
-                {selectedTask?.task_number}_[filename]
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground">
                 Uploading will complete Phase {selectedTask?.current_phase || 1} and advance to the next phase.
               </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="file">Files (multiple allowed)</Label>
               <Input
-                id="file"
-                type="file"
-                multiple
+                id="file" type="file" multiple
                 onChange={(e) => {
                   const newFiles = Array.from(e.target.files || []);
                   const currentLength = files.length;
-                  
                   newFiles.forEach((file, index) => {
                     if (file.type.startsWith('image/')) {
                       const reader = new FileReader();
                       reader.onloadend = () => {
-                        setFilePreviews(prev => ({
-                          ...prev,
-                          [currentLength + index]: reader.result as string
-                        }));
+                        setFilePreviews(prev => ({ ...prev, [currentLength + index]: reader.result as string }));
                       };
                       reader.readAsDataURL(file);
                     }
                   });
-                  
                   setFiles(prev => [...prev, ...newFiles]);
                   e.target.value = '';
                 }}
@@ -984,41 +891,21 @@ const DeveloperDashboard = () => {
               />
               {files.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {files.length} file(s) selected:
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">{files.length} file(s) selected:</p>
                   <div className="max-h-64 overflow-y-auto space-y-2">
                     {files.map((file, index) => (
                       <div key={index} className="flex items-center gap-3 bg-muted/50 rounded p-2">
-                        {filePreviews[index] && (
-                          <img 
-                            src={filePreviews[index]} 
-                            alt={file.name} 
-                            className="w-12 h-12 object-cover rounded border"
-                          />
-                        )}
+                        {filePreviews[index] && <img src={filePreviews[index]} alt={file.name} className="w-12 h-12 object-cover rounded border" />}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{file.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {(file.size / 1024).toFixed(1)} KB
-                          </p>
+                          <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 ml-2"
+                        <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 ml-2"
                           onClick={() => {
                             setFiles(prev => prev.filter((_, i) => i !== index));
-                            setFilePreviews(prev => {
-                              const newPreviews = { ...prev };
-                              delete newPreviews[index];
-                              return newPreviews;
-                            });
+                            setFilePreviews(prev => { const n = { ...prev }; delete n[index]; return n; });
                           }}
-                        >
-                          ×
-                        </Button>
+                        >×</Button>
                       </div>
                     ))}
                   </div>
@@ -1027,25 +914,64 @@ const DeveloperDashboard = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="developer-comment">Comment (optional)</Label>
-              <Textarea
-                id="developer-comment"
-                placeholder="Add any notes or comments about your submission..."
-                value={developerComment}
-                onChange={(e) => setDeveloperComment(e.target.value)}
-                rows={3}
-              />
+              <Textarea id="developer-comment" placeholder="Add any notes about your submission..." value={developerComment} onChange={(e) => setDeveloperComment(e.target.value)} rows={3} />
             </div>
-            <Button
-              onClick={handleFileUpload}
-              disabled={!files.length || uploading}
-              className="w-full"
-            >
+            <Button onClick={handleFileUpload} disabled={!files.length || uploading} className="w-full">
               {uploading ? "Uploading..." : `Upload ${files.length} File(s) & Complete Phase ${selectedTask?.current_phase || 1}`}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
+      {/* Request Reassignment Dialog */}
+      <Dialog open={!!reassignTask} onOpenChange={() => { setReassignTask(null); setReassignReason(""); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-orange-600" />
+              Request Reassignment
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Task: <span className="font-medium text-foreground">{reassignTask?.title}</span>
+            </p>
+            <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-md text-sm text-orange-800 dark:text-orange-300">
+              <p className="font-medium mb-1">⚠️ Important:</p>
+              <ul className="list-disc list-inside space-y-1 text-xs">
+                <li>A mandatory reason is required</li>
+                <li>Development Head will be notified immediately</li>
+                <li>The SLA timer continues running until reassigned</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reassign-reason">Reason for Reassignment *</Label>
+              <Textarea
+                id="reassign-reason"
+                placeholder="Please provide a detailed reason for requesting reassignment..."
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                rows={4}
+              />
+            </div>
+            <Button
+              onClick={() => {
+                if (!reassignReason.trim()) {
+                  toast({ variant: "destructive", title: "Reason is required" });
+                  return;
+                }
+                requestReassignment.mutate({ taskId: reassignTask.id, reason: reassignReason.trim() });
+              }}
+              disabled={!reassignReason.trim() || requestReassignment.isPending}
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {requestReassignment.isPending ? "Submitting..." : "Submit Reassignment Request"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Details Dialog */}
       <Dialog open={!!viewDetailsTask} onOpenChange={() => setViewDetailsTask(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1059,17 +985,22 @@ const DeveloperDashboard = () => {
                   <h3 className="font-semibold text-lg">Project Progress</h3>
                   <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} />
                   {viewDetailsTask.sla_deadline && viewDetailsTask.status !== "completed" && viewDetailsTask.status !== "approved" && (
-                    <SlaCountdown deadline={viewDetailsTask.sla_deadline} />
+                    <SlaCountdown deadline={viewDetailsTask.sla_deadline} label="9hr SLA" />
+                  )}
+                  {viewDetailsTask.ack_deadline && viewDetailsTask.status === "assigned" && (
+                    <SlaCountdown deadline={viewDetailsTask.ack_deadline} label="Ack Timer" />
                   )}
                   {viewDetailsTask.acknowledged_at && (
                     <p className="text-xs text-muted-foreground">
                       Acknowledged: {format(new Date(viewDetailsTask.acknowledged_at), 'MMM d, yyyy h:mm a')}
                     </p>
                   )}
+                  {viewDetailsTask.late_acknowledgement && (
+                    <Badge variant="destructive" className="text-xs">Late Acknowledgement</Badge>
+                  )}
                 </div>
               )}
 
-              {/* Basic Information */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Basic Information</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -1112,7 +1043,6 @@ const DeveloperDashboard = () => {
                 </div>
               </div>
 
-              {/* Website Details */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Website Details</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -1135,7 +1065,6 @@ const DeveloperDashboard = () => {
                 )}
               </div>
 
-              {/* Logo Files */}
               {viewDetailsTask?.logo_url && (
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg border-b pb-2">Logo Files</h3>
@@ -1144,16 +1073,8 @@ const DeveloperDashboard = () => {
                       const fileName = filePath.split('/').pop() || `logo_${index + 1}`;
                       return (
                         <div key={index} className="p-3 bg-muted/30 rounded">
-                          <FilePreview 
-                            filePath={filePath.trim()}
-                            fileName={fileName.trim()}
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="mt-3 w-full"
-                            onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                          >
+                          <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} />
+                          <Button size="sm" variant="outline" className="mt-3 w-full" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
                             <Download className="h-3 w-3 mr-2" />
                             Download {fileName.trim()}
                           </Button>
@@ -1164,7 +1085,6 @@ const DeveloperDashboard = () => {
                 </div>
               )}
 
-              {/* Business Description */}
               {viewDetailsTask?.supporting_text && (
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg border-b pb-2">Business Description</h3>
@@ -1174,7 +1094,6 @@ const DeveloperDashboard = () => {
                 </div>
               )}
 
-              {/* Additional Notes/Instructions */}
               {viewDetailsTask?.notes_extra_instructions && (
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg border-b pb-2">Additional Notes & Instructions</h3>
@@ -1184,7 +1103,6 @@ const DeveloperDashboard = () => {
                 </div>
               )}
 
-              {/* Reference Attachments */}
               {viewDetailsTask?.attachment_file_path && (
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg border-b pb-2">Reference Files</h3>
@@ -1194,16 +1112,8 @@ const DeveloperDashboard = () => {
                       const fileName = fileNames[index] || `attachment_${index + 1}`;
                       return (
                         <div key={index} className="p-3 bg-muted/30 rounded">
-                          <FilePreview 
-                            filePath={filePath.trim()}
-                            fileName={fileName.trim()}
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="mt-3 w-full"
-                            onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                          >
+                          <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} />
+                          <Button size="sm" variant="outline" className="mt-3 w-full" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
                             <Download className="h-3 w-3 mr-2" />
                             Download
                           </Button>
