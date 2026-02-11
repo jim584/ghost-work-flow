@@ -262,8 +262,9 @@ const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: nu
 };
 
 const DeveloperDashboard = () => {
-  const { user, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
   const { toast } = useToast();
+  const isTeamLeader = role === "development_team_leader";
   const queryClient = useQueryClient();
   
   const { data: profile } = useQuery({
@@ -289,12 +290,28 @@ const DeveloperDashboard = () => {
         .from("developers")
         .select("id, availability_calendars(working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone)")
         .eq("user_id", user!.id)
-        .single();
-      if (!dev) return null;
+        .maybeSingle();
+      if (!dev) {
+        // For team leaders without a developers record, fetch the default calendar
+        if (isTeamLeader) {
+          const { data: defaultCal } = await supabase
+            .from("availability_calendars")
+            .select("working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone")
+            .limit(1)
+            .single();
+          if (defaultCal) {
+            return {
+              developerId: null as string | null,
+              calendar: defaultCal as CalendarConfig,
+            };
+          }
+        }
+        return null;
+      }
       const cal = (dev as any).availability_calendars;
       if (!cal) return null;
       return {
-        developerId: dev.id,
+        developerId: dev.id as string | null,
         calendar: {
           working_days: cal.working_days,
           start_time: cal.start_time,
@@ -359,8 +376,20 @@ const DeveloperDashboard = () => {
   const isWebsiteOrder = (task: any) => task.post_type === 'Website Design';
 
   const { data: tasks } = useQuery({
-    queryKey: ["developer-tasks", user?.id],
+    queryKey: ["developer-tasks", user?.id, isTeamLeader],
     queryFn: async () => {
+      if (isTeamLeader) {
+        // Team leaders see ALL website tasks across all teams
+        const { data, error } = await supabase
+          .from("tasks")
+          .select("*, teams(name)")
+          .eq("post_type", "Website Design")
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return data || [];
+      }
+
+      // Regular developers see only their team's tasks
       const { data: teamMembers } = await supabase
         .from("team_members")
         .select("team_id")
