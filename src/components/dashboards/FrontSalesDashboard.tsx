@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { LogOut, Plus, Clock, FolderKanban, Trash2, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, FileText, Eye, ChevronDown, ChevronRight, Download } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { FilePreview } from "@/components/FilePreview";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -985,322 +986,393 @@ const FrontSalesDashboard = () => {
 
       {/* View Details Dialog */}
       <Dialog open={!!viewDetailsTask} onOpenChange={(open) => !open && setViewDetailsTask(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Order Details - #{viewDetailsTask?.task_number}</DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] pr-4">
             {viewDetailsTask && (
               <div className="space-y-6">
-                <div className="flex items-center gap-2">
-                  {getOrderTypeBadge(viewDetailsTask)}
-                  <Badge className={getStatusColor(viewDetailsTask.status)}>
-                    {viewDetailsTask.status.replace("_", " ")}
-                  </Badge>
-                </div>
-                
-                <div>
-                  <h3 className="font-semibold text-lg">{viewDetailsTask.title}</h3>
-                  {viewDetailsTask.description && !isWebsiteOrder(viewDetailsTask) && (
-                    <p className="text-muted-foreground mt-1">{viewDetailsTask.description}</p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Customer Details */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm uppercase text-muted-foreground">Customer</h4>
-                    <div className="bg-muted/30 rounded-lg p-3 space-y-1">
-                      {viewDetailsTask.customer_name && <p><span className="text-muted-foreground">Name:</span> {viewDetailsTask.customer_name}</p>}
-                      {viewDetailsTask.customer_email && <p><span className="text-muted-foreground">Email:</span> {viewDetailsTask.customer_email}</p>}
-                      {viewDetailsTask.customer_phone && <p><span className="text-muted-foreground">Phone:</span> {viewDetailsTask.customer_phone}</p>}
+                {/* Customer Information */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Customer Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Customer Name</Label>
+                      <p className="font-medium">{viewDetailsTask.customer_name || "N/A"}</p>
                     </div>
-                  </div>
-
-                  {/* Payment Details */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm uppercase text-muted-foreground">Payment</h4>
-                    <div className="bg-muted/30 rounded-lg p-3 space-y-1">
-                      <p><span className="text-muted-foreground">Total:</span> ${Number(viewDetailsTask.amount_total || 0).toFixed(2)}</p>
-                      <p><span className="text-muted-foreground">Paid:</span> <span className="text-green-600">${Number(viewDetailsTask.amount_paid || 0).toFixed(2)}</span></p>
-                      <p><span className="text-muted-foreground">Pending:</span> <span className="text-orange-600">${Number(viewDetailsTask.amount_pending || 0).toFixed(2)}</span></p>
+                    <div>
+                      <Label className="text-muted-foreground">Customer Email</Label>
+                      <p className="font-medium">{viewDetailsTask.customer_email || "N/A"}</p>
                     </div>
-                  </div>
-
-                  {/* Business Details */}
-                  {(viewDetailsTask.business_name || viewDetailsTask.business_email || viewDetailsTask.business_phone) && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm uppercase text-muted-foreground">Business</h4>
-                      <div className="bg-muted/30 rounded-lg p-3 space-y-1">
-                        {viewDetailsTask.business_name && <p><span className="text-muted-foreground">Name:</span> {viewDetailsTask.business_name}</p>}
-                        {viewDetailsTask.business_email && <p><span className="text-muted-foreground">Email:</span> {viewDetailsTask.business_email}</p>}
-                        {viewDetailsTask.business_phone && <p><span className="text-muted-foreground">Phone:</span> {viewDetailsTask.business_phone}</p>}
-                        {viewDetailsTask.industry && <p><span className="text-muted-foreground">Industry:</span> {viewDetailsTask.industry}</p>}
-                      </div>
+                    <div>
+                      <Label className="text-muted-foreground">Customer Phone</Label>
+                      <p className="font-medium">{viewDetailsTask.customer_phone || "N/A"}</p>
                     </div>
-                  )}
-
-                  {/* Assignment Details */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm uppercase text-muted-foreground">Assignment</h4>
-                    <div className="bg-muted/30 rounded-lg p-3 space-y-1">
-                      <p><span className="text-muted-foreground">Project Manager:</span> {(viewDetailsTask.project_manager as any)?.full_name || (viewDetailsTask.project_manager as any)?.email || "Unassigned"}</p>
-                      {isWebsiteOrder(viewDetailsTask) ? (
-                        <p><span className="text-muted-foreground">Developer:</span> {getDeveloperForTeam(viewDetailsTask.team_id) || "Unassigned"}</p>
-                      ) : (() => {
-                        // Find all tasks with same group key to show all assigned teams
-                        const groupKey = `${viewDetailsTask.customer_name || viewDetailsTask.business_name || ''}_${viewDetailsTask.title}_${viewDetailsTask.deadline || ''}_${viewDetailsTask.post_type || ''}`;
-                        const relatedTasks = myTasks?.filter(t => {
-                          const taskKey = `${t.customer_name || t.business_name || ''}_${t.title}_${t.deadline || ''}_${t.post_type || ''}`;
-                          return taskKey === groupKey;
-                        }) || [];
-                        const teamNames = [...new Set(relatedTasks.map(t => (t as any).teams?.name).filter(Boolean))];
-                        
-                        return teamNames.length > 1 ? (
-                          <div>
-                            <span className="text-muted-foreground">Teams:</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {teamNames.map((name, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">{name}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <p><span className="text-muted-foreground">Team:</span> {(viewDetailsTask.teams as any)?.name || "Unassigned"}</p>
-                        );
-                      })()}
-                      <p><span className="text-muted-foreground">Created:</span> {format(new Date(viewDetailsTask.created_at!), "MMM d, yyyy")}</p>
-                      {viewDetailsTask.deadline && (
-                        <p><span className="text-muted-foreground">Deadline:</span> {format(new Date(viewDetailsTask.deadline), "MMM d, yyyy")}</p>
-                      )}
-                      {(viewDetailsTask as any)?.transferred_by_profile && (
-                        <p><span className="text-muted-foreground">Transferred By:</span> {(viewDetailsTask as any)?.transferred_by_profile?.full_name || (viewDetailsTask as any)?.transferred_by_profile?.email}</p>
-                      )}
-                      <p><span className="text-muted-foreground">Closed By:</span> {(viewDetailsTask as any)?.closed_by_profile?.full_name || (viewDetailsTask as any)?.closed_by_profile?.email || "N/A"}</p>
-                      <p className="text-xs text-muted-foreground/70 mt-1">Created by: {(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}</p>
+                    <div>
+                      <Label className="text-muted-foreground">Customer Domain</Label>
+                      <p className="font-medium text-primary break-all">{viewDetailsTask.customer_domain || "N/A"}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Additional Details for specific order types */}
-                {isWebsiteOrder(viewDetailsTask) && (
-                  <div className="space-y-4">
-                    {/* Website Details Section */}
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm uppercase text-muted-foreground">Website Details</h4>
-                      <div className="bg-muted/30 rounded-lg p-4 space-y-3">
-                        {viewDetailsTask.number_of_pages && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Number of Pages:</span>
-                            <p className="font-medium">{viewDetailsTask.number_of_pages}</p>
-                          </div>
-                        )}
-                        {viewDetailsTask.website_url && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Current Website URL:</span>
-                            <p>
-                              <a 
-                                href={viewDetailsTask.website_url.startsWith('http') ? viewDetailsTask.website_url : `https://${viewDetailsTask.website_url}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline font-medium"
-                              >
-                                {viewDetailsTask.website_url}
-                              </a>
-                            </p>
-                          </div>
-                        )}
-                        {viewDetailsTask.customer_domain && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Customer Domain:</span>
-                            <p>
-                              <a 
-                                href={viewDetailsTask.customer_domain.startsWith('http') ? viewDetailsTask.customer_domain : `https://${viewDetailsTask.customer_domain}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline font-medium"
-                              >
-                                {viewDetailsTask.customer_domain}
-                              </a>
-                            </p>
-                          </div>
-                        )}
-                        {viewDetailsTask.video_keywords && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Video Keywords:</span>
-                            <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.video_keywords}</p>
-                          </div>
-                        )}
+                {/* Payment Information */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Payment Information</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Total Amount</Label>
+                      <p className="font-medium">${Number(viewDetailsTask.amount_total || 0).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Amount Paid</Label>
+                      <p className="font-medium text-green-600">${Number(viewDetailsTask.amount_paid || 0).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Amount Pending</Label>
+                      <p className="font-medium text-amber-600">${Number(viewDetailsTask.amount_pending || 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Basic Information */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Basic Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Title</Label>
+                      <p className="font-medium">{viewDetailsTask.title}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Business Name</Label>
+                      <p className="font-medium">{viewDetailsTask.business_name || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Industry</Label>
+                      <p className="font-medium">{viewDetailsTask.industry || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Website</Label>
+                      <p className="font-medium text-primary break-all">{viewDetailsTask.website_url || "N/A"}</p>
+                    </div>
+                    {isWebsiteOrder(viewDetailsTask) && (
+                      <>
+                        <div>
+                          <Label className="text-muted-foreground">Business Email</Label>
+                          <p className="font-medium">{viewDetailsTask.business_email || "N/A"}</p>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground">Business Phone</Label>
+                          <p className="font-medium">{viewDetailsTask.business_phone || "N/A"}</p>
+                        </div>
+                      </>
+                    )}
+                    <div>
+                      <Label className="text-muted-foreground">Deadline</Label>
+                      <p className="font-medium">{viewDetailsTask.deadline ? new Date(viewDetailsTask.deadline).toLocaleDateString() : "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">
+                        {isWebsiteOrder(viewDetailsTask) ? "Assigned Developer" : "Team"}
+                      </Label>
+                      <p className="font-medium">
+                        {isWebsiteOrder(viewDetailsTask) 
+                          ? (getDeveloperForTeam(viewDetailsTask.team_id) || viewDetailsTask.teams?.name)
+                          : (() => {
+                              const groupKey = `${viewDetailsTask.customer_name || viewDetailsTask.business_name || ''}_${viewDetailsTask.title}_${viewDetailsTask.deadline || ''}_${viewDetailsTask.post_type || ''}`;
+                              const relatedTasks = myTasks?.filter(t => {
+                                const taskKey = `${t.customer_name || t.business_name || ''}_${t.title}_${t.deadline || ''}_${t.post_type || ''}`;
+                                return taskKey === groupKey;
+                              }) || [];
+                              const teamNames = [...new Set(relatedTasks.map(t => (t as any).teams?.name).filter(Boolean))];
+                              return teamNames.length > 1 ? teamNames.join(", ") : (viewDetailsTask.teams as any)?.name || "Unassigned";
+                            })()
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cancellation/Deletion Details */}
+                {viewDetailsTask.status === "cancelled" && (
+                  <div className="space-y-3 bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                    <h3 className="font-semibold text-lg text-destructive">{(viewDetailsTask as any)?.is_deleted ? 'Deletion' : 'Cancellation'} Details</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-muted-foreground">{(viewDetailsTask as any)?.is_deleted ? 'Deleted' : 'Cancelled'} At</Label>
+                        <p className="font-medium">{(viewDetailsTask as any)?.cancelled_at ? new Date((viewDetailsTask as any).cancelled_at).toLocaleString() : "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Status</Label>
+                        <Badge className="bg-destructive text-destructive-foreground">{(viewDetailsTask as any)?.is_deleted ? 'Deleted' : 'Cancelled'}</Badge>
                       </div>
                     </div>
-
-                    {/* Business Description Section */}
-                    {viewDetailsTask.supporting_text && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm uppercase text-muted-foreground">Business Description</h4>
-                        <div className="bg-muted/30 rounded-lg p-4">
-                          <p className="whitespace-pre-wrap text-sm">{viewDetailsTask.supporting_text}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Design References Section */}
-                    {viewDetailsTask.design_references && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm uppercase text-muted-foreground">Design References</h4>
-                        <div className="bg-muted/30 rounded-lg p-4">
-                          <p className="whitespace-pre-wrap text-sm">{viewDetailsTask.design_references}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Additional Notes Section */}
-                    {viewDetailsTask.notes_extra_instructions && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm uppercase text-muted-foreground">Additional Notes</h4>
-                        <div className="bg-muted/30 rounded-lg p-4">
-                          <p className="whitespace-pre-wrap text-sm">{viewDetailsTask.notes_extra_instructions}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Logo Files Section */}
-                    {viewDetailsTask.logo_url && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm uppercase text-muted-foreground">Logo Files</h4>
-                        <div className="bg-muted/30 rounded-lg p-4">
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {viewDetailsTask.logo_url.split("|||").map((filePath: string, index: number) => {
-                              const fileName = filePath.split('/').pop() || `Logo ${index + 1}`;
-                              
-                              return (
-                                <div key={index} className="flex flex-col items-center gap-2 p-2 bg-background rounded-lg border">
-                                  <FilePreview 
-                                    filePath={filePath} 
-                                    fileName={fileName}
-                                    className="w-20 h-20"
-                                  />
-                                  <p className="text-xs text-muted-foreground truncate max-w-full text-center" title={fileName}>
-                                    {fileName.length > 20 ? `${fileName.substring(0, 17)}...` : fileName}
-                                  </p>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full text-xs"
-                                    onClick={async () => {
-                                      const { data } = await supabase.storage
-                                        .from("design-files")
-                                        .createSignedUrl(filePath, 86400);
-                                      if (data?.signedUrl) {
-                                        window.open(data.signedUrl, "_blank");
-                                      }
-                                    }}
-                                  >
-                                    <Download className="h-3 w-3 mr-1" />
-                                    Download
-                                  </Button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <div>
+                      <Label className="text-muted-foreground">Reason</Label>
+                      <p className="font-medium whitespace-pre-wrap">{(viewDetailsTask as any)?.cancellation_reason || "No reason provided"}</p>
+                    </div>
                   </div>
                 )}
 
+                {/* Order Attribution */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg border-b pb-2">Order Attribution</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Assigned PM</Label>
+                      <p className="font-medium">{(viewDetailsTask.project_manager as any)?.full_name || (viewDetailsTask.project_manager as any)?.email || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Transferred By</Label>
+                      <p className="font-medium">{(viewDetailsTask as any)?.transferred_by_profile?.full_name || (viewDetailsTask as any)?.transferred_by_profile?.email || "—"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Closed By</Label>
+                      <p className="font-medium">{(viewDetailsTask as any)?.closed_by_profile?.full_name || (viewDetailsTask as any)?.closed_by_profile?.email || "N/A"}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Created by: {(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}
+                  </p>
+                </div>
+
+                {/* Logo Details */}
                 {isLogoOrder(viewDetailsTask) && (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm uppercase text-muted-foreground">Logo Details</h4>
-                      <div className="bg-muted/30 rounded-lg p-4 space-y-3">
-                        {viewDetailsTask.industry && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Industry:</span>
-                            <p className="font-medium">{viewDetailsTask.industry}</p>
-                          </div>
-                        )}
-                        {viewDetailsTask.description && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Primary Focus:</span>
-                            <p className="font-medium">{viewDetailsTask.description}</p>
-                          </div>
-                        )}
-                        {viewDetailsTask.brand_colors && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Color Combination:</span>
-                            <p className="font-medium">{viewDetailsTask.brand_colors}</p>
-                          </div>
-                        )}
-                        {viewDetailsTask.logo_style && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Look & Feel:</span>
-                            <p className="font-medium">{viewDetailsTask.logo_style}</p>
-                          </div>
-                        )}
-                        {viewDetailsTask.logo_type && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Logo Type:</span>
-                            <p className="font-medium">{viewDetailsTask.logo_type}</p>
-                          </div>
-                        )}
-                        {viewDetailsTask.tagline && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Tagline:</span>
-                            <p className="font-medium">{viewDetailsTask.tagline}</p>
-                          </div>
-                        )}
-                        {viewDetailsTask.notes_extra_instructions && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Additional Notes:</span>
-                            <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.notes_extra_instructions}</p>
-                          </div>
-                        )}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg border-b pb-2">Logo Details</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-muted-foreground">Look & Feel</Label>
+                        <p className="font-medium">{viewDetailsTask.logo_style || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Color Combination</Label>
+                        <p className="font-medium">{viewDetailsTask.brand_colors || "N/A"}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Primary Focus</Label>
+                      <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.description || "N/A"}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Website Details */}
+                {isWebsiteOrder(viewDetailsTask) && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg border-b pb-2">Website Details</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-muted-foreground">Number of Pages</Label>
+                        <p className="font-medium">{viewDetailsTask.number_of_pages || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Video Keywords</Label>
+                        <p className="font-medium">{viewDetailsTask.video_keywords || "N/A"}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Supporting Text</Label>
+                      <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.supporting_text || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Design References</Label>
+                      <p className="font-medium">{viewDetailsTask.design_references || "N/A"}</p>
+                    </div>
+                    {/* Logo Files for Website Orders */}
+                    {viewDetailsTask.logo_url && (
+                      <div className="space-y-3">
+                        <Label className="text-muted-foreground">Logo Files</Label>
+                        <div className="space-y-3">
+                          {viewDetailsTask.logo_url.split('|||').map((filePath: string, index: number) => {
+                            const fileName = filePath.split('/').pop() || `logo_${index + 1}`;
+                            return (
+                              <div key={index} className="p-3 bg-muted/30 rounded">
+                                <FilePreview 
+                                  filePath={filePath.trim()}
+                                  fileName={fileName.trim()}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="mt-3 w-full"
+                                  onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                >
+                                  <Download className="h-3 w-3 mr-2" />
+                                  Download {fileName.trim()}
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Post Details - Social Media */}
+                {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg border-b pb-2">Post Details</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-muted-foreground">Post Type</Label>
+                        <p className="font-medium">{viewDetailsTask.post_type || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Objective</Label>
+                        <p className="font-medium">{viewDetailsTask.objective || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Post Type Required</Label>
+                        <p className="font-medium">{viewDetailsTask.post_type_required || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Platforms</Label>
+                        <p className="font-medium">{viewDetailsTask.platforms?.join(", ") || "N/A"}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Description</Label>
+                      <p className="font-medium">{viewDetailsTask.description || "N/A"}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Product/Service Information - Social Media */}
+                {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg border-b pb-2">Product/Service Information</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-muted-foreground">Name</Label>
+                        <p className="font-medium">{viewDetailsTask.product_service_name || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Description</Label>
+                        <p className="font-medium">{viewDetailsTask.product_service_description || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Pricing</Label>
+                        <p className="font-medium">{viewDetailsTask.pricing || "N/A"}</p>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Attachments Section */}
-                {viewDetailsTask.attachment_file_path && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm uppercase text-muted-foreground">Reference Files</h4>
-                    <div className="bg-muted/30 rounded-lg p-4">
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {viewDetailsTask.attachment_file_path.split("|||").map((filePath: string, index: number) => {
-                          const fileNames = viewDetailsTask.attachment_file_name?.split("|||") || [];
-                          const fileName = fileNames[index] || `File ${index + 1}`;
-                          
-                          return (
-                            <div key={index} className="flex flex-col items-center gap-2 p-2 bg-background rounded-lg border">
-                              <FilePreview 
-                                filePath={filePath} 
-                                fileName={fileName}
-                                className="w-20 h-20"
-                              />
-                              <p className="text-xs text-muted-foreground truncate max-w-full text-center" title={fileName}>
-                                {fileName.length > 20 ? `${fileName.substring(0, 17)}...` : fileName}
-                              </p>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full text-xs"
-                                onClick={async () => {
-                                  const { data } = await supabase.storage
-                                    .from("design-files")
-                                    .createSignedUrl(filePath, 86400);
-                                  if (data?.signedUrl) {
-                                    window.open(data.signedUrl, "_blank");
-                                  }
-                                }}
-                              >
-                                <Download className="h-3 w-3 mr-1" />
-                                Download
-                              </Button>
-                            </div>
-                          );
-                        })}
+                {/* Design Requirements - Social Media */}
+                {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg border-b pb-2">Design Requirements</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-muted-foreground">Design Style</Label>
+                        <p className="font-medium">{viewDetailsTask.design_style || "N/A"}</p>
                       </div>
+                      <div>
+                        <Label className="text-muted-foreground">Brand Colors</Label>
+                        <p className="font-medium">{viewDetailsTask.brand_colors || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Fonts</Label>
+                        <p className="font-medium">{viewDetailsTask.fonts || "N/A"}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Content - Social Media */}
+                {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg border-b pb-2">Content</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-muted-foreground">Headline/Main Text</Label>
+                        <p className="font-medium">{viewDetailsTask.headline_main_text || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Supporting Text</Label>
+                        <p className="font-medium">{viewDetailsTask.supporting_text || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Call to Action</Label>
+                        <p className="font-medium">{viewDetailsTask.cta || "N/A"}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Target Audience - Social Media */}
+                {!isLogoOrder(viewDetailsTask) && !isWebsiteOrder(viewDetailsTask) && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg border-b pb-2">Target Audience</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-muted-foreground">Age</Label>
+                        <p className="font-medium">{viewDetailsTask.target_audience_age || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Location</Label>
+                        <p className="font-medium">{viewDetailsTask.target_audience_location || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Interests</Label>
+                        <p className="font-medium">{viewDetailsTask.target_audience_interest || "N/A"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Other</Label>
+                        <p className="font-medium">{viewDetailsTask.target_audience_other || "N/A"}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Additional Notes */}
+                {(viewDetailsTask.notes_extra_instructions || viewDetailsTask.additional_details) && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg border-b pb-2">Additional Notes</h3>
+                    <div className="space-y-3">
+                      {viewDetailsTask.notes_extra_instructions && (
+                        <div>
+                          <Label className="text-muted-foreground">Extra Instructions</Label>
+                          <p className="font-medium whitespace-pre-wrap">{viewDetailsTask.notes_extra_instructions}</p>
+                        </div>
+                      )}
+                      {viewDetailsTask.additional_details && (
+                        <div>
+                          <Label className="text-muted-foreground">Additional Details</Label>
+                          <p className="font-medium">{viewDetailsTask.additional_details}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Attachments */}
+                {viewDetailsTask.attachment_file_path && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg border-b pb-2">Task Attachments</h3>
+                    <div className="space-y-3">
+                      {viewDetailsTask.attachment_file_path.split('|||').map((filePath: string, index: number) => {
+                        const fileName = viewDetailsTask.attachment_file_name?.split('|||')[index] || `attachment_${index + 1}`;
+                        return (
+                          <div key={index} className="p-3 bg-muted/30 rounded">
+                            <FilePreview 
+                              filePath={filePath.trim()}
+                              fileName={fileName.trim()}
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-3 w-full"
+                              onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                            >
+                              <Download className="h-3 w-3 mr-2" />
+                              Download {fileName.trim()}
+                            </Button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
