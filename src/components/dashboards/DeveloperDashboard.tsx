@@ -769,7 +769,19 @@ const DeveloperDashboard = () => {
   };
 
   const isAckOverdue = (task: any) => {
-    return task.status === "assigned" && task.ack_deadline && new Date(task.ack_deadline) < new Date();
+    if (task.status !== "assigned" || !task.ack_deadline) return false;
+    // Wall-clock check
+    if (new Date(task.ack_deadline) < new Date()) return true;
+    // Working-minutes check: if calendar available, check if remaining working minutes = 0
+    if (devCalendar?.calendar) {
+      const remaining = calculateRemainingWorkingMinutes(
+        new Date(), new Date(task.ack_deadline), devCalendar.calendar, devLeaves || []
+      );
+      if (remaining <= 0) return true;
+    }
+    // Also check the late_acknowledgement flag from DB
+    if (task.late_acknowledgement) return true;
+    return false;
   };
 
   const delayedTasks = tasks?.filter(isTaskDelayed) || [];
