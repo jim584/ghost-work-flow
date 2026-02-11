@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.reset-monthly-targets]
 verify_jwt = false
+
+[functions.calculate-sla-deadline]
+verify_jwt = false
