@@ -26,14 +26,35 @@ serve(async (req) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const { data: delayedTasks, error: tasksError } = await supabaseAdmin
+    // Get tasks with deadline-based delays (design orders)
+    const { data: deadlineTasks, error: deadlineError } = await supabaseAdmin
       .from("tasks")
-      .select("id, title, deadline, team_id, teams(name)")
+      .select("id, title, deadline, sla_deadline, team_id, post_type, teams(name)")
       .not("deadline", "is", null)
       .lt("deadline", today.toISOString())
       .in("status", ["pending", "in_progress"]);
 
-    if (tasksError) throw tasksError;
+    if (deadlineError) throw deadlineError;
+
+    // Get tasks with SLA-based delays (website orders)
+    const { data: slaTasks, error: slaError } = await supabaseAdmin
+      .from("tasks")
+      .select("id, title, deadline, sla_deadline, team_id, post_type, teams(name)")
+      .not("sla_deadline", "is", null)
+      .lt("sla_deadline", new Date().toISOString())
+      .in("status", ["pending", "in_progress", "assigned"])
+      .eq("post_type", "Website Design");
+
+    if (slaError) throw slaError;
+
+    // Merge and deduplicate
+    const allDelayed = [...(deadlineTasks || []), ...(slaTasks || [])];
+    const seen = new Set<string>();
+    const delayedTasks = allDelayed.filter(t => {
+      if (seen.has(t.id)) return false;
+      seen.add(t.id);
+      return true;
+    });
 
     if (!delayedTasks || delayedTasks.length === 0) {
       console.log("No delayed tasks found");
@@ -96,21 +117,29 @@ serve(async (req) => {
           continue;
         }
 
-        // Calculate how many days overdue
-        const daysOverdue = Math.floor((today.getTime() - new Date(task.deadline!).getTime()) / (1000 * 60 * 60 * 24));
+        // Calculate how overdue — use sla_deadline for website orders, deadline for others
+        const isWebsite = task.post_type === "Website Design";
+        const overdueRef = isWebsite && task.sla_deadline ? new Date(task.sla_deadline) : new Date(task.deadline!);
+        const diffMs = today.getTime() - overdueRef.getTime();
+        const hoursOverdue = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60)));
+        const daysOverdue = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const overdueLabel = isWebsite
+          ? `${hoursOverdue} hour(s) overdue`
+          : `${daysOverdue} day(s) overdue`;
 
-        // Get designer user IDs who have the designer role
-        const { data: designerRoles } = await supabaseAdmin
+        // Get team member user IDs who have the relevant role
+        const relevantRole = isWebsite ? "developer" : "designer";
+        const { data: roleRecords } = await supabaseAdmin
           .from("user_roles")
           .select("user_id")
-          .eq("role", "designer")
+          .eq("role", relevantRole)
           .in("user_id", teamMembers.map(m => m.user_id));
 
-        const designerUserIds = new Set(designerRoles?.map(r => r.user_id) || []);
+        const relevantUserIds = new Set(roleRecords?.map(r => r.user_id) || []);
 
         // Create in-app notifications for all designers
         for (const member of teamMembers) {
-          if (designerUserIds.has(member.user_id)) {
+          if (relevantUserIds.has(member.user_id)) {
             try {
               await supabaseAdmin
                 .from("notifications")
@@ -118,7 +147,7 @@ serve(async (req) => {
                   user_id: member.user_id,
                   type: "task_delayed",
                   title: "Task Overdue - URGENT",
-                  message: `${task.title} is ${daysOverdue} day(s) overdue`,
+                  message: `${task.title} is ${overdueLabel}`,
                   task_id: task.id,
                 });
               console.log(`Created in-app notification for user ${member.user_id}`);
@@ -142,8 +171,8 @@ serve(async (req) => {
             <p>This is an urgent reminder that the following task assigned to <strong>${teamName}</strong> is now overdue:</p>
             <div style="margin: 20px 0; padding: 15px; background-color: #fee2e2; border-left: 4px solid #dc2626;">
               <h3 style="margin-top: 0; color: #dc2626;">${task.title}</h3>
-              <p style="margin: 10px 0;"><strong>Original Deadline:</strong> ${new Date(task.deadline!).toLocaleDateString()}</p>
-              <p style="margin: 10px 0; color: #dc2626;"><strong>Days Overdue:</strong> ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''}</p>
+              <p style="margin: 10px 0;"><strong>Deadline:</strong> ${overdueRef.toLocaleDateString()}</p>
+              <p style="margin: 10px 0; color: #dc2626;"><strong>Overdue:</strong> ${overdueLabel}</p>
             </div>
             <p><strong>Action Required:</strong> Please log in to your dashboard immediately to complete this task or provide a status update.</p>
             <p>If you're experiencing any issues or need assistance, please contact your project manager as soon as possible.</p>
