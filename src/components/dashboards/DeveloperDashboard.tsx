@@ -268,6 +268,55 @@ const SlaCountdown = ({ deadline, label, calendar, leaves }: {
   );
 };
 
+// ACK Overdue ticking badge - shows overdue working time with ticking seconds
+const AckOverdueBadge = ({ ackDeadline, calendar, leaves }: { 
+  ackDeadline: string; calendar?: CalendarConfig | null; leaves?: LeaveRecord[] 
+}) => {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  let label = "ACK OVERDUE";
+  if (calendar) {
+    const dl = new Date(ackDeadline);
+    if (now > dl) {
+      const overdueMin = calculateOverdueWorkingMinutes(now, dl, calendar, leaves || []);
+      const h = Math.floor(overdueMin / 60);
+      const m = Math.floor(overdueMin % 60);
+      // Check if currently in working hours for ticking seconds
+      const localNow = toTimezoneDate(now, calendar.timezone);
+      const dayOfWeek = getISODay(localNow);
+      const currentMinute = localNow.getHours() * 60 + localNow.getMinutes();
+      const isSat = dayOfWeek === 6;
+      const todayStart = isSat && calendar.saturday_start_time ? timeToMinutes(calendar.saturday_start_time) : timeToMinutes(calendar.start_time);
+      const todayEnd = isSat && calendar.saturday_end_time ? timeToMinutes(calendar.saturday_end_time) : timeToMinutes(calendar.end_time);
+      const isWorkingNow = calendar.working_days.includes(dayOfWeek) && isWithinShift(currentMinute, todayStart, todayEnd);
+      const s = isWorkingNow ? (now.getSeconds() % 60) : 0;
+      const timeStr = isWorkingNow
+        ? `${h}h ${m}m ${s.toString().padStart(2, '0')}s`
+        : `${h}h ${m}m (paused)`;
+      label = `ACK OVERDUE — ${timeStr}`;
+    } else {
+      // Wall-clock before deadline but working minutes exhausted
+      const remaining = calculateRemainingWorkingMinutes(now, dl, calendar, leaves || []);
+      if (remaining <= 0) {
+        // Calculate total working minutes from ack_deadline backward to find how much of the 30m window passed
+        label = "ACK OVERDUE — 30m+ (paused)";
+      }
+    }
+  }
+
+  return (
+    <Badge variant="destructive" className="gap-1 animate-pulse">
+      <AlertTriangle className="h-3 w-3" />
+      <span className="font-mono">{label}</span>
+    </Badge>
+  );
+};
+
 // Phase progress component
 const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: number; totalPhases?: number | null; phases?: any[] }) => {
   const getPhaseLabel = (phase: number) => {
@@ -1030,35 +1079,8 @@ const DeveloperDashboard = () => {
                               NEW
                             </Badge>
                           )}
-                          {(ackOverdue || (isAssigned && task.late_acknowledgement)) && (
-                            (() => {
-                              let overdueLabel = "ACK OVERDUE";
-                              if (task.ack_deadline && devCalendar?.calendar) {
-                                const now = new Date();
-                                const dl = new Date(task.ack_deadline);
-                                if (now > dl) {
-                                  // Wall-clock past deadline: calculate working minutes past it
-                                  const overdueMin = calculateOverdueWorkingMinutes(now, dl, devCalendar.calendar, devLeaves || []);
-                                  if (overdueMin > 0) {
-                                    const h = Math.floor(overdueMin / 60);
-                                    const m = Math.floor(overdueMin % 60);
-                                    overdueLabel = h > 0 ? `ACK OVERDUE — ${h}h ${m}m` : `ACK OVERDUE — ${m}m`;
-                                  }
-                                } else {
-                                  // Wall-clock before deadline but working minutes exhausted (outside working hours)
-                                  // The 30 min window is fully consumed; show how long since it ran out
-                                  // We know remaining = 0, so the overdue started when the last working minute ended
-                                  // For now, just indicate it's overdue
-                                  overdueLabel = "ACK OVERDUE — 30m+ elapsed";
-                                }
-                              }
-                              return (
-                                <Badge variant="destructive" className="gap-1 animate-pulse">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  {overdueLabel}
-                                </Badge>
-                              );
-                            })()
+                          {(ackOverdue || (isAssigned && task.late_acknowledgement)) && task.ack_deadline && (
+                            <AckOverdueBadge ackDeadline={task.ack_deadline} calendar={devCalendar?.calendar} leaves={devLeaves} />
                           )}
                           {isDelayed && !isAssigned && (
                             <Badge variant="destructive" className="gap-1 animate-pulse">
