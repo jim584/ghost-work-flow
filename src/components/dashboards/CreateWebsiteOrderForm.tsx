@@ -102,13 +102,21 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
     mutationFn: async () => {
       setUploading(true);
       try {
-        // Get the next developer team using round-robin
-        const { data: nextTeamId, error: rpcError } = await supabase.rpc('get_next_developer_team');
+        // Get the next available developer using round-robin
+        const { data: developerResult, error: rpcError } = await supabase.rpc('get_next_available_developer');
         
         if (rpcError) throw rpcError;
         
+        if (!developerResult) {
+          throw new Error("No developer available. Please ensure at least one active developer is registered.");
+        }
+
+        const devResult = developerResult as unknown as { id: string; user_id: string; name: string; team_id: string };
+        const nextTeamId = devResult.team_id;
+        const developerId = devResult.id;
+
         if (!nextTeamId) {
-          throw new Error("No developer teams available. Please ensure at least one developer is registered.");
+          throw new Error("Developer has no team assigned. Please check developer configuration.");
         }
 
         let attachmentFilePaths: string[] = [];
@@ -152,7 +160,27 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
         // Determine the project manager ID
         const pmId = showProjectManagerSelector && selectedProjectManagerId ? selectedProjectManagerId : userId;
 
-        // Create a single task assigned to the next developer team
+        // Calculate SLA deadline for Phase 1
+        const now = new Date().toISOString();
+        let slaDeadline: string | null = null;
+        
+        try {
+          const slaResponse = await supabase.functions.invoke('calculate-sla-deadline', {
+            body: {
+              developer_id: developerId,
+              start_time: now,
+              sla_hours: 8,
+            },
+          });
+          
+          if (slaResponse.data?.deadline) {
+            slaDeadline = slaResponse.data.deadline;
+          }
+        } catch (slaError) {
+          console.error("SLA calculation failed, proceeding without deadline:", slaError);
+        }
+
+        // Create task with assigned status and developer_id
         const taskData = {
           title: `Website: ${formData.business_name}`,
           description: formData.supporting_text,
@@ -171,7 +199,11 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
           deadline: formData.deadline || null,
           attachment_file_path: attachmentFilePaths.length > 0 ? attachmentFilePaths.join("|||") : null,
           attachment_file_name: attachmentFileNames.length > 0 ? attachmentFileNames.join("|||") : null,
-          status: "pending" as const,
+          status: "assigned" as any,
+          developer_id: developerId,
+          current_phase: 1,
+          total_phases: 4,
+          sla_deadline: slaDeadline,
           // Website specific fields
           number_of_pages: formData.number_of_pages,
           video_keywords: formData.video_keywords || null,
@@ -190,16 +222,39 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
           is_upsell: isUpsell,
         };
 
-        const { error } = await supabase.from("tasks").insert(taskData);
+        const { data: insertedTask, error } = await supabase
+          .from("tasks")
+          .insert(taskData)
+          .select("id")
+          .single();
 
         if (error) throw error;
 
+        // Create Phase 1 record in project_phases
+        if (insertedTask?.id) {
+          const { error: phaseError } = await supabase
+            .from("project_phases")
+            .insert({
+              task_id: insertedTask.id,
+              phase_number: 1,
+              sla_hours: 8,
+              sla_deadline: slaDeadline,
+              started_at: now,
+              status: "in_progress",
+            });
+
+          if (phaseError) {
+            console.error("Failed to create Phase 1 record:", phaseError);
+          }
+        }
+
         queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
         queryClient.invalidateQueries({ queryKey: ["sales-tasks"] });
+        queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
         
         toast({
           title: "Website order created successfully!",
-          description: "Order has been automatically assigned to the next available developer.",
+          description: `Order assigned to ${devResult.name}. Status: Assigned – Awaiting Acknowledgement.`,
         });
         
         onSuccess();
