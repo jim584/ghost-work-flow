@@ -1034,11 +1034,22 @@ const DeveloperDashboard = () => {
                             (() => {
                               let overdueLabel = "ACK OVERDUE";
                               if (task.ack_deadline && devCalendar?.calendar) {
-                                const overdueMin = calculateOverdueWorkingMinutes(new Date(), new Date(task.ack_deadline), devCalendar.calendar, devLeaves || []);
-                                if (overdueMin > 0) {
-                                  const h = Math.floor(overdueMin / 60);
-                                  const m = Math.floor(overdueMin % 60);
-                                  overdueLabel = h > 0 ? `ACK OVERDUE — ${h}h ${m}m` : `ACK OVERDUE — ${m}m`;
+                                const now = new Date();
+                                const dl = new Date(task.ack_deadline);
+                                if (now > dl) {
+                                  // Wall-clock past deadline: calculate working minutes past it
+                                  const overdueMin = calculateOverdueWorkingMinutes(now, dl, devCalendar.calendar, devLeaves || []);
+                                  if (overdueMin > 0) {
+                                    const h = Math.floor(overdueMin / 60);
+                                    const m = Math.floor(overdueMin % 60);
+                                    overdueLabel = h > 0 ? `ACK OVERDUE — ${h}h ${m}m` : `ACK OVERDUE — ${m}m`;
+                                  }
+                                } else {
+                                  // Wall-clock before deadline but working minutes exhausted (outside working hours)
+                                  // The 30 min window is fully consumed; show how long since it ran out
+                                  // We know remaining = 0, so the overdue started when the last working minute ended
+                                  // For now, just indicate it's overdue
+                                  overdueLabel = "ACK OVERDUE — 30m+ elapsed";
                                 }
                               }
                               return (
