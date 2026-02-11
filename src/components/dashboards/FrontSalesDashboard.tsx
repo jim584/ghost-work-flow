@@ -955,58 +955,7 @@ const FrontSalesDashboard = () => {
                           </div>
                         )}
 
-                        {/* Expandable Team Details for Multi-Team Orders */}
-                        {isMultiTeam && (
-                          <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(group.groupKey)}>
-                            <CollapsibleTrigger asChild>
-                              <Button variant="ghost" size="sm" className="w-full justify-between">
-                                <span className="text-sm font-medium">View Team Progress</span>
-                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              </Button>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="mt-3">
-                              <div className="space-y-2 border-t pt-3">
-                                {group.tasks.map((task: any) => {
-                                  const taskDelayed = task.deadline && new Date(task.deadline) < today && !['completed', 'approved'].includes(task.status);
-                                  return (
-                                    <div 
-                                      key={task.id} 
-                                      className={`flex items-center justify-between p-3 rounded-lg bg-muted/30 ${taskDelayed ? 'border-l-2 border-l-destructive' : ''}`}
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <span className="font-mono text-xs text-muted-foreground">#{task.task_number}</span>
-                                        <span className="text-sm font-medium">{(task.teams as any)?.name || 'Unknown Team'}</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <Badge className={`${getStatusColor(task.status)} text-xs`}>
-                                          {task.status.replace("_", " ")}
-                                        </Badge>
-                                        {task.status === "pending" && (
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-6 w-6 p-0 hover:bg-destructive/10"
-                                            onClick={() => setDeleteTaskId(task.id)}
-                                          >
-                                            <Trash2 className="h-3 w-3 text-destructive" />
-                                          </Button>
-                                        )}
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-6 px-2"
-                                          onClick={() => setViewDetailsTask(task)}
-                                        >
-                                          <Eye className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </CollapsibleContent>
-                          </Collapsible>
-                        )}
+
                       </div>
 
                       {/* Card Footer - PM style */}
