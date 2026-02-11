@@ -1032,9 +1032,12 @@ const DeveloperDashboard = () => {
                 </div>
               )}
             </div>
-            <Button onClick={handleFileUpload} disabled={!files.length || uploading} className="w-full">
+            <Button onClick={handleFileUpload} disabled={!files.length || !homepageUrl.trim() || uploading} className="w-full">
               {uploading ? "Uploading..." : `Upload ${files.length} File(s)`}
             </Button>
+            {!homepageUrl.trim() && (
+              <p className="text-xs text-muted-foreground text-center">Please enter the website homepage URL to enable upload</p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
