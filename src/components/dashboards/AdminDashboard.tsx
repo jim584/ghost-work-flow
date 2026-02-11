@@ -114,6 +114,7 @@ const AdminDashboard = () => {
   const [showAllCurrentDesigner, setShowAllCurrentDesigner] = useState(false);
   const [showAllPreviousDesigner, setShowAllPreviousDesigner] = useState(false);
   const [pmWorkloadDialog, setPmWorkloadDialog] = useState<{ open: boolean; pmId: string; pmName: string } | null>(null);
+  const [pmWorkloadFilter, setPmWorkloadFilter] = useState<'all' | 'this_month'>('all');
 
   // Helper function to filter tasks by metric type for a specific user
   const getFilteredTasksForMetric = (userId: string, metricType: string) => {
@@ -4114,9 +4115,29 @@ const AdminDashboard = () => {
           <DialogHeader>
             <DialogTitle>Tasks Assigned to {pmWorkloadDialog?.pmName}</DialogTitle>
           </DialogHeader>
+          <div className="flex gap-2 mb-2">
+            <Button
+              size="sm"
+              variant={pmWorkloadFilter === 'all' ? 'default' : 'outline'}
+              onClick={() => setPmWorkloadFilter('all')}
+            >
+              All Tasks
+            </Button>
+            <Button
+              size="sm"
+              variant={pmWorkloadFilter === 'this_month' ? 'default' : 'outline'}
+              onClick={() => setPmWorkloadFilter('this_month')}
+            >
+              This Month
+            </Button>
+          </div>
           <ScrollArea className="max-h-[60vh]">
             {(() => {
               if (!pmWorkloadDialog) return null;
+              const now = new Date();
+              const monthStart = startOfMonth(now);
+              const monthEnd = endOfMonth(now);
+
               const pmTasks = tasks?.filter(t => t.project_manager_id === pmWorkloadDialog.pmId && !t.is_deleted) || [];
               
               // Deduplicate by order_group_id
@@ -4128,8 +4149,12 @@ const AdminDashboard = () => {
                 return true;
               });
 
-              if (uniqueTasks.length === 0) {
-                return <p className="text-muted-foreground text-center py-8">No tasks assigned.</p>;
+              const filteredTasks = pmWorkloadFilter === 'this_month'
+                ? uniqueTasks.filter(t => t.created_at && isWithinInterval(new Date(t.created_at), { start: monthStart, end: monthEnd }))
+                : uniqueTasks;
+
+              if (filteredTasks.length === 0) {
+                return <p className="text-muted-foreground text-center py-8">No tasks found.</p>;
               }
 
               return (
@@ -4145,7 +4170,7 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {uniqueTasks.map(task => (
+                    {filteredTasks.map(task => (
                       <TableRow key={task.id}>
                         <TableCell className="font-mono text-sm">#{task.task_number}</TableCell>
                         <TableCell className="font-medium max-w-[200px] truncate">{task.title}</TableCell>
