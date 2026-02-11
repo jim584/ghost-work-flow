@@ -1012,13 +1012,13 @@ const DeveloperDashboard = () => {
                             Website Order
                           </Badge>
                           <h3 className="font-semibold">{task.title}</h3>
-                          {isAssigned && !ackOverdue && (
+                          {isAssigned && !ackOverdue && !task.late_acknowledgement && (
                             <Badge className="gap-1 bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500">
                               <Play className="h-3 w-3" />
                               NEW
                             </Badge>
                           )}
-                          {ackOverdue && (
+                          {(ackOverdue || (isAssigned && task.late_acknowledgement)) && (
                             <Badge variant="destructive" className="gap-1 animate-pulse">
                               <AlertTriangle className="h-3 w-3" />
                               ACK OVERDUE
