@@ -54,9 +54,31 @@ function toTimezoneDate(utcDate: Date, tz: string): Date {
   return new Date(`${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}`);
 }
 
+function isOvernightShift(startMin: number, endMin: number): boolean {
+  return endMin <= startMin;
+}
+
+function isWithinShift(minuteOfDay: number, shiftStart: number, shiftEnd: number): boolean {
+  if (isOvernightShift(shiftStart, shiftEnd)) {
+    return minuteOfDay >= shiftStart || minuteOfDay < shiftEnd;
+  }
+  return minuteOfDay >= shiftStart && minuteOfDay < shiftEnd;
+}
+
+function minutesUntilShiftEnd(currentMinute: number, shiftStart: number, shiftEnd: number): number {
+  if (!isWithinShift(currentMinute, shiftStart, shiftEnd)) return 0;
+  if (isOvernightShift(shiftStart, shiftEnd)) {
+    if (currentMinute >= shiftStart) {
+      return (24 * 60 - currentMinute) + shiftEnd;
+    }
+    return shiftEnd - currentMinute;
+  }
+  return shiftEnd - currentMinute;
+}
+
 /**
  * Calculate remaining working minutes between now and deadline,
- * accounting for shift hours, working days, and leaves.
+ * with overnight shift support.
  */
 function calculateRemainingWorkingMinutes(
   nowUTC: Date, deadlineUTC: Date, calendar: CalendarConfig, leaves: LeaveRecord[]
@@ -74,7 +96,7 @@ function calculateRemainingWorkingMinutes(
   let totalWorkingMinutes = 0;
   let iterations = 0;
 
-  while (currentLocal < deadlineLocal && iterations < 365) {
+  while (currentLocal < deadlineLocal && iterations < 730) {
     iterations++;
     const dayOfWeek = getISODay(currentLocal);
 
@@ -89,46 +111,68 @@ function calculateRemainingWorkingMinutes(
     const isSaturday = dayOfWeek === 6;
     const todayStart = isSaturday ? satStartMin : workStartMin;
     const todayEnd = isSaturday ? satEndMin : workEndMin;
+    const overnight = isOvernightShift(todayStart, todayEnd);
     const currentMinute = currentLocal.getHours() * 60 + currentLocal.getMinutes();
 
-    if (currentMinute < todayStart) {
-      currentLocal.setHours(Math.floor(todayStart / 60), todayStart % 60, 0, 0);
+    if (!isWithinShift(currentMinute, todayStart, todayEnd)) {
+      if (overnight && currentMinute < todayStart && currentMinute >= todayEnd) {
+        currentLocal.setHours(Math.floor(todayStart / 60), todayStart % 60, 0, 0);
+      } else if (!overnight && currentMinute < todayStart) {
+        currentLocal.setHours(Math.floor(todayStart / 60), todayStart % 60, 0, 0);
+      } else {
+        currentLocal.setDate(currentLocal.getDate() + 1);
+        const nextDay = getISODay(currentLocal);
+        const nextStart = nextDay === 6 ? satStartMin : workStartMin;
+        currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
+        continue;
+      }
     }
 
-    if (currentMinute >= todayEnd) {
-      currentLocal.setDate(currentLocal.getDate() + 1);
-      const nextDay = getISODay(currentLocal);
-      const nextStart = nextDay === 6 ? satStartMin : workStartMin;
-      currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
-      continue;
-    }
+    // Calculate available minutes until shift end
+    const availableMinutes = minutesUntilShiftEnd(
+      currentLocal.getHours() * 60 + currentLocal.getMinutes(), todayStart, todayEnd
+    );
 
-    const effectiveStart = Math.max(currentLocal.getHours() * 60 + currentLocal.getMinutes(), todayStart);
-    const dayEndLocal = new Date(currentLocal);
-    dayEndLocal.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    // Build window end time
+    let windowEnd: Date;
+    if (overnight && (currentLocal.getHours() * 60 + currentLocal.getMinutes()) >= todayStart) {
+      windowEnd = new Date(currentLocal);
+      windowEnd.setDate(windowEnd.getDate() + 1);
+      windowEnd.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    } else if (overnight) {
+      windowEnd = new Date(currentLocal);
+      windowEnd.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    } else {
+      windowEnd = new Date(currentLocal);
+      windowEnd.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    }
 
     // Cap at deadline
-    const windowEnd = deadlineLocal < dayEndLocal ? deadlineLocal : dayEndLocal;
-    const windowEndMinute = windowEnd.getHours() * 60 + windowEnd.getMinutes();
-    const availableMinutes = Math.max(0, windowEndMinute - effectiveStart);
+    const effectiveEnd = deadlineLocal < windowEnd ? deadlineLocal : windowEnd;
+    const cappedMinutes = Math.max(0, Math.floor((effectiveEnd.getTime() - currentLocal.getTime()) / (1000 * 60)));
+    const minutesToCount = Math.min(availableMinutes, cappedMinutes);
 
     // Calculate leave overlap
-    const dayStartLocal = new Date(currentLocal);
-    dayStartLocal.setHours(Math.floor(effectiveStart / 60), effectiveStart % 60, 0, 0);
+    const windowStart = new Date(currentLocal);
     let leaveOverlap = 0;
     for (const leave of leaves) {
       const ls = toTimezoneDate(new Date(leave.leave_start_datetime), timezone);
       const le = toTimezoneDate(new Date(leave.leave_end_datetime), timezone);
-      const os = new Date(Math.max(dayStartLocal.getTime(), ls.getTime()));
-      const oe = new Date(Math.min(windowEnd.getTime(), le.getTime()));
+      const os = new Date(Math.max(windowStart.getTime(), ls.getTime()));
+      const oe = new Date(Math.min(effectiveEnd.getTime(), le.getTime()));
       if (os < oe) leaveOverlap += (oe.getTime() - os.getTime()) / (1000 * 60);
     }
 
-    totalWorkingMinutes += Math.max(0, availableMinutes - leaveOverlap);
+    totalWorkingMinutes += Math.max(0, minutesToCount - leaveOverlap);
 
-    if (deadlineLocal <= dayEndLocal) break;
+    if (deadlineLocal <= windowEnd) break;
 
-    currentLocal.setDate(currentLocal.getDate() + 1);
+    // Advance past this shift
+    if (overnight && (currentLocal.getHours() * 60 + currentLocal.getMinutes()) >= todayStart) {
+      currentLocal.setDate(currentLocal.getDate() + 2);
+    } else {
+      currentLocal.setDate(currentLocal.getDate() + 1);
+    }
     const nextDay = getISODay(currentLocal);
     const nextStart = nextDay === 6 ? satStartMin : workStartMin;
     currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
@@ -181,7 +225,7 @@ const SlaCountdown = ({ deadline, label, calendar, leaves }: {
       const isSat = dayOfWeek === 6;
       const todayStart = isSat && calendar.saturday_start_time ? timeToMinutes(calendar.saturday_start_time) : timeToMinutes(calendar.start_time);
       const todayEnd = isSat && calendar.saturday_end_time ? timeToMinutes(calendar.saturday_end_time) : timeToMinutes(calendar.end_time);
-      const isWorkingNow = calendar.working_days.includes(dayOfWeek) && currentMinute >= todayStart && currentMinute < todayEnd;
+      const isWorkingNow = calendar.working_days.includes(dayOfWeek) && isWithinShift(currentMinute, todayStart, todayEnd);
       if (isWorkingNow) {
         secs = 60 - now.getSeconds();
         if (secs === 60) secs = 0;
