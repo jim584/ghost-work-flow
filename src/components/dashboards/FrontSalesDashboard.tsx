@@ -301,8 +301,37 @@ const FrontSalesDashboard = () => {
         return "bg-primary text-primary-foreground";
       case "approved":
         return "bg-success text-success-foreground";
+      case "cancelled":
+        return "bg-destructive text-destructive-foreground";
       default:
         return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const handleDownload = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("design-files")
+        .download(filePath);
+      
+      if (error) throw error;
+      
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "Download started" });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error downloading file",
+        description: error.message,
+      });
     }
   };
 
@@ -687,10 +716,36 @@ const FrontSalesDashboard = () => {
                   const isDelayed = primaryTask.deadline && new Date(primaryTask.deadline) < today && !['completed', 'approved'].includes(getOverallStatus(group.statuses));
                   const isExpanded = expandedGroups.has(group.groupKey);
 
+                  const getBorderClass = () => {
+                    if (isDelayed) return 'border-l-4 border-l-red-500 bg-red-50/10';
+                    const overallStatus = getOverallStatus(group.statuses);
+                    if (overallStatus === 'completed' || overallStatus === 'approved') return 'border-l-4 border-l-green-500 bg-green-50/10';
+                    if (group.statuses.includes('cancelled')) return 'border-l-4 border-l-gray-500 bg-gray-50/10 opacity-75';
+                    return '';
+                  };
+
+                  const getCategoryBadge = () => {
+                    const overallStatus = getOverallStatus(group.statuses);
+                    if (overallStatus === 'completed' || overallStatus === 'approved') {
+                      return <Badge className="bg-green-500 text-white">Delivered</Badge>;
+                    }
+                    if (group.statuses.includes('cancelled')) {
+                      return <Badge className="bg-gray-500 text-white">Cancelled</Badge>;
+                    }
+                    return null;
+                  };
+
+                  const getDelayedBadge = () => {
+                    if (!isDelayed || !primaryTask.deadline) return null;
+                    const now = new Date();
+                    const hours = Math.floor((now.getTime() - new Date(primaryTask.deadline).getTime()) / (1000 * 60 * 60));
+                    return <Badge className="bg-red-500 text-white">DELAYED — {hours} hour{hours !== 1 ? 's' : ''} overdue</Badge>;
+                  };
+
                   return (
                     <div 
                       key={group.groupKey} 
-                      className={`group border rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden animate-fade-in ${isDelayed ? 'border-l-4 border-l-destructive bg-destructive/5' : ''}`}
+                      className={`group border rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden animate-fade-in ${getBorderClass()}`}
                     >
                       {/* Card Header */}
                       <div className="p-4 bg-gradient-to-r from-muted/30 to-transparent border-b">
@@ -713,7 +768,8 @@ const FrontSalesDashboard = () => {
                                     {group.teamCount} teams
                                   </Badge>
                                 )}
-                                {isDelayed && <Badge variant="destructive">DELAYED</Badge>}
+                                {getCategoryBadge()}
+                                {getDelayedBadge()}
                               </div>
                               <h3 className="font-semibold text-lg mt-1 truncate">{primaryTask.title}</h3>
                             </div>
@@ -771,37 +827,34 @@ const FrontSalesDashboard = () => {
                             </div>
                           )}
 
-                          {/* Payment Info */}
+                          {/* Payment Info - PM style inline format */}
                           {(primaryTask.amount_total || primaryTask.amount_paid || primaryTask.amount_pending) && (
                             <div className="bg-muted/30 rounded-lg p-3 space-y-2">
                               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                                 <DollarSign className="h-3.5 w-3.5" />
                                 Payment
                               </div>
-                              <div className="space-y-1 text-sm">
-                                {primaryTask.amount_total && (
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Total:</span>
-                                    <span className="font-medium">${Number(primaryTask.amount_total).toFixed(2)}</span>
-                                  </div>
+                              <div className="space-y-1">
+                                {primaryTask.amount_total != null && (
+                                  <p className="text-sm font-semibold">${Number(primaryTask.amount_total).toFixed(2)}</p>
                                 )}
-                                {primaryTask.amount_paid !== null && (
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Paid:</span>
-                                    <span className="font-medium text-success">${Number(primaryTask.amount_paid).toFixed(2)}</span>
-                                  </div>
-                                )}
-                                {primaryTask.amount_pending && Number(primaryTask.amount_pending) > 0 && (
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Pending:</span>
-                                    <span className="font-medium text-warning">${Number(primaryTask.amount_pending).toFixed(2)}</span>
-                                  </div>
-                                )}
+                                <div className="flex items-center gap-3 text-xs">
+                                  {primaryTask.amount_paid != null && (
+                                    <span className="text-green-600 font-medium">
+                                      ✓ ${Number(primaryTask.amount_paid).toFixed(2)} paid
+                                    </span>
+                                  )}
+                                  {primaryTask.amount_pending != null && Number(primaryTask.amount_pending) > 0 && (
+                                    <span className="text-orange-600 font-medium">
+                                      ○ ${Number(primaryTask.amount_pending).toFixed(2)} pending
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           )}
 
-                          {/* Assignment Info */}
+                          {/* Assignment Info - with per-team status indicators */}
                           <div className="bg-muted/30 rounded-lg p-3 space-y-2">
                             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                               <Users className="h-3.5 w-3.5" />
@@ -809,7 +862,43 @@ const FrontSalesDashboard = () => {
                             </div>
                             <div className="space-y-1">
                               {isMultiTeam ? (
-                                <p className="text-sm font-medium">{group.teamCount} teams assigned</p>
+                                <>
+                                  <p className="text-sm font-medium">{group.teamCount} teams assigned</p>
+                                  <div className="space-y-1 mt-1">
+                                    {group.tasks.map((task: any) => {
+                                      let statusIcon = "○";
+                                      let statusColor = "text-muted-foreground";
+                                      let statusText = "Pending";
+                                      
+                                      if (task.status === 'cancelled') {
+                                        statusIcon = "✕";
+                                        statusColor = "text-destructive";
+                                        statusText = "Cancelled";
+                                      } else if (task.status === 'approved') {
+                                        statusIcon = "✓";
+                                        statusColor = "text-green-600";
+                                        statusText = "Approved";
+                                      } else if (task.status === 'completed') {
+                                        statusIcon = "●";
+                                        statusColor = "text-blue-500";
+                                        statusText = "Delivered";
+                                      } else if (task.status === 'in_progress') {
+                                        statusIcon = "◉";
+                                        statusColor = "text-yellow-500";
+                                        statusText = "Working";
+                                      }
+                                      
+                                      return (
+                                        <div key={task.id} className="flex items-center justify-between text-xs">
+                                          <span className="truncate">{(task.teams as any)?.name || "Unknown"}</span>
+                                          <span className={`${statusColor} font-medium`}>
+                                            {statusIcon} {statusText}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </>
                               ) : isWebsiteOrder(primaryTask) ? (
                                 <p className="text-sm font-medium">{getDeveloperForTeam(primaryTask.team_id) || "Unassigned"}</p>
                               ) : (
@@ -828,6 +917,43 @@ const FrontSalesDashboard = () => {
                             </div>
                           </div>
                         </div>
+
+                        {/* Attachments */}
+                        {primaryTask.attachment_file_path && (
+                          <div className="pt-2 border-t">
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Attachments ({primaryTask.attachment_file_path.split('|||').length})
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {primaryTask.attachment_file_path.split('|||').slice(0, 3).map((filePath: string, index: number) => {
+                                const fileName = primaryTask.attachment_file_name?.split('|||')[index] || `attachment_${index + 1}`;
+                                return (
+                                  <div key={index} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg border hover:border-primary/50 transition-colors">
+                                    <FilePreview 
+                                      filePath={filePath.trim()}
+                                      fileName={fileName.trim()}
+                                      className="w-8 h-8"
+                                    />
+                                    <span className="text-xs max-w-[100px] truncate">{fileName.trim()}</span>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() => handleDownload(filePath.trim(), fileName.trim())}
+                                    >
+                                      <Download className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                              {primaryTask.attachment_file_path.split('|||').length > 3 && (
+                                <span className="text-xs text-muted-foreground self-center">
+                                  +{primaryTask.attachment_file_path.split('|||').length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Expandable Team Details for Multi-Team Orders */}
                         {isMultiTeam && (
@@ -881,18 +1007,23 @@ const FrontSalesDashboard = () => {
                             </CollapsibleContent>
                           </Collapsible>
                         )}
+                      </div>
 
-                        {/* Card Footer */}
-                        <div className="flex items-center justify-end pt-2 border-t">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setViewDetailsTask(primaryTask)}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View Details
-                          </Button>
-                        </div>
+                      {/* Card Footer - PM style */}
+                      <div className="px-4 py-3 bg-muted/20 border-t flex items-center justify-between gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setViewDetailsTask(primaryTask)}
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-1.5" />
+                          View Details
+                        </Button>
+                        {primaryTask.status === "cancelled" && primaryTask.cancellation_reason && (
+                          <p className="text-xs text-muted-foreground italic">
+                            Reason: {primaryTask.cancellation_reason}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );
