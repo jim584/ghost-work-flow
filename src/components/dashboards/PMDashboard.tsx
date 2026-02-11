@@ -731,7 +731,7 @@ const PMDashboard = () => {
     if (hasTeamsPendingDelivery) categories.push('pending_delivery');
     
     // For multi-team orders, also check individual task statuses
-    const hasAnyPending = activeTasks.some((t: any) => t.status === 'pending');
+    const hasAnyPending = activeTasks.some((t: any) => t.status === 'pending' || t.status === 'assigned');
     const hasAnyInProgress = activeTasks.some((t: any) => t.status === 'in_progress');
     const hasAnyCancelled = group.allTasks.some((t: any) => t.status === 'cancelled');
     if (hasAnyPending) categories.push('pending');
@@ -793,7 +793,7 @@ const PMDashboard = () => {
     // Task status-based completion only applies if explicitly set
     if (task.status === 'completed' || task.status === 'approved') return 'other';
     
-    if (task.status === 'pending') return 'pending';
+    if (task.status === 'pending' || task.status === 'assigned') return 'pending';
     if (task.status === 'in_progress') return 'in_progress';
     return 'other';
   };
