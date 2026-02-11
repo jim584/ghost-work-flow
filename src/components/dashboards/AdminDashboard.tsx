@@ -25,6 +25,9 @@ import { CreateLogoOrderForm } from "./CreateLogoOrderForm";
 import { CreateWebsiteOrderForm } from "./CreateWebsiteOrderForm";
 import { format, startOfWeek, startOfMonth, endOfMonth, subMonths, isWithinInterval } from "date-fns";
 import { z } from "zod";
+import { AvailabilityCalendarsManager } from "@/components/admin/AvailabilityCalendarsManager";
+import { DeveloperResourcesManager } from "@/components/admin/DeveloperResourcesManager";
+import { LeaveManagement } from "@/components/admin/LeaveManagement";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Database } from "@/integrations/supabase/types";
 
@@ -77,7 +80,7 @@ const AdminDashboard = () => {
   const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [editTeamDialog, setEditTeamDialog] = useState<{ open: boolean; teamId: string; currentName: string } | null>(null);
   const [newTeamName, setNewTeamName] = useState("");
-  const [viewMode, setViewMode] = useState<'tasks' | 'portfolio' | 'sales_performance' | 'pm_workload'>('tasks');
+  const [viewMode, setViewMode] = useState<'tasks' | 'portfolio' | 'sales_performance' | 'pm_workload' | 'developer_resources'>('tasks');
   const [passwordResetDialog, setPasswordResetDialog] = useState<{ open: boolean; userId: string; userName: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
@@ -1445,6 +1448,12 @@ const AdminDashboard = () => {
               onClick={() => setViewMode('pm_workload')}
             >
               PM Workload
+            </Button>
+            <Button
+              variant={viewMode === 'developer_resources' ? 'default' : 'outline'}
+              onClick={() => setViewMode('developer_resources')}
+            >
+              Developer Resources
             </Button>
           </div>
           {viewMode === 'tasks' && (
@@ -3139,6 +3148,14 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
           </>
+        )}
+
+        {viewMode === 'developer_resources' && (
+          <div className="space-y-6">
+            <AvailabilityCalendarsManager />
+            <DeveloperResourcesManager />
+            <LeaveManagement />
+          </div>
         )}
         </>
         )}
