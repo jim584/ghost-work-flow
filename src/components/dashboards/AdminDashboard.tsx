@@ -77,7 +77,7 @@ const AdminDashboard = () => {
   const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [editTeamDialog, setEditTeamDialog] = useState<{ open: boolean; teamId: string; currentName: string } | null>(null);
   const [newTeamName, setNewTeamName] = useState("");
-  const [viewMode, setViewMode] = useState<'tasks' | 'portfolio' | 'sales_performance'>('tasks');
+  const [viewMode, setViewMode] = useState<'tasks' | 'portfolio' | 'sales_performance' | 'pm_workload'>('tasks');
   const [passwordResetDialog, setPasswordResetDialog] = useState<{ open: boolean; userId: string; userName: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
@@ -1413,6 +1413,12 @@ const AdminDashboard = () => {
             >
               Sales Performance
             </Button>
+            <Button
+              variant={viewMode === 'pm_workload' ? 'default' : 'outline'}
+              onClick={() => setViewMode('pm_workload')}
+            >
+              PM Workload
+            </Button>
           </div>
           {viewMode === 'tasks' && (
             <div className="flex gap-2 flex-wrap">
@@ -2595,6 +2601,72 @@ const AdminDashboard = () => {
                     })}
                 </Accordion>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {viewMode === 'pm_workload' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FolderKanban className="h-5 w-5" />
+                PM Workload Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                if (!projectManagers?.length) {
+                  return <p className="text-muted-foreground text-center py-8">No project managers found.</p>;
+                }
+
+                const now = new Date();
+                const monthStart = startOfMonth(now);
+                const monthEnd = endOfMonth(now);
+
+                return (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Project Manager</TableHead>
+                        <TableHead className="text-center">New This Month</TableHead>
+                        <TableHead className="text-center">Total All-Time</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {projectManagers.map((pm) => {
+                        const pmTasks = tasks?.filter(t => t.project_manager_id === pm.id && !t.is_deleted) || [];
+                        
+                        // Deduplicate by order_group_id for accurate counts
+                        const seenGroups = new Set<string>();
+                        let newThisMonth = 0;
+                        let totalAllTime = 0;
+
+                        pmTasks.forEach(t => {
+                          const groupKey = t.order_group_id || t.id;
+                          if (seenGroups.has(groupKey)) return;
+                          seenGroups.add(groupKey);
+                          totalAllTime++;
+                          if (t.created_at && isWithinInterval(new Date(t.created_at), { start: monthStart, end: monthEnd })) {
+                            newThisMonth++;
+                          }
+                        });
+
+                        return (
+                          <TableRow key={pm.id}>
+                            <TableCell className="font-medium">{pm.full_name || pm.email}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="secondary">{newThisMonth}</Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline">{totalAllTime}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                );
+              })()}
             </CardContent>
           </Card>
         )}
