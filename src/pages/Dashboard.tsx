@@ -62,7 +62,7 @@ const Dashboard = () => {
     case "front_sales":
       return <FrontSalesDashboard />;
     case "development_team_leader":
-      return <DeveloperDashboard />;
+      return <AdminDashboard />;
     default:
       return <Navigate to="/auth" replace />;
   }
