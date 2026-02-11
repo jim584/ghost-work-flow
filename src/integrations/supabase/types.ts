@@ -291,7 +291,9 @@ export type Database = {
           completed_at: string | null
           created_at: string
           id: string
+          pages_completed: number
           phase_number: number
+          points: number
           sla_deadline: string | null
           sla_hours: number
           started_at: string | null
@@ -302,7 +304,9 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           id?: string
+          pages_completed?: number
           phase_number: number
+          points?: number
           sla_deadline?: string | null
           sla_hours?: number
           started_at?: string | null
@@ -313,7 +317,9 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           id?: string
+          pages_completed?: number
           phase_number?: number
+          points?: number
           sla_deadline?: string | null
           sla_hours?: number
           started_at?: string | null
