@@ -20,6 +20,8 @@ export type Database = {
           end_time: string
           id: string
           name: string
+          saturday_end_time: string | null
+          saturday_start_time: string | null
           start_time: string
           timezone: string
           updated_at: string
@@ -30,6 +32,8 @@ export type Database = {
           end_time?: string
           id?: string
           name: string
+          saturday_end_time?: string | null
+          saturday_start_time?: string | null
           start_time?: string
           timezone?: string
           updated_at?: string
@@ -40,6 +44,8 @@ export type Database = {
           end_time?: string
           id?: string
           name?: string
+          saturday_end_time?: string | null
+          saturday_start_time?: string | null
           start_time?: string
           timezone?: string
           updated_at?: string

@@ -11,6 +11,8 @@ interface CalendarConfig {
   working_days: number[];
   start_time: string; // "HH:MM"
   end_time: string;   // "HH:MM"
+  saturday_start_time?: string;
+  saturday_end_time?: string;
   timezone: string;
 }
 
@@ -116,9 +118,11 @@ function calculateDeadline(
   calendar: CalendarConfig,
   leaves: LeaveRecord[]
 ): Date {
-  const { working_days, start_time, end_time, timezone } = calendar;
+  const { working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone } = calendar;
   const workStartMinutes = timeToMinutes(start_time);
   const workEndMinutes = timeToMinutes(end_time);
+  const satStartMinutes = saturday_start_time ? timeToMinutes(saturday_start_time) : workStartMinutes;
+  const satEndMinutes = saturday_end_time ? timeToMinutes(saturday_end_time) : workEndMinutes;
   const dailyWorkMinutes = workEndMinutes - workStartMinutes;
 
   if (dailyWorkMinutes <= 0) {
@@ -142,35 +146,44 @@ function calculateDeadline(
       // Skip to next day, start of work
       currentLocal = new Date(currentLocal);
       currentLocal.setDate(currentLocal.getDate() + 1);
-      currentLocal.setHours(Math.floor(workStartMinutes / 60), workStartMinutes % 60, 0, 0);
+      const skipDay = getISODay(currentLocal);
+      const skipStart = skipDay === 6 ? satStartMinutes : workStartMinutes;
+      currentLocal.setHours(Math.floor(skipStart / 60), skipStart % 60, 0, 0);
       continue;
     }
+
+    // Use Saturday-specific hours if today is Saturday (day 6)
+    const isSaturday = dayOfWeek === 6;
+    const todayStart = isSaturday ? satStartMinutes : workStartMinutes;
+    const todayEnd = isSaturday ? satEndMinutes : workEndMinutes;
 
     const currentMinuteOfDay =
       currentLocal.getHours() * 60 + currentLocal.getMinutes();
 
     // If before work hours, advance to work start
-    if (currentMinuteOfDay < workStartMinutes) {
-      currentLocal.setHours(Math.floor(workStartMinutes / 60), workStartMinutes % 60, 0, 0);
+    if (currentMinuteOfDay < todayStart) {
+      currentLocal.setHours(Math.floor(todayStart / 60), todayStart % 60, 0, 0);
     }
 
     // If after work hours, advance to next day
-    if (currentMinuteOfDay >= workEndMinutes) {
+    if (currentMinuteOfDay >= todayEnd) {
       currentLocal.setDate(currentLocal.getDate() + 1);
-      currentLocal.setHours(Math.floor(workStartMinutes / 60), workStartMinutes % 60, 0, 0);
+      const nextDay = getISODay(currentLocal);
+      const nextStart = nextDay === 6 ? satStartMinutes : workStartMinutes;
+      currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
       continue;
     }
 
     // Calculate available minutes for the rest of this working day
     const effectiveStart = Math.max(
       currentLocal.getHours() * 60 + currentLocal.getMinutes(),
-      workStartMinutes
+      todayStart
     );
-    const availableMinutesInDay = workEndMinutes - effectiveStart;
+    const availableMinutesInDay = todayEnd - effectiveStart;
 
     // Build day end local time for leave overlap check
     const dayEndLocal = new Date(currentLocal);
-    dayEndLocal.setHours(Math.floor(workEndMinutes / 60), workEndMinutes % 60, 0, 0);
+    dayEndLocal.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
 
     const dayStartLocal = new Date(currentLocal);
     dayStartLocal.setHours(
@@ -193,7 +206,9 @@ function calculateDeadline(
     if (usableMinutes <= 0) {
       // Entire remaining work period is on leave, skip to next day
       currentLocal.setDate(currentLocal.getDate() + 1);
-      currentLocal.setHours(Math.floor(workStartMinutes / 60), workStartMinutes % 60, 0, 0);
+      const nextDay2 = getISODay(currentLocal);
+      const nextStart2 = nextDay2 === 6 ? satStartMinutes : workStartMinutes;
+      currentLocal.setHours(Math.floor(nextStart2 / 60), nextStart2 % 60, 0, 0);
       continue;
     }
 
@@ -220,7 +235,9 @@ function calculateDeadline(
       // Consume all usable minutes today, continue tomorrow
       remainingMinutes -= usableMinutes;
       currentLocal.setDate(currentLocal.getDate() + 1);
-      currentLocal.setHours(Math.floor(workStartMinutes / 60), workStartMinutes % 60, 0, 0);
+      const nextDay3 = getISODay(currentLocal);
+      const nextStart3 = nextDay3 === 6 ? satStartMinutes : workStartMinutes;
+      currentLocal.setHours(Math.floor(nextStart3 / 60), nextStart3 % 60, 0, 0);
     }
   }
 
@@ -299,7 +316,7 @@ serve(async (req) => {
     // Fetch developer with calendar
     const { data: developer, error: devError } = await supabaseAdmin
       .from("developers")
-      .select("id, timezone, availability_calendar_id, availability_calendars(working_days, start_time, end_time, timezone)")
+      .select("id, timezone, availability_calendar_id, availability_calendars(working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone)")
       .eq("id", developer_id)
       .single();
 
@@ -323,6 +340,8 @@ serve(async (req) => {
       working_days: cal.working_days,
       start_time: cal.start_time,
       end_time: cal.end_time,
+      saturday_start_time: cal.saturday_start_time,
+      saturday_end_time: cal.saturday_end_time,
       timezone: cal.timezone,
     };
 
