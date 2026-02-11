@@ -160,21 +160,35 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
         // Determine the project manager ID
         const pmId = showProjectManagerSelector && selectedProjectManagerId ? selectedProjectManagerId : userId;
 
-        // Calculate SLA deadline for Phase 1
+        // Calculate SLA deadline (9 working hours) and ack deadline (30 working minutes)
         const now = new Date().toISOString();
         let slaDeadline: string | null = null;
+        let ackDeadline: string | null = null;
         
         try {
-          const slaResponse = await supabase.functions.invoke('calculate-sla-deadline', {
-            body: {
-              developer_id: developerId,
-              start_time: now,
-              sla_hours: 8,
-            },
-          });
+          // Calculate both deadlines in parallel
+          const [slaResponse, ackResponse] = await Promise.all([
+            supabase.functions.invoke('calculate-sla-deadline', {
+              body: {
+                developer_id: developerId,
+                start_time: now,
+                sla_hours: 9,
+              },
+            }),
+            supabase.functions.invoke('calculate-sla-deadline', {
+              body: {
+                developer_id: developerId,
+                start_time: now,
+                sla_hours: 0.5, // 30 working minutes
+              },
+            }),
+          ]);
           
           if (slaResponse.data?.deadline) {
             slaDeadline = slaResponse.data.deadline;
+          }
+          if (ackResponse.data?.deadline) {
+            ackDeadline = ackResponse.data.deadline;
           }
         } catch (slaError) {
           console.error("SLA calculation failed, proceeding without deadline:", slaError);
@@ -204,6 +218,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
           current_phase: 1,
           total_phases: 4,
           sla_deadline: slaDeadline,
+          ack_deadline: ackDeadline,
           // Website specific fields
           number_of_pages: formData.number_of_pages,
           video_keywords: formData.video_keywords || null,

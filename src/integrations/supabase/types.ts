@@ -434,6 +434,7 @@ export type Database = {
       tasks: {
         Row: {
           accepted_by_pm: boolean
+          ack_deadline: string | null
           acknowledged_at: string | null
           additional_details: string | null
           amount_paid: number | null
@@ -471,6 +472,7 @@ export type Database = {
           industry: string | null
           is_deleted: boolean
           is_upsell: boolean
+          late_acknowledgement: boolean
           logo_style: string | null
           logo_type: string | null
           logo_url: string | null
@@ -491,6 +493,8 @@ export type Database = {
           reassigned_at: string | null
           reassigned_from: string | null
           reassignment_reason: string | null
+          reassignment_request_reason: string | null
+          reassignment_requested_at: string | null
           sla_deadline: string | null
           status: Database["public"]["Enums"]["task_status"]
           supporting_text: string | null
@@ -515,6 +519,7 @@ export type Database = {
         }
         Insert: {
           accepted_by_pm?: boolean
+          ack_deadline?: string | null
           acknowledged_at?: string | null
           additional_details?: string | null
           amount_paid?: number | null
@@ -552,6 +557,7 @@ export type Database = {
           industry?: string | null
           is_deleted?: boolean
           is_upsell?: boolean
+          late_acknowledgement?: boolean
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null
@@ -572,6 +578,8 @@ export type Database = {
           reassigned_at?: string | null
           reassigned_from?: string | null
           reassignment_reason?: string | null
+          reassignment_request_reason?: string | null
+          reassignment_requested_at?: string | null
           sla_deadline?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
@@ -596,6 +604,7 @@ export type Database = {
         }
         Update: {
           accepted_by_pm?: boolean
+          ack_deadline?: string | null
           acknowledged_at?: string | null
           additional_details?: string | null
           amount_paid?: number | null
@@ -633,6 +642,7 @@ export type Database = {
           industry?: string | null
           is_deleted?: boolean
           is_upsell?: boolean
+          late_acknowledgement?: boolean
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null
@@ -653,6 +663,8 @@ export type Database = {
           reassigned_at?: string | null
           reassigned_from?: string | null
           reassignment_reason?: string | null
+          reassignment_request_reason?: string | null
+          reassignment_requested_at?: string | null
           sla_deadline?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
