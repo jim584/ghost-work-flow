@@ -386,7 +386,7 @@ const DeveloperDashboard = () => {
   });
 
   const handleFileUpload = async () => {
-    if (!files.length || !selectedTask) return;
+    if (!selectedTask || (!files.length && !homepageUrl.trim() && !developerComment.trim())) return;
 
     setUploading(true);
     try {
