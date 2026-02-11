@@ -1042,6 +1042,12 @@ const DeveloperDashboard = () => {
                               Reassignment Requested
                             </Badge>
                           )}
+                          {task.late_acknowledgement && !isAssigned && (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              LATE ACK
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
                         
