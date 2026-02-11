@@ -1,29 +1,39 @@
 
 
-# Match Front Sales Card Design to PM Dashboard
+# Align Front Sales "View Details" Dialog with PM Dashboard Style
 
 ## What Changes
 
-The order cards in the Front Sales dashboard will be updated to match the PM dashboard's visual design. This means adding status-based color coding, category badges, attachment previews, and better team status indicators -- while keeping Front Sales-specific features (delete button, no approve/revision actions).
+The View Details dialog in Front Sales currently uses a different visual style (uppercase `h4` headers, `bg-muted/30` boxes with inline labels). It will be restructured to match the PM dashboard's cleaner format.
 
-## Visual Changes
+## Visual Differences (Current vs Target)
 
-1. **Color-coded left borders** based on order status:
-   - Green border for completed/delivered orders
-   - Red border for delayed orders
-   - Orange border for orders needing revision
-   - Gray border for cancelled orders
+**Current Front Sales style:**
+- Uppercase small headers (`h4 font-medium text-sm uppercase`)
+- Grouped content inside `bg-muted/30` rounded boxes
+- Inline `span` labels with values on same line
+- 2-column grid for the top section (Customer + Payment side by side)
 
-2. **Category badges** next to the order title:
-   - "Delivered" badge for completed tasks
-   - "DELAYED -- X hours overdue" badge for past-deadline orders
-   - "Needs Revision" badge when applicable
+**PM dashboard style (target):**
+- Section headers with bottom borders (`h3 font-semibold text-lg border-b pb-2`)
+- Clean grid layouts without background boxes
+- `Label` component for field names, values below on separate line
+- Distinct sections: Customer Information, Payment Information, Basic Information, Order Attribution, then type-specific details
 
-3. **Attachments section** showing uploaded files with download buttons (matching PM layout with preview thumbnails)
+## Specific Changes
 
-5. **Per-team status indicators** in the Assignment section for multi-team orders, showing each team's current status (Pending, Working, Delivered, Approved, Cancelled) with color-coded icons -- matching the PM dashboard format
-
-6. **Payment display update** to match PM's inline format showing paid/pending amounts with color coding
+1. **Dialog width**: Change from `max-w-4xl` to `max-w-2xl` to match PM
+2. **Remove** the badges row at top (status + order type) -- PM doesn't have this
+3. **Customer Information section**: Use `h3` with `border-b`, 2-column grid with `Label` + `p` pairs, include Customer Domain field, show "N/A" for empty values
+4. **Payment Information section**: Use `h3` with `border-b`, 3-column grid with `Label` + colored amounts
+5. **Basic Information section**: Title, Business Name, Industry, Website, Deadline, Team/Developer in a 2-column grid with `Label` components
+6. **Cancellation Details section**: Add the red-highlighted cancellation/deletion block (matching PM) for cancelled orders
+7. **Order Attribution section**: 3-column grid showing Assigned PM, Transferred By, Closed By with `Label` components, plus "Created by" line below
+8. **Logo Details section**: Reformat using `h3 border-b` header, grid layout with `Label` components
+9. **Website Details section**: Match PM's layout with `Label` components, include logo files rendering
+10. **Social Media Post Details**: Add missing sections from PM -- Post Details, Product/Service Info, Design Requirements, Content, Target Audience
+11. **Additional Notes section**: Use PM format with `h3 border-b` header
+12. **Attachments section**: Match PM's simpler list format with `FilePreview` + download buttons
 
 ## Technical Details
 
@@ -31,11 +41,9 @@ The order cards in the Front Sales dashboard will be updated to match the PM das
 - `src/components/dashboards/FrontSalesDashboard.tsx`
 
 ### Key Changes
-- Add a `getBorderClass()` helper function that returns left-border CSS classes based on task status (pending, in_progress, completed, approved, cancelled, delayed)
-- Add `getCategoryBadge()` and `getDelayedBadge()` helpers for status badges in the card header
-- Update the card wrapper div to use `getBorderClass()` alongside existing classes
-- Replace the simple "View Details" button area with a proper card footer (`px-4 py-3 bg-muted/20 border-t`)
-- Add attachments section before the footer (matching PM's attachment rendering with FilePreview + Download)
-- Update the multi-team Collapsible section to show per-team status icons (Pending, Working, Delivered, Approved, Cancelled) instead of just a status badge
-- Update payment section to match PM's inline format with green/orange coloring
-- No new dependencies needed -- all icons and components are already imported
+- Replace the entire View Details dialog content (lines 987-1311) with PM-style markup
+- Use `Label` component (already imported or will import from `@/components/ui/label`)
+- Restructure from `bg-muted/30` boxes to clean grid sections with `border-b` headers
+- Add missing fields that PM shows (customer_domain, cancellation details, post details sections)
+- Keep Front Sales-specific logic (group key lookup for multi-team orders)
+
