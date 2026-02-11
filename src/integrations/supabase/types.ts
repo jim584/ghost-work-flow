@@ -870,6 +870,7 @@ export type Database = {
         | "designer"
         | "developer"
         | "front_sales"
+        | "development_team_leader"
       task_status:
         | "pending"
         | "in_progress"
@@ -1010,6 +1011,7 @@ export const Constants = {
         "designer",
         "developer",
         "front_sales",
+        "development_team_leader",
       ],
       task_status: [
         "pending",

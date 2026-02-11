@@ -46,11 +46,11 @@ serve(async (req) => {
 
     console.log(`Found ${lateTasks.length} tasks with late acknowledgement`);
 
-    // Get all admin user IDs (Development Head)
+    // Get all admin and development_team_leader user IDs
     const { data: admins } = await supabaseAdmin
       .from("user_roles")
       .select("user_id")
-      .eq("role", "admin");
+      .in("role", ["admin", "development_team_leader"]);
 
     const adminIds = admins?.map(a => a.user_id) || [];
 
