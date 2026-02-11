@@ -972,6 +972,23 @@ const DeveloperDashboard = () => {
               </p>
             </div>
             <div className="space-y-2">
+              <Label htmlFor="homepage-url" className="flex items-center gap-1.5">
+                <Link className="h-3.5 w-3.5" />
+                Website Homepage URL (optional)
+              </Label>
+              <Input
+                id="homepage-url"
+                type="url"
+                placeholder="https://www.example.com"
+                value={homepageUrl}
+                onChange={(e) => setHomepageUrl(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="developer-comment">Comment (optional)</Label>
+              <Textarea id="developer-comment" placeholder="Add any notes about your submission..." value={developerComment} onChange={(e) => setDeveloperComment(e.target.value)} rows={3} />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="file">Files (multiple allowed)</Label>
               <Input
                 id="file" type="file" multiple
@@ -1014,23 +1031,6 @@ const DeveloperDashboard = () => {
                   </div>
                 </div>
               )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="homepage-url" className="flex items-center gap-1.5">
-                <Link className="h-3.5 w-3.5" />
-                Website Homepage URL (optional)
-              </Label>
-              <Input
-                id="homepage-url"
-                type="url"
-                placeholder="https://www.example.com"
-                value={homepageUrl}
-                onChange={(e) => setHomepageUrl(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="developer-comment">Comment (optional)</Label>
-              <Textarea id="developer-comment" placeholder="Add any notes about your submission..." value={developerComment} onChange={(e) => setDeveloperComment(e.target.value)} rows={3} />
             </div>
             <Button onClick={handleFileUpload} disabled={!files.length || uploading} className="w-full">
               {uploading ? "Uploading..." : `Upload ${files.length} File(s)`}
