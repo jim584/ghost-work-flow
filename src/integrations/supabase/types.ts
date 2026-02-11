@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      availability_calendars: {
+        Row: {
+          created_at: string
+          end_time: string
+          id: string
+          name: string
+          start_time: string
+          timezone: string
+          updated_at: string
+          working_days: number[]
+        }
+        Insert: {
+          created_at?: string
+          end_time?: string
+          id?: string
+          name: string
+          start_time?: string
+          timezone?: string
+          updated_at?: string
+          working_days?: number[]
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          id?: string
+          name?: string
+          start_time?: string
+          timezone?: string
+          updated_at?: string
+          working_days?: number[]
+        }
+        Relationships: []
+      }
       design_submissions: {
         Row: {
           designer_comment: string | null
@@ -87,6 +120,98 @@ export type Database = {
           },
         ]
       }
+      developers: {
+        Row: {
+          availability_calendar_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          round_robin_position: number
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          availability_calendar_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          round_robin_position: number
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          availability_calendar_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          round_robin_position?: number
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "developers_availability_calendar_id_fkey"
+            columns: ["availability_calendar_id"]
+            isOneToOne: false
+            referencedRelation: "availability_calendars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "developers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leave_records: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          developer_id: string
+          id: string
+          leave_end_datetime: string
+          leave_start_datetime: string
+          reason: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          developer_id: string
+          id?: string
+          leave_end_datetime: string
+          leave_start_datetime: string
+          reason?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          developer_id?: string
+          id?: string
+          leave_end_datetime?: string
+          leave_start_datetime?: string
+          reason?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_records_developer_id_fkey"
+            columns: ["developer_id"]
+            isOneToOne: false
+            referencedRelation: "developers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -154,6 +279,50 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      project_phases: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          phase_number: number
+          sla_deadline: string | null
+          sla_hours: number
+          started_at: string | null
+          status: string
+          task_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          phase_number: number
+          sla_deadline?: string | null
+          sla_hours?: number
+          started_at?: string | null
+          status?: string
+          task_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          phase_number?: number
+          sla_deadline?: string | null
+          sla_hours?: number
+          started_at?: string | null
+          status?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_phases_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sales_performance_history: {
         Row: {
@@ -265,6 +434,7 @@ export type Database = {
       tasks: {
         Row: {
           accepted_by_pm: boolean
+          acknowledged_at: string | null
           additional_details: string | null
           amount_paid: number | null
           amount_pending: number | null
@@ -283,6 +453,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           cta: string | null
+          current_phase: number | null
           customer_domain: string | null
           customer_email: string | null
           customer_name: string | null
@@ -291,6 +462,7 @@ export type Database = {
           description: string | null
           design_references: string | null
           design_style: string | null
+          developer_id: string | null
           domain_hosting_status: string | null
           file_formats_needed: string | null
           fonts: string | null
@@ -319,6 +491,7 @@ export type Database = {
           reassigned_at: string | null
           reassigned_from: string | null
           reassignment_reason: string | null
+          sla_deadline: string | null
           status: Database["public"]["Enums"]["task_status"]
           supporting_text: string | null
           tagline: string | null
@@ -330,6 +503,7 @@ export type Database = {
           task_number: number
           team_id: string
           title: string
+          total_phases: number | null
           transferred_by: string | null
           updated_at: string | null
           usage_type: string | null
@@ -341,6 +515,7 @@ export type Database = {
         }
         Insert: {
           accepted_by_pm?: boolean
+          acknowledged_at?: string | null
           additional_details?: string | null
           amount_paid?: number | null
           amount_pending?: number | null
@@ -359,6 +534,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           cta?: string | null
+          current_phase?: number | null
           customer_domain?: string | null
           customer_email?: string | null
           customer_name?: string | null
@@ -367,6 +543,7 @@ export type Database = {
           description?: string | null
           design_references?: string | null
           design_style?: string | null
+          developer_id?: string | null
           domain_hosting_status?: string | null
           file_formats_needed?: string | null
           fonts?: string | null
@@ -395,6 +572,7 @@ export type Database = {
           reassigned_at?: string | null
           reassigned_from?: string | null
           reassignment_reason?: string | null
+          sla_deadline?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
           tagline?: string | null
@@ -406,6 +584,7 @@ export type Database = {
           task_number?: number
           team_id: string
           title: string
+          total_phases?: number | null
           transferred_by?: string | null
           updated_at?: string | null
           usage_type?: string | null
@@ -417,6 +596,7 @@ export type Database = {
         }
         Update: {
           accepted_by_pm?: boolean
+          acknowledged_at?: string | null
           additional_details?: string | null
           amount_paid?: number | null
           amount_pending?: number | null
@@ -435,6 +615,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           cta?: string | null
+          current_phase?: number | null
           customer_domain?: string | null
           customer_email?: string | null
           customer_name?: string | null
@@ -443,6 +624,7 @@ export type Database = {
           description?: string | null
           design_references?: string | null
           design_style?: string | null
+          developer_id?: string | null
           domain_hosting_status?: string | null
           file_formats_needed?: string | null
           fonts?: string | null
@@ -471,6 +653,7 @@ export type Database = {
           reassigned_at?: string | null
           reassigned_from?: string | null
           reassignment_reason?: string | null
+          sla_deadline?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           supporting_text?: string | null
           tagline?: string | null
@@ -482,6 +665,7 @@ export type Database = {
           task_number?: number
           team_id?: string
           title?: string
+          total_phases?: number | null
           transferred_by?: string | null
           updated_at?: string | null
           usage_type?: string | null
@@ -497,6 +681,13 @@ export type Database = {
             columns: ["closed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_developer_id_fkey"
+            columns: ["developer_id"]
+            isOneToOne: false
+            referencedRelation: "developers"
             referencedColumns: ["id"]
           },
           {
@@ -633,6 +824,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      get_next_available_developer: { Args: never; Returns: Json }
       get_next_developer_team: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -660,6 +852,7 @@ export type Database = {
         | "completed"
         | "approved"
         | "cancelled"
+        | "assigned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -800,6 +993,7 @@ export const Constants = {
         "completed",
         "approved",
         "cancelled",
+        "assigned",
       ],
     },
   },
