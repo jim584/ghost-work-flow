@@ -25,6 +25,8 @@ export const AvailabilityCalendarsManager = () => {
     working_days: [1, 2, 3, 4, 5, 6] as number[],
     start_time: "10:00",
     end_time: "19:00",
+    saturday_start_time: "10:00",
+    saturday_end_time: "15:00",
   });
 
   const { data: calendars, isLoading } = useQuery({
@@ -59,6 +61,8 @@ export const AvailabilityCalendarsManager = () => {
         working_days: data.working_days,
         start_time: data.start_time,
         end_time: data.end_time,
+        saturday_start_time: data.saturday_start_time,
+        saturday_end_time: data.saturday_end_time,
       };
       if (data.id) {
         const { error } = await supabase
@@ -109,6 +113,8 @@ export const AvailabilityCalendarsManager = () => {
       working_days: [1, 2, 3, 4, 5, 6],
       start_time: "10:00",
       end_time: "19:00",
+      saturday_start_time: "10:00",
+      saturday_end_time: "15:00",
     });
   };
 
@@ -120,6 +126,8 @@ export const AvailabilityCalendarsManager = () => {
       working_days: cal.working_days,
       start_time: cal.start_time?.substring(0, 5) || "10:00",
       end_time: cal.end_time?.substring(0, 5) || "19:00",
+      saturday_start_time: cal.saturday_start_time?.substring(0, 5) || "10:00",
+      saturday_end_time: cal.saturday_end_time?.substring(0, 5) || "15:00",
     });
     setDialogOpen(true);
   };
@@ -191,7 +199,7 @@ export const AvailabilityCalendarsManager = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Start Time</Label>
+                  <Label>Start Time (Mon–Fri)</Label>
                   <Input
                     type="time"
                     value={formData.start_time}
@@ -199,7 +207,7 @@ export const AvailabilityCalendarsManager = () => {
                   />
                 </div>
                 <div>
-                  <Label>End Time</Label>
+                  <Label>End Time (Mon–Fri)</Label>
                   <Input
                     type="time"
                     value={formData.end_time}
@@ -207,6 +215,26 @@ export const AvailabilityCalendarsManager = () => {
                   />
                 </div>
               </div>
+              {formData.working_days.includes(6) && (
+                <div className="grid grid-cols-2 gap-4 border-t pt-3">
+                  <div>
+                    <Label>Saturday Start Time</Label>
+                    <Input
+                      type="time"
+                      value={formData.saturday_start_time}
+                      onChange={(e) => setFormData((p) => ({ ...p, saturday_start_time: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Saturday End Time</Label>
+                    <Input
+                      type="time"
+                      value={formData.saturday_end_time}
+                      onChange={(e) => setFormData((p) => ({ ...p, saturday_end_time: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
               <Button onClick={handleSubmit} disabled={saveMutation.isPending} className="w-full">
                 {saveMutation.isPending ? "Saving..." : editingId ? "Update Calendar" : "Create Calendar"}
               </Button>
@@ -250,7 +278,12 @@ export const AvailabilityCalendarsManager = () => {
                     </div>
                   </TableCell>
                   <TableCell className="text-sm">
-                    {cal.start_time?.substring(0, 5)} - {cal.end_time?.substring(0, 5)}
+                    <div>{cal.start_time?.substring(0, 5)} - {cal.end_time?.substring(0, 5)}</div>
+                    {(cal.working_days || []).includes(6) && cal.saturday_start_time && (
+                      <div className="text-xs text-muted-foreground">
+                        Sat: {cal.saturday_start_time?.substring(0, 5)} - {cal.saturday_end_time?.substring(0, 5)}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">
