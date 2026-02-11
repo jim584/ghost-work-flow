@@ -174,10 +174,23 @@ const SlaCountdown = ({ deadline, label, calendar, leaves }: {
       const remainingMinutes = calculateRemainingWorkingMinutes(now, deadlineDate, calendar, leaves || []);
       hours = Math.floor(remainingMinutes / 60);
       mins = Math.floor(remainingMinutes % 60);
-      // For seconds, approximate based on wall-clock position within current minute
-      secs = 60 - now.getSeconds();
-      if (secs === 60) secs = 0;
-      timeStr = `${hours}h ${mins}m ${secs.toString().padStart(2, '0')}s`;
+      // Only show ticking seconds if currently within working hours
+      const localNow = toTimezoneDate(now, calendar.timezone);
+      const dayOfWeek = getISODay(localNow);
+      const currentMinute = localNow.getHours() * 60 + localNow.getMinutes();
+      const isSat = dayOfWeek === 6;
+      const todayStart = isSat && calendar.saturday_start_time ? timeToMinutes(calendar.saturday_start_time) : timeToMinutes(calendar.start_time);
+      const todayEnd = isSat && calendar.saturday_end_time ? timeToMinutes(calendar.saturday_end_time) : timeToMinutes(calendar.end_time);
+      const isWorkingNow = calendar.working_days.includes(dayOfWeek) && currentMinute >= todayStart && currentMinute < todayEnd;
+      if (isWorkingNow) {
+        secs = 60 - now.getSeconds();
+        if (secs === 60) secs = 0;
+      } else {
+        secs = 0;
+      }
+      timeStr = isWorkingNow
+        ? `${hours}h ${mins}m ${secs.toString().padStart(2, '0')}s`
+        : `${hours}h ${mins}m (paused)`;
     }
   } else {
     // Fallback to wall-clock if no calendar
