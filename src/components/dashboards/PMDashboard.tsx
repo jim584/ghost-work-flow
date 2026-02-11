@@ -1298,12 +1298,22 @@ const PMDashboard = () => {
                 const getAckOverdueBadge = () => {
                   const allCats = getGroupCategories(group, submissions || []);
                   if (!allCats.includes('delayed_ack')) return null;
-                  const now = new Date();
                   const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
                   const lateTask = activeTasks.find((t: any) => t.late_acknowledgement === true && t.ack_deadline);
                   if (!lateTask) return <Badge className="bg-amber-600 text-white">ACK OVERDUE</Badge>;
-                  const overdueHours = Math.floor((now.getTime() - new Date(lateTask.ack_deadline).getTime()) / (1000 * 60 * 60));
-                  return <Badge className="bg-amber-600 text-white">ACK OVERDUE — {overdueHours} hour{overdueHours !== 1 ? 's' : ''}</Badge>;
+                  // Show working minutes/hours overdue based on ack_deadline
+                  const ackDl = new Date(lateTask.ack_deadline);
+                  const now = new Date();
+                  if (now > ackDl) {
+                    // Wall-clock past: show wall-clock hours for PM (they don't have developer calendar context)
+                    const overdueMs = now.getTime() - ackDl.getTime();
+                    const overdueHours = Math.floor(overdueMs / (1000 * 60 * 60));
+                    const overdueMins = Math.floor((overdueMs % (1000 * 60 * 60)) / (1000 * 60));
+                    const timeStr = overdueHours > 0 ? `${overdueHours}h ${overdueMins}m` : `${overdueMins}m`;
+                    return <Badge className="bg-amber-600 text-white">ACK OVERDUE — {timeStr}</Badge>;
+                  }
+                  // Wall-clock not passed but flagged as late (working minutes exhausted)
+                  return <Badge className="bg-amber-600 text-white">ACK OVERDUE — 30m+ elapsed</Badge>;
                 };
 
                 const getOrderTypeIcon = () => {
