@@ -19,8 +19,138 @@ import { differenceInHours, differenceInMinutes, format } from "date-fns";
 import { useDesignerNotifications } from "@/hooks/useDesignerNotifications";
 import { NotificationBell } from "@/components/NotificationBell";
 
-// SLA Countdown component
-const SlaCountdown = ({ deadline, label }: { deadline: string; label?: string }) => {
+// Working-hours SLA calculation utilities
+interface CalendarConfig {
+  working_days: number[];
+  start_time: string;
+  end_time: string;
+  saturday_start_time?: string | null;
+  saturday_end_time?: string | null;
+  timezone: string;
+}
+
+interface LeaveRecord {
+  leave_start_datetime: string;
+  leave_end_datetime: string;
+}
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function getISODay(date: Date): number {
+  const d = date.getDay();
+  return d === 0 ? 7 : d;
+}
+
+function toTimezoneDate(utcDate: Date, tz: string): Date {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+  const parts = fmt.formatToParts(utcDate);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || "0";
+  return new Date(`${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}`);
+}
+
+/**
+ * Calculate remaining working minutes between now and deadline,
+ * accounting for shift hours, working days, and leaves.
+ */
+function calculateRemainingWorkingMinutes(
+  nowUTC: Date, deadlineUTC: Date, calendar: CalendarConfig, leaves: LeaveRecord[]
+): number {
+  if (deadlineUTC <= nowUTC) return 0;
+
+  const { working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone } = calendar;
+  const workStartMin = timeToMinutes(start_time);
+  const workEndMin = timeToMinutes(end_time);
+  const satStartMin = saturday_start_time ? timeToMinutes(saturday_start_time) : workStartMin;
+  const satEndMin = saturday_end_time ? timeToMinutes(saturday_end_time) : workEndMin;
+
+  let currentLocal = toTimezoneDate(nowUTC, timezone);
+  const deadlineLocal = toTimezoneDate(deadlineUTC, timezone);
+  let totalWorkingMinutes = 0;
+  let iterations = 0;
+
+  while (currentLocal < deadlineLocal && iterations < 365) {
+    iterations++;
+    const dayOfWeek = getISODay(currentLocal);
+
+    if (!working_days.includes(dayOfWeek)) {
+      currentLocal.setDate(currentLocal.getDate() + 1);
+      const nextDay = getISODay(currentLocal);
+      const nextStart = nextDay === 6 ? satStartMin : workStartMin;
+      currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
+      continue;
+    }
+
+    const isSaturday = dayOfWeek === 6;
+    const todayStart = isSaturday ? satStartMin : workStartMin;
+    const todayEnd = isSaturday ? satEndMin : workEndMin;
+    const currentMinute = currentLocal.getHours() * 60 + currentLocal.getMinutes();
+
+    if (currentMinute < todayStart) {
+      currentLocal.setHours(Math.floor(todayStart / 60), todayStart % 60, 0, 0);
+    }
+
+    if (currentMinute >= todayEnd) {
+      currentLocal.setDate(currentLocal.getDate() + 1);
+      const nextDay = getISODay(currentLocal);
+      const nextStart = nextDay === 6 ? satStartMin : workStartMin;
+      currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
+      continue;
+    }
+
+    const effectiveStart = Math.max(currentLocal.getHours() * 60 + currentLocal.getMinutes(), todayStart);
+    const dayEndLocal = new Date(currentLocal);
+    dayEndLocal.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+
+    // Cap at deadline
+    const windowEnd = deadlineLocal < dayEndLocal ? deadlineLocal : dayEndLocal;
+    const windowEndMinute = windowEnd.getHours() * 60 + windowEnd.getMinutes();
+    const availableMinutes = Math.max(0, windowEndMinute - effectiveStart);
+
+    // Calculate leave overlap
+    const dayStartLocal = new Date(currentLocal);
+    dayStartLocal.setHours(Math.floor(effectiveStart / 60), effectiveStart % 60, 0, 0);
+    let leaveOverlap = 0;
+    for (const leave of leaves) {
+      const ls = toTimezoneDate(new Date(leave.leave_start_datetime), timezone);
+      const le = toTimezoneDate(new Date(leave.leave_end_datetime), timezone);
+      const os = new Date(Math.max(dayStartLocal.getTime(), ls.getTime()));
+      const oe = new Date(Math.min(windowEnd.getTime(), le.getTime()));
+      if (os < oe) leaveOverlap += (oe.getTime() - os.getTime()) / (1000 * 60);
+    }
+
+    totalWorkingMinutes += Math.max(0, availableMinutes - leaveOverlap);
+
+    if (deadlineLocal <= dayEndLocal) break;
+
+    currentLocal.setDate(currentLocal.getDate() + 1);
+    const nextDay = getISODay(currentLocal);
+    const nextStart = nextDay === 6 ? satStartMin : workStartMin;
+    currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
+  }
+
+  return totalWorkingMinutes;
+}
+
+/**
+ * Calculate how many working minutes have elapsed PAST the deadline (for overdue display).
+ */
+function calculateOverdueWorkingMinutes(
+  nowUTC: Date, deadlineUTC: Date, calendar: CalendarConfig, leaves: LeaveRecord[]
+): number {
+  if (nowUTC <= deadlineUTC) return 0;
+  return calculateRemainingWorkingMinutes(deadlineUTC, nowUTC, calendar, leaves);
+}
+
+// SLA Countdown component - shows remaining working hours
+const SlaCountdown = ({ deadline, label, calendar, leaves }: { 
+  deadline: string; label?: string; calendar?: CalendarConfig | null; leaves?: LeaveRecord[] 
+}) => {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -30,11 +160,33 @@ const SlaCountdown = ({ deadline, label }: { deadline: string; label?: string })
 
   const deadlineDate = new Date(deadline);
   const diffMs = deadlineDate.getTime() - now.getTime();
-  const totalSeconds = Math.floor(Math.abs(diffMs) / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const mins = Math.floor((totalSeconds % 3600) / 60);
-  const secs = totalSeconds % 60;
-  const timeStr = `${hours}h ${mins}m ${secs.toString().padStart(2, '0')}s`;
+
+  let hours: number, mins: number, secs: number, timeStr: string;
+
+  if (calendar) {
+    if (diffMs <= 0) {
+      const overdueMinutes = calculateOverdueWorkingMinutes(now, deadlineDate, calendar, leaves || []);
+      hours = Math.floor(overdueMinutes / 60);
+      mins = Math.floor(overdueMinutes % 60);
+      secs = 0; // working-minutes precision
+      timeStr = `${hours}h ${mins}m`;
+    } else {
+      const remainingMinutes = calculateRemainingWorkingMinutes(now, deadlineDate, calendar, leaves || []);
+      hours = Math.floor(remainingMinutes / 60);
+      mins = Math.floor(remainingMinutes % 60);
+      // For seconds, approximate based on wall-clock position within current minute
+      secs = 60 - now.getSeconds();
+      if (secs === 60) secs = 0;
+      timeStr = `${hours}h ${mins}m ${secs.toString().padStart(2, '0')}s`;
+    }
+  } else {
+    // Fallback to wall-clock if no calendar
+    const totalSeconds = Math.floor(Math.abs(diffMs) / 1000);
+    hours = Math.floor(totalSeconds / 3600);
+    mins = Math.floor((totalSeconds % 3600) / 60);
+    secs = totalSeconds % 60;
+    timeStr = `${hours}h ${mins}m ${secs.toString().padStart(2, '0')}s`;
+  }
 
   if (diffMs <= 0) {
     return (
@@ -45,7 +197,9 @@ const SlaCountdown = ({ deadline, label }: { deadline: string; label?: string })
     );
   }
 
-  const isUrgent = diffMs < 120 * 60 * 1000;
+  const isUrgent = calendar 
+    ? (hours === 0 && mins < 120) || (hours < 2)
+    : diffMs < 120 * 60 * 1000;
 
   return (
     <div className={`flex items-center gap-1.5 ${isUrgent ? 'text-destructive' : 'text-warning'}`}>
@@ -119,6 +273,46 @@ const DeveloperDashboard = () => {
       return data;
     },
     enabled: !!user?.id,
+  });
+
+  // Fetch developer's calendar and leaves for working-hours SLA countdown
+  const { data: devCalendar } = useQuery({
+    queryKey: ["developer-calendar", user?.id],
+    queryFn: async () => {
+      const { data: dev } = await supabase
+        .from("developers")
+        .select("id, availability_calendars(working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone)")
+        .eq("user_id", user!.id)
+        .single();
+      if (!dev) return null;
+      const cal = (dev as any).availability_calendars;
+      if (!cal) return null;
+      return {
+        developerId: dev.id,
+        calendar: {
+          working_days: cal.working_days,
+          start_time: cal.start_time,
+          end_time: cal.end_time,
+          saturday_start_time: cal.saturday_start_time,
+          saturday_end_time: cal.saturday_end_time,
+          timezone: cal.timezone,
+        } as CalendarConfig,
+      };
+    },
+    enabled: !!user?.id,
+  });
+
+  const { data: devLeaves } = useQuery({
+    queryKey: ["developer-leaves", devCalendar?.developerId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_records")
+        .select("leave_start_datetime, leave_end_datetime")
+        .eq("developer_id", devCalendar!.developerId)
+        .eq("status", "approved");
+      return (data || []) as LeaveRecord[];
+    },
+    enabled: !!devCalendar?.developerId,
   });
   
   const [selectedTask, setSelectedTask] = useState<any>(null);
@@ -763,10 +957,10 @@ const DeveloperDashboard = () => {
                         {isAssigned && (
                           <div className="mt-2 p-2.5 bg-blue-500/5 border border-blue-200 dark:border-blue-800 rounded-md space-y-1.5">
                             {task.ack_deadline && (
-                              <SlaCountdown deadline={task.ack_deadline} label="Ack Timer" />
+                              <SlaCountdown deadline={task.ack_deadline} label="Ack Timer" calendar={devCalendar?.calendar} leaves={devLeaves} />
                             )}
                             {task.sla_deadline && (
-                              <SlaCountdown deadline={task.sla_deadline} label="9hr SLA" />
+                              <SlaCountdown deadline={task.sla_deadline} label="9hr SLA" calendar={devCalendar?.calendar} leaves={devLeaves} />
                             )}
                           </div>
                         )}
@@ -775,7 +969,7 @@ const DeveloperDashboard = () => {
                         {!isAssigned && task.current_phase && task.total_phases && task.status !== "completed" && task.status !== "approved" && (
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
                             <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} phases={projectPhases?.filter(p => p.task_id === task.id)} />
-                            {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} />}
+                            {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={devCalendar?.calendar} leaves={devLeaves} />}
                           </div>
                         )}
 
@@ -1226,10 +1420,10 @@ const DeveloperDashboard = () => {
                   <h3 className="font-semibold text-lg">Project Progress</h3>
                   <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} phases={projectPhases?.filter(p => p.task_id === viewDetailsTask?.id)} />
                   {viewDetailsTask.sla_deadline && viewDetailsTask.status !== "completed" && viewDetailsTask.status !== "approved" && (
-                    <SlaCountdown deadline={viewDetailsTask.sla_deadline} label="9hr SLA" />
+                    <SlaCountdown deadline={viewDetailsTask.sla_deadline} label="9hr SLA" calendar={devCalendar?.calendar} leaves={devLeaves} />
                   )}
                   {viewDetailsTask.ack_deadline && viewDetailsTask.status === "assigned" && (
-                    <SlaCountdown deadline={viewDetailsTask.ack_deadline} label="Ack Timer" />
+                    <SlaCountdown deadline={viewDetailsTask.ack_deadline} label="Ack Timer" calendar={devCalendar?.calendar} leaves={devLeaves} />
                   )}
                   {viewDetailsTask.acknowledged_at && (
                     <p className="text-xs text-muted-foreground">
