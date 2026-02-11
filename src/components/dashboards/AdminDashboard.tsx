@@ -73,7 +73,7 @@ const AdminDashboard = () => {
     password: "", 
     full_name: "", 
     team_name: "", 
-    role: "designer" as "admin" | "project_manager" | "designer" | "developer" | "front_sales" 
+    role: "designer" as "admin" | "project_manager" | "designer" | "developer" | "front_sales" | "development_team_leader" 
   });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>("priority");
@@ -596,7 +596,7 @@ const AdminDashboard = () => {
       password: string; 
       full_name: string; 
       team_name: string;
-      role: "admin" | "project_manager" | "designer" | "developer" | "front_sales";
+      role: "admin" | "project_manager" | "designer" | "developer" | "front_sales" | "development_team_leader";
     }) => {
       // Validate password
       passwordSchema.parse(userData.password);
@@ -664,7 +664,7 @@ const AdminDashboard = () => {
   });
 
   const assignRole = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "project_manager" | "designer" | "developer" | "front_sales" }) => {
+    mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "project_manager" | "designer" | "developer" | "front_sales" | "development_team_leader" }) => {
       const { error } = await supabase.rpc('admin_set_user_role', {
         target_user_id: userId,
         role_name: role,
@@ -1091,8 +1091,12 @@ const AdminDashboard = () => {
     if (isDelayed) categories.push('delayed');
     if (hasTeamsPendingDelivery) categories.push('pending_delivery');
     
+    // Check for late acknowledgement (ACK OVERDUE)
+    const hasLateAck = activeTasks.some((t: any) => t.late_acknowledgement === true && t.status !== 'cancelled');
+    if (hasLateAck) categories.push('delayed_ack');
+    
     // For multi-team orders, also check individual task statuses
-    const hasAnyPending = activeTasks.some((t: any) => t.status === 'pending');
+    const hasAnyPending = activeTasks.some((t: any) => t.status === 'pending' || t.status === 'assigned');
     const hasAnyInProgress = activeTasks.some((t: any) => t.status === 'in_progress');
     const hasAnyCancelled = group.allTasks.some((t: any) => t.status === 'cancelled');
     if (hasAnyPending) categories.push('pending');
@@ -1143,10 +1147,11 @@ const AdminDashboard = () => {
       recently_delivered: 1,
       pending_delivery: 2,
       delayed: 3,
-      pending: 4,
-      in_progress: 5,
-      needs_revision: 6,
-      other: 7,
+      delayed_ack: 4,
+      pending: 5,
+      in_progress: 6,
+      needs_revision: 7,
+      other: 8,
     };
     return priorities[category] || 99;
   };
@@ -1154,6 +1159,7 @@ const AdminDashboard = () => {
   const stats = {
     recently_delivered: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('recently_delivered')).length,
     delayed: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('delayed')).length,
+    delayed_ack: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('delayed_ack')).length,
     pending: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending')).length,
     in_progress: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('in_progress')).length,
     needs_revision: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('needs_revision')).length,
@@ -1240,7 +1246,7 @@ const AdminDashboard = () => {
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
       const categories = getGroupCategories(group, submissions || []);
-      return categories.some(c => ['recently_delivered', 'delayed', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(c));
+      return categories.some(c => ['recently_delivered', 'delayed', 'delayed_ack', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(c));
     }
     // Handle all category filters using getGroupCategories for multi-team support
     const categories = getGroupCategories(group, submissions || []);
@@ -1388,7 +1394,7 @@ const AdminDashboard = () => {
                         </Button>
                         <Select
                           value={currentRole || undefined}
-                          onValueChange={(role: "admin" | "project_manager" | "designer" | "developer") => 
+                          onValueChange={(role: "admin" | "project_manager" | "designer" | "developer" | "front_sales" | "development_team_leader") => 
                             assignRole.mutate({ userId: user.id, role })
                           }
                         >
@@ -1400,6 +1406,7 @@ const AdminDashboard = () => {
                             <SelectItem value="developer">Developer</SelectItem>
                             <SelectItem value="project_manager">Project Manager</SelectItem>
                             <SelectItem value="front_sales">Front Sales</SelectItem>
+                            <SelectItem value="development_team_leader">Dev Team Leader</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
                         </Select>
@@ -1515,7 +1522,7 @@ const AdminDashboard = () => {
           </div>
         
         {viewMode === 'tasks' && (
-        <div className="grid gap-4 md:grid-cols-6 mb-8">
+        <div className="grid gap-4 md:grid-cols-7 mb-8">
           <Card 
             className={`border-l-4 border-l-green-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'recently_delivered' ? 'ring-2 ring-green-500' : ''}`}
             onClick={() => setStatusFilter('recently_delivered')}
@@ -1597,6 +1604,20 @@ const AdminDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold">{stats.cancelled}</div>
               <p className="text-xs text-muted-foreground">Cancelled orders</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={`border-l-4 border-l-amber-600 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'delayed_ack' ? 'ring-2 ring-amber-600' : ''}`}
+            onClick={() => setStatusFilter('delayed_ack')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">ACK Overdue</CardTitle>
+              <Clock className="h-4 w-4 text-amber-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.delayed_ack}</div>
+              <p className="text-xs text-muted-foreground">Late acknowledgement</p>
             </CardContent>
           </Card>
         </div>
@@ -1883,6 +1904,7 @@ const AdminDashboard = () => {
                 const getBorderClass = () => {
                   if (category === 'recently_delivered') return 'border-l-4 border-l-green-500 bg-green-50/10';
                   if (category === 'delayed') return 'border-l-4 border-l-red-500 bg-red-50/10';
+                  if (category === 'delayed_ack') return 'border-l-4 border-l-amber-600 bg-amber-50/10';
                   if (category === 'needs_revision') return 'border-l-4 border-l-orange-500 bg-orange-50/10';
                   if (category === 'pending_delivery') return 'border-l-4 border-l-yellow-500 bg-yellow-50/10';
                   if (category === 'cancelled') return 'border-l-4 border-l-gray-500 bg-gray-50/10 opacity-75';
@@ -1892,6 +1914,7 @@ const AdminDashboard = () => {
                 const getCategoryBadge = () => {
                   if (category === 'recently_delivered') return <Badge className="bg-green-500 text-white">Delivered - Awaiting Review</Badge>;
                   if (category === 'delayed') return null; // Handled by getDelayedBadge
+                  if (category === 'delayed_ack') return null; // Handled by getAckOverdueBadge
                   if (category === 'needs_revision') return <Badge className="bg-orange-500 text-white">Needs Revision</Badge>;
                   if (category === 'pending_delivery') return <Badge className="bg-yellow-500 text-white">Awaiting Team Delivery</Badge>;
                   if (category === 'cancelled') return <Badge className="bg-gray-500 text-white">{(task as any).is_deleted ? 'Deleted' : 'Cancelled'}</Badge>;
@@ -1919,6 +1942,17 @@ const AdminDashboard = () => {
                   const maxHours = Math.max(deadlineHours, revisionHours);
                   const label = revisionHours > deadlineHours ? 'Revision delayed' : 'DELAYED';
                   return <Badge className="bg-red-500 text-white">{label} — {maxHours} hour{maxHours !== 1 ? 's' : ''} overdue</Badge>;
+                };
+
+                const getAckOverdueBadge = () => {
+                  const allCats = getGroupCategories(group, submissions || []);
+                  if (!allCats.includes('delayed_ack')) return null;
+                  const now = new Date();
+                  const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
+                  const lateTask = activeTasks.find((t: any) => t.late_acknowledgement === true && t.ack_deadline);
+                  if (!lateTask) return <Badge className="bg-amber-600 text-white">ACK OVERDUE</Badge>;
+                  const overdueHours = Math.floor((now.getTime() - new Date(lateTask.ack_deadline).getTime()) / (1000 * 60 * 60));
+                  return <Badge className="bg-amber-600 text-white">ACK OVERDUE — {overdueHours} hour{overdueHours !== 1 ? 's' : ''}</Badge>;
                 };
 
                 const getOrderTypeIcon = () => {
@@ -1971,6 +2005,7 @@ const AdminDashboard = () => {
                               )}
                               {getCategoryBadge()}
                               {getDelayedBadge()}
+                              {getAckOverdueBadge()}
                             </div>
                             <h3 className="font-semibold text-lg mt-1 truncate">{task.title}</h3>
                           </div>
@@ -3526,6 +3561,7 @@ const AdminDashboard = () => {
                   <SelectItem value="developer">Developer</SelectItem>
                   <SelectItem value="project_manager">Project Manager</SelectItem>
                   <SelectItem value="front_sales">Front Sales</SelectItem>
+                  <SelectItem value="development_team_leader">Dev Team Leader</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
