@@ -57,23 +57,45 @@ const SlaCountdown = ({ deadline, label }: { deadline: string; label?: string })
 };
 
 // Phase progress component
-const PhaseProgress = ({ currentPhase, totalPhases }: { currentPhase: number; totalPhases: number }) => {
-  const phasePages: Record<number, string> = {
-    1: "Homepage (1 page)",
-    2: "3 inner pages (4 total)",
-    3: "3 inner pages (7 total)",
-    4: "3 inner pages (10 total)",
+const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: number; totalPhases: number; phases?: any[] }) => {
+  const getPhaseLabel = (phase: number) => {
+    if (phase === 1) return "Homepage (1 page, 3 pts)";
+    return "Inner pages (3 pts max)";
   };
 
   const progressPercent = ((currentPhase - 1) / totalPhases) * 100;
+  
+  // Calculate total pages developed and total points
+  let totalPages = 0;
+  let totalPoints = 0;
+  if (phases?.length) {
+    for (const p of phases) {
+      if (p.status === "completed" || p.status === "in_progress") {
+        if (p.phase_number === 1) {
+          totalPages += 1; // Homepage is 1 page
+        } else if (p.status === "completed") {
+          totalPages += p.pages_completed || 3;
+        }
+        if (p.status === "completed") {
+          totalPoints += p.points || 3;
+        }
+      }
+    }
+  }
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium">Phase {currentPhase} of {totalPhases}</span>
-        <span className="text-muted-foreground">{phasePages[currentPhase] || ""}</span>
+        <span className="text-muted-foreground">{getPhaseLabel(currentPhase)}</span>
       </div>
       <Progress value={progressPercent} className="h-2" />
+      {phases?.length ? (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{totalPages} page{totalPages !== 1 ? 's' : ''} developed</span>
+          <span className="font-semibold text-primary">{totalPoints} pts earned</span>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -110,6 +132,9 @@ const DeveloperDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [reassignTask, setReassignTask] = useState<any>(null);
   const [reassignReason, setReassignReason] = useState("");
+  const [phaseCompleteTask, setPhaseCompleteTask] = useState<any>(null);
+  const [completionAction, setCompletionAction] = useState<"next_phase" | "complete_website" | null>(null);
+  const [finalPhasePages, setFinalPhasePages] = useState<number>(3);
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -287,20 +312,31 @@ const DeveloperDashboard = () => {
     },
   });
 
-  // Complete phase mutation
+  // Complete phase mutation - now supports "next phase" vs "complete website"
   const completePhase = useMutation({
-    mutationFn: async ({ taskId, currentPhase, totalPhases }: { taskId: string; currentPhase: number; totalPhases: number }) => {
+    mutationFn: async ({ taskId, currentPhase, totalPhases, action, pagesCompleted }: { 
+      taskId: string; currentPhase: number; totalPhases: number; 
+      action: "next_phase" | "complete_website"; pagesCompleted?: number 
+    }) => {
+      // Determine points: Phase 1 always = 3, others = pages completed (default 3)
+      const phasePoints = currentPhase === 1 ? 3 : (pagesCompleted || 3);
+      const phasePages = currentPhase === 1 ? 1 : (pagesCompleted || 3);
+
       const { error: phaseError } = await supabase
         .from("project_phases")
-        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .update({ 
+          status: "completed", 
+          completed_at: new Date().toISOString(),
+          pages_completed: phasePages,
+          points: phasePoints,
+        })
         .eq("task_id", taskId)
         .eq("phase_number", currentPhase);
       
       if (phaseError) throw phaseError;
 
-      const nextPhase = currentPhase + 1;
-      
-      if (nextPhase <= totalPhases) {
+      if (action === "next_phase") {
+        const nextPhase = currentPhase + 1;
         const { data: taskData } = await supabase
           .from("tasks")
           .select("developer_id")
@@ -328,14 +364,18 @@ const DeveloperDashboard = () => {
           current_phase: nextPhase, sla_deadline: slaDeadline,
         }).eq("id", taskId);
       } else {
+        // Complete website
         await supabase.from("tasks").update({
-          status: "completed" as any, current_phase: totalPhases,
+          status: "completed" as any, current_phase: currentPhase,
         }).eq("id", taskId);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
+      setPhaseCompleteTask(null);
+      setCompletionAction(null);
+      setFinalPhasePages(3);
       toast({ title: "Phase completed!" });
     },
     onError: (error: any) => {
@@ -381,18 +421,15 @@ const DeveloperDashboard = () => {
       }
 
       if (!hasRevision) {
-        completePhase.mutate({ 
-          taskId: selectedTask.id, 
-          currentPhase: selectedTask.current_phase || 1, 
-          totalPhases: selectedTask.total_phases || 4 
-        });
+        // Show phase completion dialog instead of auto-completing
+        setPhaseCompleteTask(selectedTask);
       }
 
       queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["developer-submissions"] });
       toast({ 
-        title: hasRevision ? "Revision uploaded successfully" : "Phase files uploaded successfully",
-        description: `${files.length} file(s) submitted for review`
+        title: hasRevision ? "Revision uploaded successfully" : "Files uploaded — choose next action",
+        description: `${files.length} file(s) submitted`
       });
       setSelectedTask(null);
       setFiles([]);
@@ -456,9 +493,10 @@ const DeveloperDashboard = () => {
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: string, task?: any) => {
     if (status === "assigned") return "Awaiting Acknowledgement";
-    if (status === "in_progress") return "In Progress";
+    if (status === "in_progress") return `Phase ${task?.current_phase || 1} in Progress`;
+    if (status === "completed") return "Website Complete";
     return status.replace("_", " ");
   };
 
@@ -599,6 +637,54 @@ const DeveloperDashboard = () => {
           </Card>
         </div>
 
+        {/* Monthly Points Summary */}
+        {projectPhases && projectPhases.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                Points Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                const completedPhases = projectPhases.filter(p => p.status === "completed" && p.completed_at);
+                const monthlyPhases = completedPhases.filter(p => {
+                  const d = new Date(p.completed_at!);
+                  return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                });
+                const totalPoints = completedPhases.reduce((s, p) => s + (p.points || 3), 0);
+                const monthlyPoints = monthlyPhases.reduce((s, p) => s + (p.points || 3), 0);
+                const totalPages = completedPhases.reduce((s, p) => s + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+                const monthlyPages = monthlyPhases.reduce((s, p) => s + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-3 bg-primary/5 rounded-lg">
+                      <div className="text-2xl font-bold text-primary">{monthlyPoints}</div>
+                      <div className="text-xs text-muted-foreground">This Month's Points</div>
+                    </div>
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <div className="text-2xl font-bold">{monthlyPages}</div>
+                      <div className="text-xs text-muted-foreground">Pages This Month</div>
+                    </div>
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <div className="text-2xl font-bold">{totalPoints}</div>
+                      <div className="text-xs text-muted-foreground">All-Time Points</div>
+                    </div>
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <div className="text-2xl font-bold">{totalPages}</div>
+                      <div className="text-xs text-muted-foreground">All-Time Pages</div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader><CardTitle>Website Orders</CardTitle></CardHeader>
           <CardContent>
@@ -674,8 +760,25 @@ const DeveloperDashboard = () => {
                         {/* Phase Progress & SLA for in-progress tasks */}
                         {!isAssigned && task.current_phase && task.total_phases && task.status !== "completed" && task.status !== "approved" && (
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
-                            <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} />
+                            <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} phases={projectPhases?.filter(p => p.task_id === task.id)} />
                             {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} />}
+                          </div>
+                        )}
+
+                        {/* Points summary for completed tasks */}
+                        {(task.status === "completed" || task.status === "approved") && (
+                          <div className="mt-2 p-2.5 bg-primary/5 rounded-md">
+                            {(() => {
+                              const taskPhases = projectPhases?.filter(p => p.task_id === task.id && p.status === "completed") || [];
+                              const totalPts = taskPhases.reduce((sum, p) => sum + (p.points || 3), 0);
+                              const totalPgs = taskPhases.reduce((sum, p) => sum + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+                              return (
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-muted-foreground">{taskPhases.length} phase{taskPhases.length !== 1 ? 's' : ''} • {totalPgs} pages</span>
+                                  <span className="font-semibold text-primary">{totalPts} points earned</span>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 
@@ -716,11 +819,8 @@ const DeveloperDashboard = () => {
                       </div>
                       <div className="flex flex-col items-end gap-2 ml-4">
                         <Badge className={hasRevision ? "bg-destructive text-destructive-foreground" : getStatusColor(task.status)}>
-                          {hasRevision ? "Revision Needed" : getStatusLabel(task.status)}
+                          {hasRevision ? "Revision Needed" : getStatusLabel(task.status, task)}
                         </Badge>
-                        {task.status === "in_progress" && task.current_phase && (
-                          <span className="text-xs text-muted-foreground">Phase {task.current_phase}</span>
-                        )}
                         {taskSubmissions.length > 0 && (
                           <Button size="sm" variant="ghost" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -854,18 +954,18 @@ const DeveloperDashboard = () => {
       <Dialog open={!!selectedTask} onOpenChange={() => setSelectedTask(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upload Files — Phase {selectedTask?.current_phase || 1} of {selectedTask?.total_phases || 4}</DialogTitle>
+            <DialogTitle>Upload Files — Phase {selectedTask?.current_phase || 1}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground mb-2">Task: {selectedTask?.title}</p>
               {selectedTask?.current_phase && selectedTask?.total_phases && (
                 <div className="mb-3">
-                  <PhaseProgress currentPhase={selectedTask.current_phase} totalPhases={selectedTask.total_phases} />
+                  <PhaseProgress currentPhase={selectedTask.current_phase} totalPhases={selectedTask.total_phases} phases={projectPhases?.filter(p => p.task_id === selectedTask?.id)} />
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Uploading will complete Phase {selectedTask?.current_phase || 1} and advance to the next phase.
+                Upload your deliverables for Phase {selectedTask?.current_phase || 1}. After upload, you'll choose to move to the next phase or complete the website.
               </p>
             </div>
             <div className="space-y-2">
@@ -917,8 +1017,122 @@ const DeveloperDashboard = () => {
               <Textarea id="developer-comment" placeholder="Add any notes about your submission..." value={developerComment} onChange={(e) => setDeveloperComment(e.target.value)} rows={3} />
             </div>
             <Button onClick={handleFileUpload} disabled={!files.length || uploading} className="w-full">
-              {uploading ? "Uploading..." : `Upload ${files.length} File(s) & Complete Phase ${selectedTask?.current_phase || 1}`}
+              {uploading ? "Uploading..." : `Upload ${files.length} File(s)`}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phase Completion Dialog */}
+      <Dialog open={!!phaseCompleteTask} onOpenChange={() => { setPhaseCompleteTask(null); setCompletionAction(null); setFinalPhasePages(3); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              Phase {phaseCompleteTask?.current_phase || 1} Delivered
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Task: <span className="font-medium text-foreground">{phaseCompleteTask?.title}</span>
+            </p>
+
+            {!completionAction && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">What would you like to do next?</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    className="h-auto py-4 flex flex-col items-center gap-2"
+                    onClick={() => {
+                      // Phase 1 always 3 points, auto-advance
+                      completePhase.mutate({
+                        taskId: phaseCompleteTask.id,
+                        currentPhase: phaseCompleteTask.current_phase || 1,
+                        totalPhases: phaseCompleteTask.total_phases || 4,
+                        action: "next_phase",
+                        pagesCompleted: phaseCompleteTask.current_phase === 1 ? 1 : 3,
+                      });
+                    }}
+                    disabled={completePhase.isPending}
+                  >
+                    <Play className="h-5 w-5" />
+                    <span className="text-sm font-medium">Move to Next Phase</span>
+                    <span className="text-xs text-muted-foreground">3 pages / 3 points</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto py-4 flex flex-col items-center gap-2 border-primary"
+                    onClick={() => setCompletionAction("complete_website")}
+                  >
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-medium">Complete Website</span>
+                    <span className="text-xs text-muted-foreground">Finish this project</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {completionAction === "complete_website" && phaseCompleteTask?.current_phase > 1 && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">How many pages did you complete in Phase {phaseCompleteTask?.current_phase}?</p>
+                <div className="flex gap-3">
+                  {[1, 2, 3].map(n => (
+                    <Button
+                      key={n}
+                      variant={finalPhasePages === n ? "default" : "outline"}
+                      className="flex-1 h-16 flex flex-col items-center gap-1"
+                      onClick={() => setFinalPhasePages(n)}
+                    >
+                      <span className="text-lg font-bold">{n}</span>
+                      <span className="text-xs">page{n > 1 ? 's' : ''} / {n} pts</span>
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    completePhase.mutate({
+                      taskId: phaseCompleteTask.id,
+                      currentPhase: phaseCompleteTask.current_phase || 1,
+                      totalPhases: phaseCompleteTask.total_phases || 4,
+                      action: "complete_website",
+                      pagesCompleted: finalPhasePages,
+                    });
+                  }}
+                  disabled={completePhase.isPending}
+                >
+                  {completePhase.isPending ? "Completing..." : `Complete Website (${finalPhasePages} pts for this phase)`}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setCompletionAction(null)} className="w-full">
+                  ← Back
+                </Button>
+              </div>
+            )}
+
+            {completionAction === "complete_website" && phaseCompleteTask?.current_phase === 1 && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Phase 1 (Homepage) = 3 points. The website will be marked as complete.</p>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    completePhase.mutate({
+                      taskId: phaseCompleteTask.id,
+                      currentPhase: 1,
+                      totalPhases: phaseCompleteTask.total_phases || 4,
+                      action: "complete_website",
+                      pagesCompleted: 1,
+                    });
+                  }}
+                  disabled={completePhase.isPending}
+                >
+                  {completePhase.isPending ? "Completing..." : "Complete Website (3 pts)"}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setCompletionAction(null)} className="w-full">
+                  ← Back
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -983,7 +1197,7 @@ const DeveloperDashboard = () => {
               {viewDetailsTask?.current_phase && viewDetailsTask?.total_phases && (
                 <div className="p-4 bg-muted/30 rounded-lg space-y-3">
                   <h3 className="font-semibold text-lg">Project Progress</h3>
-                  <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} />
+                  <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} phases={projectPhases?.filter(p => p.task_id === viewDetailsTask?.id)} />
                   {viewDetailsTask.sla_deadline && viewDetailsTask.status !== "completed" && viewDetailsTask.status !== "approved" && (
                     <SlaCountdown deadline={viewDetailsTask.sla_deadline} label="9hr SLA" />
                   )}
