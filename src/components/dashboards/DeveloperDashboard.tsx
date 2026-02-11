@@ -1031,10 +1031,23 @@ const DeveloperDashboard = () => {
                             </Badge>
                           )}
                           {(ackOverdue || (isAssigned && task.late_acknowledgement)) && (
-                            <Badge variant="destructive" className="gap-1 animate-pulse">
-                              <AlertTriangle className="h-3 w-3" />
-                              ACK OVERDUE
-                            </Badge>
+                            (() => {
+                              let overdueLabel = "ACK OVERDUE";
+                              if (task.ack_deadline && devCalendar?.calendar) {
+                                const overdueMin = calculateOverdueWorkingMinutes(new Date(), new Date(task.ack_deadline), devCalendar.calendar, devLeaves || []);
+                                if (overdueMin > 0) {
+                                  const h = Math.floor(overdueMin / 60);
+                                  const m = Math.floor(overdueMin % 60);
+                                  overdueLabel = h > 0 ? `ACK OVERDUE — ${h}h ${m}m` : `ACK OVERDUE — ${m}m`;
+                                }
+                              }
+                              return (
+                                <Badge variant="destructive" className="gap-1 animate-pulse">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {overdueLabel}
+                                </Badge>
+                              );
+                            })()
                           )}
                           {isDelayed && !isAssigned && (
                             <Badge variant="destructive" className="gap-1 animate-pulse">
