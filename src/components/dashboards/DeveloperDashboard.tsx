@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -136,6 +136,7 @@ const DeveloperDashboard = () => {
   const [phaseCompleteTask, setPhaseCompleteTask] = useState<any>(null);
   const [completionAction, setCompletionAction] = useState<"next_phase" | "complete_website" | null>(null);
   const [finalPhasePages, setFinalPhasePages] = useState<number>(3);
+  const [homepageUrl, setHomepageUrl] = useState("");
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -414,7 +415,7 @@ const DeveloperDashboard = () => {
         const { error: submissionError } = await supabase.from("design_submissions").insert({
           task_id: selectedTask.id, designer_id: user!.id,
           file_path: filePath, file_name: fileName,
-          designer_comment: developerComment.trim() || null,
+          designer_comment: [homepageUrl.trim() ? `🔗 Homepage: ${homepageUrl.trim()}` : '', developerComment.trim()].filter(Boolean).join('\n') || null,
         });
         if (submissionError) throw submissionError;
         uploadedCount++;
@@ -436,6 +437,7 @@ const DeveloperDashboard = () => {
       setFiles([]);
       setFilePreviews({});
       setDeveloperComment("");
+      setHomepageUrl("");
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error uploading files", description: error.message });
     } finally {
@@ -1012,6 +1014,19 @@ const DeveloperDashboard = () => {
                   </div>
                 </div>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="homepage-url" className="flex items-center gap-1.5">
+                <Link className="h-3.5 w-3.5" />
+                Website Homepage URL (optional)
+              </Label>
+              <Input
+                id="homepage-url"
+                type="url"
+                placeholder="https://www.example.com"
+                value={homepageUrl}
+                onChange={(e) => setHomepageUrl(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="developer-comment">Comment (optional)</Label>
