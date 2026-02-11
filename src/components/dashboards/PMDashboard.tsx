@@ -401,9 +401,34 @@ const PMDashboard = () => {
         })
         .eq("id", submissionId);
       if (error) throw error;
+
+      // Auto-update task status to 'approved' if all active submissions are now approved
+      const { data: submission } = await supabase
+        .from("design_submissions")
+        .select("task_id")
+        .eq("id", submissionId)
+        .single();
+
+      if (submission) {
+        const { data: allSubs } = await supabase
+          .from("design_submissions")
+          .select("revision_status")
+          .eq("task_id", submission.task_id);
+
+        const activeSubs = allSubs?.filter(s => s.revision_status !== 'revised') || [];
+        const allApproved = activeSubs.length > 0 && activeSubs.every(s => s.revision_status === 'approved');
+
+        if (allApproved) {
+          await supabase
+            .from("tasks")
+            .update({ status: "approved" as any })
+            .eq("id", submission.task_id);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["design-submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       toast({ title: "Design approved" });
     },
   });
