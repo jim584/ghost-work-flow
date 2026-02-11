@@ -1,0 +1,1 @@
+ALTER TABLE public.tasks ALTER COLUMN total_phases SET DEFAULT NULL;
