@@ -212,22 +212,21 @@ const SlaCountdown = ({ deadline, label, calendar, leaves }: {
 };
 
 // Phase progress component
-const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: number; totalPhases: number; phases?: any[] }) => {
+const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: number; totalPhases?: number | null; phases?: any[] }) => {
   const getPhaseLabel = (phase: number) => {
     if (phase === 1) return "Homepage (1 page, 3 pts)";
     return "Inner pages (3 pts max)";
   };
 
-  const progressPercent = ((currentPhase - 1) / totalPhases) * 100;
-  
   // Calculate total pages developed and total points
   let totalPages = 0;
   let totalPoints = 0;
+  const completedPhases = phases?.filter(p => p.status === "completed").length || 0;
   if (phases?.length) {
     for (const p of phases) {
       if (p.status === "completed" || p.status === "in_progress") {
         if (p.phase_number === 1) {
-          totalPages += 1; // Homepage is 1 page
+          totalPages += 1;
         } else if (p.status === "completed") {
           totalPages += p.pages_completed || 3;
         }
@@ -241,10 +240,17 @@ const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: nu
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-medium">Phase {currentPhase} of {totalPhases}</span>
+        <span className="font-medium">Phase {currentPhase}{totalPhases ? ` of ${totalPhases}` : ''}</span>
         <span className="text-muted-foreground">{getPhaseLabel(currentPhase)}</span>
       </div>
-      <Progress value={progressPercent} className="h-2" />
+      <div className="flex gap-1">
+        {Array.from({ length: currentPhase }).map((_, i) => (
+          <div
+            key={i}
+            className={`h-2 flex-1 rounded-full ${i < completedPhases ? 'bg-primary' : 'bg-primary/40'}`}
+          />
+        ))}
+      </div>
       {phases?.length ? (
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{totalPages} page{totalPages !== 1 ? 's' : ''} developed</span>
@@ -966,7 +972,7 @@ const DeveloperDashboard = () => {
                         )}
 
                         {/* Phase Progress & SLA for in-progress tasks */}
-                        {!isAssigned && task.current_phase && task.total_phases && task.status !== "completed" && task.status !== "approved" && (
+                        {!isAssigned && task.current_phase && task.status !== "completed" && task.status !== "approved" && (
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
                             <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} phases={projectPhases?.filter(p => p.task_id === task.id)} />
                             {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={devCalendar?.calendar} leaves={devLeaves} />}
@@ -1167,7 +1173,7 @@ const DeveloperDashboard = () => {
           <div className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground mb-2">Task: {selectedTask?.title}</p>
-              {selectedTask?.current_phase && selectedTask?.total_phases && (
+              {selectedTask?.current_phase && (
                 <div className="mb-3">
                   <PhaseProgress currentPhase={selectedTask.current_phase} totalPhases={selectedTask.total_phases} phases={projectPhases?.filter(p => p.task_id === selectedTask?.id)} />
                 </div>
@@ -1415,7 +1421,7 @@ const DeveloperDashboard = () => {
           <ScrollArea className="max-h-[70vh] pr-4">
             <div className="space-y-6">
               {/* Phase Progress in Details */}
-              {viewDetailsTask?.current_phase && viewDetailsTask?.total_phases && (
+              {viewDetailsTask?.current_phase && (
                 <div className="p-4 bg-muted/30 rounded-lg space-y-3">
                   <h3 className="font-semibold text-lg">Project Progress</h3>
                   <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} phases={projectPhases?.filter(p => p.task_id === viewDetailsTask?.id)} />

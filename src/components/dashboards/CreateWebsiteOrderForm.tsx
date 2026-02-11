@@ -216,7 +216,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
           status: "assigned" as any,
           developer_id: developerId,
           current_phase: 1,
-          total_phases: 4,
+          total_phases: null,
           sla_deadline: slaDeadline,
           ack_deadline: ackDeadline,
           // Website specific fields
