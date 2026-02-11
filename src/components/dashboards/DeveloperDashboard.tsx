@@ -403,35 +403,46 @@ const DeveloperDashboard = () => {
         }
       }
 
-      for (const file of files) {
-        const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const timestamp = Date.now();
-        const fileName = `${teamName}_Task_${selectedTask.task_number}_${timestamp}_${sanitizedFileName}`;
-        const filePath = `${user!.id}/${fileName}`;
+      const commentPayload = [homepageUrl.trim() ? `🔗 Homepage: ${homepageUrl.trim()}` : '', developerComment.trim()].filter(Boolean).join('\n') || null;
 
-        const { error: uploadError } = await supabase.storage.from("design-files").upload(filePath, file);
-        if (uploadError) throw uploadError;
+      if (files.length > 0) {
+        for (const file of files) {
+          const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const timestamp = Date.now();
+          const fileName = `${teamName}_Task_${selectedTask.task_number}_${timestamp}_${sanitizedFileName}`;
+          const filePath = `${user!.id}/${fileName}`;
 
+          const { error: uploadError } = await supabase.storage.from("design-files").upload(filePath, file);
+          if (uploadError) throw uploadError;
+
+          const { error: submissionError } = await supabase.from("design_submissions").insert({
+            task_id: selectedTask.id, designer_id: user!.id,
+            file_path: filePath, file_name: fileName,
+            designer_comment: commentPayload,
+          });
+          if (submissionError) throw submissionError;
+          uploadedCount++;
+          toast({ title: `Uploaded ${uploadedCount} of ${files.length} files` });
+        }
+      } else {
+        // No files — submit just the comment/URL as a submission record
         const { error: submissionError } = await supabase.from("design_submissions").insert({
           task_id: selectedTask.id, designer_id: user!.id,
-          file_path: filePath, file_name: fileName,
-          designer_comment: [homepageUrl.trim() ? `🔗 Homepage: ${homepageUrl.trim()}` : '', developerComment.trim()].filter(Boolean).join('\n') || null,
+          file_path: "no-file", file_name: "comment-only",
+          designer_comment: commentPayload,
         });
         if (submissionError) throw submissionError;
-        uploadedCount++;
-        toast({ title: `Uploaded ${uploadedCount} of ${files.length} files` });
       }
 
       if (!hasRevision) {
-        // Show phase completion dialog instead of auto-completing
         setPhaseCompleteTask(selectedTask);
       }
 
       queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["developer-submissions"] });
       toast({ 
-        title: hasRevision ? "Revision uploaded successfully" : "Files uploaded — choose next action",
-        description: `${files.length} file(s) submitted`
+        title: hasRevision ? "Revision uploaded successfully" : "Submission complete — choose next action",
+        description: files.length ? `${files.length} file(s) submitted` : "Submitted successfully"
       });
       setSelectedTask(null);
       setFiles([]);
@@ -1032,12 +1043,9 @@ const DeveloperDashboard = () => {
                 </div>
               )}
             </div>
-            <Button onClick={handleFileUpload} disabled={!files.length || !homepageUrl.trim() || uploading} className="w-full">
-              {uploading ? "Uploading..." : `Upload ${files.length} File(s)`}
+            <Button onClick={handleFileUpload} disabled={(!files.length && !homepageUrl.trim() && !developerComment.trim()) || uploading} className="w-full">
+              {uploading ? "Uploading..." : files.length ? `Upload ${files.length} File(s)` : "Submit"}
             </Button>
-            {!homepageUrl.trim() && (
-              <p className="text-xs text-muted-foreground text-center">Please enter the website homepage URL to enable upload</p>
-            )}
           </div>
         </DialogContent>
       </Dialog>
