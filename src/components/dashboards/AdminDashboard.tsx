@@ -113,6 +113,7 @@ const AdminDashboard = () => {
   const [prevMonthDesignerOpen, setPrevMonthDesignerOpen] = useState(false);
   const [showAllCurrentDesigner, setShowAllCurrentDesigner] = useState(false);
   const [showAllPreviousDesigner, setShowAllPreviousDesigner] = useState(false);
+  const [pmWorkloadDialog, setPmWorkloadDialog] = useState<{ open: boolean; pmId: string; pmName: string } | null>(null);
 
   // Helper function to filter tasks by metric type for a specific user
   const getFilteredTasksForMetric = (userId: string, metricType: string) => {
@@ -2652,7 +2653,11 @@ const AdminDashboard = () => {
                         });
 
                         return (
-                          <TableRow key={pm.id}>
+                          <TableRow 
+                            key={pm.id} 
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setPmWorkloadDialog({ open: true, pmId: pm.id, pmName: pm.full_name || pm.email })}
+                          >
                             <TableCell className="font-medium">{pm.full_name || pm.email}</TableCell>
                             <TableCell className="text-center">
                               <Badge variant="secondary">{newThisMonth}</Badge>
@@ -4100,6 +4105,71 @@ const AdminDashboard = () => {
               {cancelOrder.isPending ? "Cancelling..." : "Cancel Order"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* PM Workload Dialog */}
+      <Dialog open={pmWorkloadDialog?.open || false} onOpenChange={(open) => !open && setPmWorkloadDialog(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Tasks Assigned to {pmWorkloadDialog?.pmName}</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            {(() => {
+              if (!pmWorkloadDialog) return null;
+              const pmTasks = tasks?.filter(t => t.project_manager_id === pmWorkloadDialog.pmId && !t.is_deleted) || [];
+              
+              // Deduplicate by order_group_id
+              const seenGroups = new Set<string>();
+              const uniqueTasks = pmTasks.filter(t => {
+                const groupKey = t.order_group_id || t.id;
+                if (seenGroups.has(groupKey)) return false;
+                seenGroups.add(groupKey);
+                return true;
+              });
+
+              if (uniqueTasks.length === 0) {
+                return <p className="text-muted-foreground text-center py-8">No tasks assigned.</p>;
+              }
+
+              return (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order #</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {uniqueTasks.map(task => (
+                      <TableRow key={task.id}>
+                        <TableCell className="font-mono text-sm">#{task.task_number}</TableCell>
+                        <TableCell className="font-medium max-w-[200px] truncate">{task.title}</TableCell>
+                        <TableCell>{task.customer_name || "N/A"}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            task.status === 'completed' || task.status === 'approved' ? 'default' :
+                            task.status === 'cancelled' ? 'destructive' :
+                            task.status === 'in_progress' ? 'secondary' : 'outline'
+                          }>
+                            {task.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">${Number(task.amount_total || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {task.created_at ? format(new Date(task.created_at), "MMM d, yyyy") : "N/A"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              );
+            })()}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>
