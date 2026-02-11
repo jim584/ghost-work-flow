@@ -21,223 +21,214 @@ interface LeaveRecord {
   leave_end_datetime: string;
 }
 
-/**
- * Parse a "HH:MM" time string into total minutes from midnight.
- */
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
 }
 
-/**
- * Get the ISO day-of-week for a Date (1=Mon … 7=Sun).
- */
 function getISODay(date: Date): number {
-  const d = date.getDay(); // 0=Sun
+  const d = date.getDay();
   return d === 0 ? 7 : d;
 }
 
-/**
- * Create a Date in a specific timezone by building an ISO string
- * and using the timezone offset. We work in UTC internally and
- * convert at boundaries.
- */
 function toTimezoneDate(utcDate: Date, _timezone: string): Date {
-  // We use Intl to get the local components in the target timezone
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: _timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
   });
   const parts = fmt.formatToParts(utcDate);
   const get = (type: string) => parts.find((p) => p.type === type)?.value || "0";
-
   return new Date(
     `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}`
   );
 }
 
-/**
- * Convert a local datetime back to UTC given its timezone.
- * We find the UTC offset by comparing a known UTC time with its local representation.
- */
 function fromTimezoneToUTC(localDate: Date, timezone: string): Date {
-  // Use a reference point to calculate offset
   const refUTC = new Date(localDate.toISOString().replace("Z", "") + "Z");
   const refLocal = toTimezoneDate(refUTC, timezone);
   const offsetMs = refLocal.getTime() - refUTC.getTime();
-
-  // Adjust: local = utc + offset, so utc = local - offset
   return new Date(localDate.getTime() - offsetMs);
 }
 
 /**
- * Check if a given local datetime falls within any approved leave period.
- * Returns the end of the leave period if overlapping, or null.
+ * Check if a shift is overnight (crosses midnight).
  */
-function getLeaveOverlap(
-  localTime: Date,
-  dayEndLocal: Date,
-  leaves: LeaveRecord[],
-  timezone: string
-): { overlapMinutes: number } {
-  let totalOverlap = 0;
+function isOvernightShift(startMin: number, endMin: number): boolean {
+  return endMin <= startMin;
+}
 
+/**
+ * Get the total working minutes in a shift.
+ */
+function getShiftDuration(startMin: number, endMin: number): number {
+  if (isOvernightShift(startMin, endMin)) {
+    return (24 * 60 - startMin) + endMin;
+  }
+  return endMin - startMin;
+}
+
+/**
+ * Check if a given minute-of-day is within a shift.
+ * For overnight shifts (e.g., 16:00-01:00), the range wraps around midnight.
+ */
+function isWithinShift(minuteOfDay: number, shiftStart: number, shiftEnd: number): boolean {
+  if (isOvernightShift(shiftStart, shiftEnd)) {
+    // e.g., 960 to 60: working if >= 960 OR < 60
+    return minuteOfDay >= shiftStart || minuteOfDay < shiftEnd;
+  }
+  return minuteOfDay >= shiftStart && minuteOfDay < shiftEnd;
+}
+
+/**
+ * Get available working minutes from a given minute-of-day until shift end.
+ * For overnight shifts, accounts for wrapping around midnight.
+ */
+function minutesUntilShiftEnd(currentMinute: number, shiftStart: number, shiftEnd: number): number {
+  if (!isWithinShift(currentMinute, shiftStart, shiftEnd)) return 0;
+  if (isOvernightShift(shiftStart, shiftEnd)) {
+    if (currentMinute >= shiftStart) {
+      // Before midnight: remaining = (24*60 - currentMinute) + shiftEnd
+      return (24 * 60 - currentMinute) + shiftEnd;
+    } else {
+      // After midnight: remaining = shiftEnd - currentMinute
+      return shiftEnd - currentMinute;
+    }
+  }
+  return shiftEnd - currentMinute;
+}
+
+/**
+ * Advance currentLocal to the shift start. If the shift starts later today, set to today.
+ * If we're past the shift (including overnight end), advance to next day's shift start.
+ */
+function advanceToShiftStart(currentLocal: Date, shiftStart: number): void {
+  currentLocal.setHours(Math.floor(shiftStart / 60), shiftStart % 60, 0, 0);
+}
+
+function getLeaveOverlap(
+  windowStart: Date, windowEnd: Date, leaves: LeaveRecord[], timezone: string
+): number {
+  let totalOverlap = 0;
   for (const leave of leaves) {
     const leaveStart = toTimezoneDate(new Date(leave.leave_start_datetime), timezone);
     const leaveEnd = toTimezoneDate(new Date(leave.leave_end_datetime), timezone);
-
-    // Check if leave overlaps with the window [localTime, dayEndLocal]
-    const overlapStart = new Date(Math.max(localTime.getTime(), leaveStart.getTime()));
-    const overlapEnd = new Date(Math.min(dayEndLocal.getTime(), leaveEnd.getTime()));
-
+    const overlapStart = new Date(Math.max(windowStart.getTime(), leaveStart.getTime()));
+    const overlapEnd = new Date(Math.min(windowEnd.getTime(), leaveEnd.getTime()));
     if (overlapStart < overlapEnd) {
       totalOverlap += (overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60);
     }
   }
-
-  return { overlapMinutes: totalOverlap };
+  return totalOverlap;
 }
 
 /**
- * Core SLA calculation algorithm.
- *
- * Accumulates `slaMinutes` of working time starting from `startTimeUTC`,
- * using the developer's calendar and skipping leaves.
- *
- * Returns the deadline as a UTC Date.
+ * Core SLA calculation algorithm with overnight shift support.
  */
 function calculateDeadline(
-  startTimeUTC: Date,
-  slaMinutes: number,
-  calendar: CalendarConfig,
-  leaves: LeaveRecord[]
+  startTimeUTC: Date, slaMinutes: number, calendar: CalendarConfig, leaves: LeaveRecord[]
 ): Date {
   const { working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone } = calendar;
-  const workStartMinutes = timeToMinutes(start_time);
-  const workEndMinutes = timeToMinutes(end_time);
-  const satStartMinutes = saturday_start_time ? timeToMinutes(saturday_start_time) : workStartMinutes;
-  const satEndMinutes = saturday_end_time ? timeToMinutes(saturday_end_time) : workEndMinutes;
-  const dailyWorkMinutes = workEndMinutes - workStartMinutes;
+  const workStartMin = timeToMinutes(start_time);
+  const workEndMin = timeToMinutes(end_time);
+  const satStartMin = saturday_start_time ? timeToMinutes(saturday_start_time) : workStartMin;
+  const satEndMin = saturday_end_time ? timeToMinutes(saturday_end_time) : workEndMin;
 
-  if (dailyWorkMinutes <= 0) {
-    throw new Error("Invalid calendar: end_time must be after start_time");
-  }
-
-  // Convert start time to local timezone
   let currentLocal = toTimezoneDate(startTimeUTC, timezone);
   let remainingMinutes = slaMinutes;
-
-  // Safety: max 365 days iteration
-  const maxIterations = 365;
   let iterations = 0;
+  const maxIterations = 730; // doubled for overnight shifts spanning 2 calendar days
 
   while (remainingMinutes > 0 && iterations < maxIterations) {
     iterations++;
     const dayOfWeek = getISODay(currentLocal);
 
-    // Check if today is a working day
     if (!working_days.includes(dayOfWeek)) {
-      // Skip to next day, start of work
-      currentLocal = new Date(currentLocal);
-      currentLocal.setDate(currentLocal.getDate() + 1);
-      const skipDay = getISODay(currentLocal);
-      const skipStart = skipDay === 6 ? satStartMinutes : workStartMinutes;
-      currentLocal.setHours(Math.floor(skipStart / 60), skipStart % 60, 0, 0);
-      continue;
-    }
-
-    // Use Saturday-specific hours if today is Saturday (day 6)
-    const isSaturday = dayOfWeek === 6;
-    const todayStart = isSaturday ? satStartMinutes : workStartMinutes;
-    const todayEnd = isSaturday ? satEndMinutes : workEndMinutes;
-
-    const currentMinuteOfDay =
-      currentLocal.getHours() * 60 + currentLocal.getMinutes();
-
-    // If before work hours, advance to work start
-    if (currentMinuteOfDay < todayStart) {
-      currentLocal.setHours(Math.floor(todayStart / 60), todayStart % 60, 0, 0);
-    }
-
-    // If after work hours, advance to next day
-    if (currentMinuteOfDay >= todayEnd) {
       currentLocal.setDate(currentLocal.getDate() + 1);
       const nextDay = getISODay(currentLocal);
-      const nextStart = nextDay === 6 ? satStartMinutes : workStartMinutes;
-      currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
+      const nextStart = nextDay === 6 ? satStartMin : workStartMin;
+      advanceToShiftStart(currentLocal, nextStart);
       continue;
     }
 
-    // Calculate available minutes for the rest of this working day
-    const effectiveStart = Math.max(
-      currentLocal.getHours() * 60 + currentLocal.getMinutes(),
-      todayStart
-    );
-    const availableMinutesInDay = todayEnd - effectiveStart;
+    const isSaturday = dayOfWeek === 6;
+    const todayStart = isSaturday ? satStartMin : workStartMin;
+    const todayEnd = isSaturday ? satEndMin : workEndMin;
+    const overnight = isOvernightShift(todayStart, todayEnd);
+    const currentMinute = currentLocal.getHours() * 60 + currentLocal.getMinutes();
 
-    // Build day end local time for leave overlap check
-    const dayEndLocal = new Date(currentLocal);
-    dayEndLocal.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    // Check if we're within the shift
+    if (!isWithinShift(currentMinute, todayStart, todayEnd)) {
+      if (overnight && currentMinute < todayStart && currentMinute >= todayEnd) {
+        // Between overnight end and next shift start - advance to shift start today
+        advanceToShiftStart(currentLocal, todayStart);
+      } else if (!overnight && currentMinute < todayStart) {
+        advanceToShiftStart(currentLocal, todayStart);
+      } else {
+        // Past shift end - advance to next day
+        currentLocal.setDate(currentLocal.getDate() + 1);
+        const nextDay = getISODay(currentLocal);
+        const nextStart = nextDay === 6 ? satStartMin : workStartMin;
+        advanceToShiftStart(currentLocal, nextStart);
+      }
+      continue;
+    }
 
-    const dayStartLocal = new Date(currentLocal);
-    dayStartLocal.setHours(
-      Math.floor(effectiveStart / 60),
-      effectiveStart % 60,
-      0,
-      0
-    );
+    // We're within the shift - calculate available minutes
+    const availableMinutes = minutesUntilShiftEnd(currentMinute, todayStart, todayEnd);
 
-    // Calculate leave overlap for this working window
-    const { overlapMinutes } = getLeaveOverlap(
-      dayStartLocal,
-      dayEndLocal,
-      leaves,
-      timezone
-    );
+    // Build window for leave overlap
+    const windowStart = new Date(currentLocal);
+    let windowEnd: Date;
+    if (overnight && currentMinute >= todayStart) {
+      // Window extends past midnight to todayEnd tomorrow
+      windowEnd = new Date(currentLocal);
+      windowEnd.setDate(windowEnd.getDate() + 1);
+      windowEnd.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    } else if (overnight && currentMinute < todayEnd) {
+      // We're in the after-midnight portion
+      windowEnd = new Date(currentLocal);
+      windowEnd.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    } else {
+      windowEnd = new Date(currentLocal);
+      windowEnd.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    }
 
-    const usableMinutes = Math.max(0, availableMinutesInDay - overlapMinutes);
+    const leaveOverlap = getLeaveOverlap(windowStart, windowEnd, leaves, timezone);
+    const usableMinutes = Math.max(0, availableMinutes - leaveOverlap);
 
     if (usableMinutes <= 0) {
-      // Entire remaining work period is on leave, skip to next day
-      currentLocal.setDate(currentLocal.getDate() + 1);
-      const nextDay2 = getISODay(currentLocal);
-      const nextStart2 = nextDay2 === 6 ? satStartMinutes : workStartMinutes;
-      currentLocal.setHours(Math.floor(nextStart2 / 60), nextStart2 % 60, 0, 0);
+      // Skip to next day
+      if (overnight && currentMinute >= todayStart) {
+        // Jump past midnight portion too
+        currentLocal.setDate(currentLocal.getDate() + 2);
+      } else {
+        currentLocal.setDate(currentLocal.getDate() + 1);
+      }
+      const nextDay = getISODay(currentLocal);
+      const nextStart = nextDay === 6 ? satStartMin : workStartMin;
+      advanceToShiftStart(currentLocal, nextStart);
       continue;
     }
 
     if (remainingMinutes <= usableMinutes) {
-      // SLA completes today - advance by remaining minutes (accounting for leave gaps)
-      // Simple approach: advance minute by minute through available time
-      // For efficiency, if no leave overlap, just add minutes directly
-      if (overlapMinutes === 0) {
-        currentLocal = new Date(
-          dayStartLocal.getTime() + remainingMinutes * 60 * 1000
-        );
+      if (leaveOverlap === 0) {
+        currentLocal = new Date(windowStart.getTime() + remainingMinutes * 60 * 1000);
       } else {
-        // Need to walk through the day accounting for leave gaps
-        currentLocal = walkThroughDay(
-          dayStartLocal,
-          dayEndLocal,
-          remainingMinutes,
-          leaves,
-          timezone
-        );
+        currentLocal = walkThroughWindow(windowStart, windowEnd, remainingMinutes, leaves, timezone);
       }
       remainingMinutes = 0;
     } else {
-      // Consume all usable minutes today, continue tomorrow
       remainingMinutes -= usableMinutes;
-      currentLocal.setDate(currentLocal.getDate() + 1);
-      const nextDay3 = getISODay(currentLocal);
-      const nextStart3 = nextDay3 === 6 ? satStartMinutes : workStartMinutes;
-      currentLocal.setHours(Math.floor(nextStart3 / 60), nextStart3 % 60, 0, 0);
+      // Advance past this shift window
+      if (overnight && currentMinute >= todayStart) {
+        currentLocal.setDate(currentLocal.getDate() + 2);
+      } else {
+        currentLocal.setDate(currentLocal.getDate() + 1);
+      }
+      const nextDay = getISODay(currentLocal);
+      const nextStart = nextDay === 6 ? satStartMin : workStartMin;
+      advanceToShiftStart(currentLocal, nextStart);
     }
   }
 
@@ -245,46 +236,29 @@ function calculateDeadline(
     throw new Error("SLA calculation exceeded maximum iterations");
   }
 
-  // Convert back to UTC
   return fromTimezoneToUTC(currentLocal, timezone);
 }
 
-/**
- * Walk through a working day minute-by-minute to find when N working minutes
- * have elapsed, accounting for leave gaps.
- */
-function walkThroughDay(
-  dayStart: Date,
-  dayEnd: Date,
-  minutes: number,
-  leaves: LeaveRecord[],
-  timezone: string
+function walkThroughWindow(
+  windowStart: Date, windowEnd: Date, minutes: number, leaves: LeaveRecord[], timezone: string
 ): Date {
   let accumulated = 0;
-  let current = new Date(dayStart);
-
+  let current = new Date(windowStart);
   const leaveWindows = leaves.map((l) => ({
     start: toTimezoneDate(new Date(l.leave_start_datetime), timezone),
     end: toTimezoneDate(new Date(l.leave_end_datetime), timezone),
   }));
 
-  while (accumulated < minutes && current < dayEnd) {
-    // Check if current minute is in a leave window
-    const inLeave = leaveWindows.some(
-      (lw) => current >= lw.start && current < lw.end
-    );
-
+  while (accumulated < minutes && current < windowEnd) {
+    const inLeave = leaveWindows.some((lw) => current >= lw.start && current < lw.end);
     if (!inLeave) {
       accumulated++;
       if (accumulated >= minutes) {
-        // Add one more minute to mark the deadline at end of last working minute
         return new Date(current.getTime() + 60 * 1000);
       }
     }
-
     current = new Date(current.getTime() + 60 * 1000);
   }
-
   return current;
 }
 
@@ -313,7 +287,6 @@ serve(async (req) => {
 
     console.log(`Calculating SLA: developer=${developer_id}, start=${startTimeUTC.toISOString()}, hours=${sla_hours}`);
 
-    // Fetch developer with calendar
     const { data: developer, error: devError } = await supabaseAdmin
       .from("developers")
       .select("id, timezone, availability_calendar_id, availability_calendars(working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone)")
@@ -345,7 +318,6 @@ serve(async (req) => {
       timezone: cal.timezone,
     };
 
-    // Fetch approved leaves for this developer in a reasonable window (next 60 days)
     const windowEnd = new Date(startTimeUTC);
     windowEnd.setDate(windowEnd.getDate() + 60);
 
@@ -361,12 +333,7 @@ serve(async (req) => {
       console.error("Error fetching leaves:", leaveError);
     }
 
-    const deadline = calculateDeadline(
-      startTimeUTC,
-      slaMinutes,
-      calendar,
-      leaves || []
-    );
+    const deadline = calculateDeadline(startTimeUTC, slaMinutes, calendar, leaves || []);
 
     console.log(`SLA deadline calculated: ${deadline.toISOString()}`);
 
