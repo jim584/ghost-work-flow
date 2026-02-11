@@ -24,33 +24,34 @@ const SlaCountdown = ({ deadline, label }: { deadline: string; label?: string })
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 60000);
+    const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
   const deadlineDate = new Date(deadline);
-  const totalMinutes = differenceInMinutes(deadlineDate, now);
+  const diffMs = deadlineDate.getTime() - now.getTime();
+  const totalSeconds = Math.floor(Math.abs(diffMs) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+  const timeStr = `${hours}h ${mins}m ${secs.toString().padStart(2, '0')}s`;
 
-  if (totalMinutes <= 0) {
-    const overdueHours = Math.abs(Math.floor(totalMinutes / 60));
-    const overdueMins = Math.abs(totalMinutes % 60);
+  if (diffMs <= 0) {
     return (
       <div className="flex items-center gap-1.5 text-destructive">
-        <Timer className="h-3.5 w-3.5" />
-        <span className="text-xs font-semibold">{label || "SLA"} OVERDUE by {overdueHours}h {overdueMins}m</span>
+        <Timer className="h-3.5 w-3.5 animate-pulse" />
+        <span className="text-xs font-semibold font-mono">{label || "SLA"} OVERDUE by {timeStr}</span>
       </div>
     );
   }
 
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-  const isUrgent = totalMinutes < 120;
+  const isUrgent = diffMs < 120 * 60 * 1000;
 
   return (
     <div className={`flex items-center gap-1.5 ${isUrgent ? 'text-destructive' : 'text-warning'}`}>
       <Timer className="h-3.5 w-3.5" />
-      <span className="text-xs font-semibold">
-        {label || "SLA"}: {hours}h {mins}m remaining
+      <span className="text-xs font-semibold font-mono">
+        {label || "SLA"}: {timeStr} remaining
       </span>
     </div>
   );
