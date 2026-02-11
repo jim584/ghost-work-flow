@@ -1412,9 +1412,12 @@ const PMDashboard = () => {
                                       ? getDeveloperForTeam(task.team_id) || task.teams?.name
                                       : task.teams?.name;
                                     const teamSubs = (submissions || []).filter((s: any) => s.task_id === task.id);
+                                    const activeSubs = teamSubs.filter((s: any) => s.revision_status !== 'revised');
                                     const hasNeedsRev = teamSubs.some((s: any) => s.revision_status === 'needs_revision');
                                     const hasPendingRev = teamSubs.some((s: any) => s.revision_status === 'pending_review');
+                                    const allApproved = activeSubs.length > 0 && activeSubs.every((s: any) => s.revision_status === 'approved');
                                     if (hasNeedsRev) return <>{teamName} — <span className="text-orange-500">Needs Revision</span></>;
+                                    if (allApproved) return <>{teamName} — <span className="text-green-600">Approved</span></>;
                                     if (hasPendingRev) return <>{teamName} — <span className="text-blue-500">Delivered</span></>;
                                     return teamName;
                                   })()
@@ -1427,7 +1430,9 @@ const PMDashboard = () => {
                                   const hasDelivery = teamSubmissions.length > 0;
                                   const hasPendingReview = teamSubmissions.some((s: any) => s.revision_status === 'pending_review');
                                   const hasNeedsRevision = teamSubmissions.some((s: any) => s.revision_status === 'needs_revision');
-                                  const isApproved = t.status === 'approved';
+                                  const activeSubmissions = teamSubmissions.filter((s: any) => s.revision_status !== 'revised');
+                                  const allSubmissionsApproved = activeSubmissions.length > 0 && activeSubmissions.every((s: any) => s.revision_status === 'approved');
+                                  const isApproved = t.status === 'approved' || allSubmissionsApproved;
                                   
                                   let statusIcon = "○";
                                   let statusColor = "text-muted-foreground";
