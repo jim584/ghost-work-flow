@@ -7,16 +7,76 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
-import { differenceInHours, format } from "date-fns";
+import { differenceInHours, differenceInMinutes, format } from "date-fns";
 import { useDesignerNotifications } from "@/hooks/useDesignerNotifications";
 import { NotificationBell } from "@/components/NotificationBell";
+
+// SLA Countdown component
+const SlaCountdown = ({ deadline }: { deadline: string }) => {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const deadlineDate = new Date(deadline);
+  const totalMinutes = differenceInMinutes(deadlineDate, now);
+
+  if (totalMinutes <= 0) {
+    const overdueHours = Math.abs(Math.floor(totalMinutes / 60));
+    const overdueMins = Math.abs(totalMinutes % 60);
+    return (
+      <div className="flex items-center gap-1.5 text-destructive">
+        <Timer className="h-3.5 w-3.5" />
+        <span className="text-xs font-semibold">OVERDUE by {overdueHours}h {overdueMins}m</span>
+      </div>
+    );
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  const isUrgent = totalMinutes < 120; // less than 2 hours
+
+  return (
+    <div className={`flex items-center gap-1.5 ${isUrgent ? 'text-destructive' : 'text-warning'}`}>
+      <Timer className="h-3.5 w-3.5" />
+      <span className="text-xs font-semibold">
+        {hours}h {mins}m remaining
+      </span>
+    </div>
+  );
+};
+
+// Phase progress component
+const PhaseProgress = ({ currentPhase, totalPhases }: { currentPhase: number; totalPhases: number }) => {
+  const phasePages: Record<number, string> = {
+    1: "Homepage (1 page)",
+    2: "3 inner pages (4 total)",
+    3: "3 inner pages (7 total)",
+    4: "3 inner pages (10 total)",
+  };
+
+  const progressPercent = ((currentPhase - 1) / totalPhases) * 100;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium">Phase {currentPhase} of {totalPhases}</span>
+        <span className="text-muted-foreground">{phasePages[currentPhase] || ""}</span>
+      </div>
+      <Progress value={progressPercent} className="h-2" />
+    </div>
+  );
+};
 
 const DeveloperDashboard = () => {
   const { user, signOut } = useAuth();
@@ -45,7 +105,7 @@ const DeveloperDashboard = () => {
   const [developerComment, setDeveloperComment] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
-  const [statusFilter, setStatusFilter] = useState<string | null>("pending_or_revision");
+  const [statusFilter, setStatusFilter] = useState<string | null>("active");
   const [userTeams, setUserTeams] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -111,6 +171,23 @@ const DeveloperDashboard = () => {
     },
   });
 
+  // Fetch project phases for all tasks
+  const { data: projectPhases } = useQuery({
+    queryKey: ["developer-phases", user?.id],
+    queryFn: async () => {
+      if (!tasks?.length) return [];
+      const taskIds = tasks.map(t => t.id);
+      const { data, error } = await supabase
+        .from("project_phases")
+        .select("*")
+        .in("task_id", taskIds)
+        .order("phase_number", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tasks?.length,
+  });
+
   const handleDownload = async (filePath: string, fileName: string) => {
     try {
       const { data, error } = await supabase.storage
@@ -137,6 +214,104 @@ const DeveloperDashboard = () => {
       });
     }
   };
+
+  // Acknowledge task mutation
+  const acknowledgeTask = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          status: "in_progress" as any, 
+          acknowledged_at: new Date().toISOString() 
+        })
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+      toast({ title: "Task acknowledged", description: "You've started working on this task." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  // Complete phase mutation
+  const completePhase = useMutation({
+    mutationFn: async ({ taskId, currentPhase, totalPhases }: { taskId: string; currentPhase: number; totalPhases: number }) => {
+      // Mark current phase as completed
+      const { error: phaseError } = await supabase
+        .from("project_phases")
+        .update({ 
+          status: "completed", 
+          completed_at: new Date().toISOString() 
+        })
+        .eq("task_id", taskId)
+        .eq("phase_number", currentPhase);
+      
+      if (phaseError) throw phaseError;
+
+      const nextPhase = currentPhase + 1;
+      
+      if (nextPhase <= totalPhases) {
+        // Calculate SLA for next phase
+        // Get developer_id from tasks
+        const { data: taskData } = await supabase
+          .from("tasks")
+          .select("developer_id")
+          .eq("id", taskId)
+          .single();
+
+        let slaDeadline: string | null = null;
+        if (taskData?.developer_id) {
+          try {
+            const slaResponse = await supabase.functions.invoke('calculate-sla-deadline', {
+              body: {
+                developer_id: taskData.developer_id,
+                start_time: new Date().toISOString(),
+                sla_hours: 8,
+              },
+            });
+            if (slaResponse.data?.deadline) {
+              slaDeadline = slaResponse.data.deadline;
+            }
+          } catch (e) {
+            console.error("SLA calculation failed:", e);
+          }
+        }
+
+        // Create next phase
+        await supabase.from("project_phases").insert({
+          task_id: taskId,
+          phase_number: nextPhase,
+          sla_hours: 8,
+          sla_deadline: slaDeadline,
+          started_at: new Date().toISOString(),
+          status: "in_progress",
+        });
+
+        // Update task
+        await supabase.from("tasks").update({
+          current_phase: nextPhase,
+          sla_deadline: slaDeadline,
+        }).eq("id", taskId);
+      } else {
+        // All phases done - mark task as completed
+        await supabase.from("tasks").update({
+          status: "completed" as any,
+          current_phase: totalPhases,
+        }).eq("id", taskId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
+      toast({ title: "Phase completed!" });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error completing phase", description: error.message });
+    },
+  });
 
   const handleFileUpload = async () => {
     if (!files.length || !selectedTask) return;
@@ -165,7 +340,6 @@ const DeveloperDashboard = () => {
 
       // Upload all files and create submissions
       for (const file of files) {
-        // Sanitize file name to remove special characters
         const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const timestamp = Date.now();
         const fileName = `${teamName}_Task_${selectedTask.task_number}_${timestamp}_${sanitizedFileName}`;
@@ -190,26 +364,27 @@ const DeveloperDashboard = () => {
         if (submissionError) throw submissionError;
         uploadedCount++;
         
-        // Show progress
         toast({ 
           title: `Uploaded ${uploadedCount} of ${files.length} files` 
         });
       }
 
-      // Update task status after all files are uploaded (only if not a revision)
+      // For non-revision uploads, complete the current phase
       if (!hasRevision) {
-        const { error: statusError } = await supabase
-          .from("tasks")
-          .update({ status: "completed" })
-          .eq("id", selectedTask.id);
-
-        if (statusError) throw statusError;
+        const currentPhase = selectedTask.current_phase || 1;
+        const totalPhases = selectedTask.total_phases || 4;
+        
+        completePhase.mutate({ 
+          taskId: selectedTask.id, 
+          currentPhase, 
+          totalPhases 
+        });
       }
 
       queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["developer-submissions"] });
       toast({ 
-        title: hasRevision ? "Revision uploaded successfully" : "All files uploaded successfully",
+        title: hasRevision ? "Revision uploaded successfully" : "Phase files uploaded successfully",
         description: `${files.length} file(s) submitted for review`
       });
       setSelectedTask(null);
@@ -247,17 +422,22 @@ const DeveloperDashboard = () => {
   }) || [];
 
   const isTaskDelayed = (task: any) => {
+    // Check SLA deadline first
+    if (task.sla_deadline) {
+      return new Date(task.sla_deadline) < new Date() && 
+        !["completed", "approved", "cancelled"].includes(task.status);
+    }
     const createdAt = new Date(task.created_at);
     const hoursSinceCreation = differenceInHours(new Date(), createdAt);
-    // Task is delayed if it's been more than 24 hours and still pending or needs revision
     const needsRevision = tasksNeedingRevision.some(t => t.id === task.id);
-    return hoursSinceCreation > 24 && (task.status === "pending" || needsRevision);
+    return hoursSinceCreation > 24 && (task.status === "pending" || task.status === "assigned" || needsRevision);
   };
 
   const delayedTasks = tasks?.filter(isTaskDelayed) || [];
 
   const stats = {
     total: tasks?.length || 0,
+    assigned: tasks?.filter((t) => t.status === "assigned").length || 0,
     pending: tasks?.filter((t) => t.status === "pending").length || 0,
     in_progress: tasks?.filter((t) => t.status === "in_progress").length || 0,
     needs_revision: tasksNeedingRevision.length,
@@ -266,6 +446,8 @@ const DeveloperDashboard = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "assigned":
+        return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
       case "pending":
         return "bg-muted text-muted-foreground";
       case "in_progress":
@@ -279,8 +461,13 @@ const DeveloperDashboard = () => {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    if (status === "assigned") return "Awaiting Acknowledgement";
+    return status.replace("_", " ");
+  };
+
   const filteredTasks = tasks?.filter((task) => {
-    // Search filter - if searching, show all matching tasks regardless of status
+    // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       return task.title?.toLowerCase().includes(query) ||
@@ -290,21 +477,25 @@ const DeveloperDashboard = () => {
         `#${task.task_number}`.includes(query);
     }
     
-    // Status filter (only applied when not searching)
-    if (statusFilter === "pending_or_revision") {
-      // Default view: show pending, in progress, or tasks needing revision
-      return task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id);
+    // Status filter
+    if (statusFilter === "active") {
+      return task.status === "assigned" || task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id);
     }
     if (statusFilter === "delayed") {
       return isTaskDelayed(task);
     }
-    if (!statusFilter) return true; // Show all when Total Tasks is clicked
+    if (!statusFilter) return true;
     if (statusFilter === "needs_revision") {
       return tasksNeedingRevision.some(t => t.id === task.id);
     }
+    if (statusFilter === "assigned") {
+      return task.status === "assigned";
+    }
     return task.status === statusFilter;
   }).sort((a, b) => {
-    // Sort delayed tasks to the top
+    // Sort: assigned first, then delayed, then by date
+    if (a.status === "assigned" && b.status !== "assigned") return -1;
+    if (a.status !== "assigned" && b.status === "assigned") return 1;
     const aDelayed = isTaskDelayed(a);
     const bDelayed = isTaskDelayed(b);
     if (aDelayed && !bDelayed) return -1;
@@ -339,7 +530,7 @@ const DeveloperDashboard = () => {
                 <div>
                   <h3 className="font-semibold text-destructive">Urgent: {stats.delayed} Delayed Order{stats.delayed > 1 ? 's' : ''}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {stats.delayed} task{stats.delayed > 1 ? 's have' : ' has'} been pending for more than 24 hours. Please prioritize {stats.delayed > 1 ? 'these orders' : 'this order'} urgently.
+                    {stats.delayed} task{stats.delayed > 1 ? 's have' : ' has'} exceeded their SLA deadline. Please prioritize urgently.
                   </p>
                 </div>
                 <Button
@@ -349,6 +540,30 @@ const DeveloperDashboard = () => {
                   onClick={() => setStatusFilter("delayed")}
                 >
                   View Delayed Tasks
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {stats.assigned > 0 && (
+          <Card className="mb-6 border-blue-500 bg-blue-500/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Play className="h-6 w-6 text-blue-600" />
+                <div>
+                  <h3 className="font-semibold text-blue-700 dark:text-blue-400">{stats.assigned} New Order{stats.assigned > 1 ? 's' : ''} Awaiting Acknowledgement</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Please acknowledge to start the SLA timer.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto border-blue-500 text-blue-700 hover:bg-blue-500/10"
+                  onClick={() => setStatusFilter("assigned")}
+                >
+                  View New Orders
                 </Button>
               </div>
             </CardContent>
@@ -365,21 +580,21 @@ const DeveloperDashboard = () => {
           />
         </div>
 
-        {statusFilter !== "pending_or_revision" && (
+        {statusFilter !== "active" && (
           <div className="mb-4">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setStatusFilter("pending_or_revision")}
+              onClick={() => setStatusFilter("active")}
               className="gap-2"
             >
               <Clock className="h-4 w-4" />
-              Back to Default View (Pending, In Progress & Needs Revision)
+              Back to Active View
             </Button>
           </div>
         )}
         
-        <div className="grid gap-6 md:grid-cols-4 mb-8">
+        <div className="grid gap-6 md:grid-cols-5 mb-8">
           <Card 
             className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === null ? 'ring-2 ring-primary' : ''}`}
             onClick={() => setStatusFilter(null)}
@@ -393,15 +608,15 @@ const DeveloperDashboard = () => {
             </CardContent>
           </Card>
           <Card 
-            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter('pending')}
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'assigned' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('assigned')}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Awaiting Ack</CardTitle>
+              <Play className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.pending}</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.assigned}</div>
             </CardContent>
           </Card>
           <Card 
@@ -428,6 +643,18 @@ const DeveloperDashboard = () => {
               <div className="text-2xl font-bold text-destructive">{stats.needs_revision}</div>
             </CardContent>
           </Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('pending')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.pending}</div>
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
@@ -443,15 +670,16 @@ const DeveloperDashboard = () => {
                 const isDelayed = isTaskDelayed(task);
                 const createdAt = new Date(task.created_at);
                 const hoursSinceCreation = differenceInHours(new Date(), createdAt);
+                const isAssigned = task.status === "assigned";
                 
                 return (
                   <div 
                     key={task.id} 
-                    className={`border rounded-lg ${hasRevision ? 'border-destructive border-2 bg-destructive/5' : ''} ${isDelayed ? 'border-destructive border-2 bg-destructive/10' : ''}`}
+                    className={`border rounded-lg ${isAssigned ? 'border-blue-500 border-2 bg-blue-500/5' : ''} ${hasRevision ? 'border-destructive border-2 bg-destructive/5' : ''} ${isDelayed && !isAssigned ? 'border-destructive border-2 bg-destructive/10' : ''}`}
                   >
                     <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                       <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <span className="font-mono text-sm text-muted-foreground">
                             #{task.task_number}
                           </span>
@@ -460,10 +688,16 @@ const DeveloperDashboard = () => {
                             Website Order
                           </Badge>
                           <h3 className="font-semibold">{task.title}</h3>
-                          {isDelayed && (
+                          {isAssigned && (
+                            <Badge className="gap-1 bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500">
+                              <Play className="h-3 w-3" />
+                              NEW - Awaiting Acknowledgement
+                            </Badge>
+                          )}
+                          {isDelayed && !isAssigned && (
                             <Badge variant="destructive" className="gap-1 animate-pulse">
                               <AlertTriangle className="h-3 w-3" />
-                              DELAYED {hoursSinceCreation}h
+                              DELAYED
                             </Badge>
                           )}
                           {hasRevision && (
@@ -474,6 +708,17 @@ const DeveloperDashboard = () => {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
+                        
+                        {/* Phase Progress & SLA */}
+                        {task.current_phase && task.total_phases && task.status !== "completed" && task.status !== "approved" && (
+                          <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
+                            <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} />
+                            {task.sla_deadline && (
+                              <SlaCountdown deadline={task.sla_deadline} />
+                            )}
+                          </div>
+                        )}
+
                         <div className="text-sm text-muted-foreground">
                           Created: <span className="font-medium">{format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
                         </div>
@@ -525,7 +770,7 @@ const DeveloperDashboard = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className={hasRevision ? "bg-destructive text-destructive-foreground" : getStatusColor(task.status)}>
-                          {hasRevision ? "Revision Needed" : task.status.replace("_", " ")}
+                          {hasRevision ? "Revision Needed" : getStatusLabel(task.status)}
                         </Badge>
                         {taskSubmissions.length > 0 && (
                           <Button
@@ -534,6 +779,17 @@ const DeveloperDashboard = () => {
                             onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
                           >
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        )}
+                        {isAssigned && (
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => acknowledgeTask.mutate(task.id)}
+                            disabled={acknowledgeTask.isPending}
+                          >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Acknowledge
                           </Button>
                         )}
                         {task.status === "pending" && (
@@ -550,7 +806,7 @@ const DeveloperDashboard = () => {
                         {task.status === "in_progress" && (
                           <Button size="sm" onClick={() => setSelectedTask(task)}>
                             <Upload className="mr-2 h-4 w-4" />
-                            Upload
+                            Upload Phase {task.current_phase || 1}
                           </Button>
                         )}
                         {hasRevision && (
@@ -676,16 +932,26 @@ const DeveloperDashboard = () => {
       <Dialog open={!!selectedTask} onOpenChange={() => setSelectedTask(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upload Files</DialogTitle>
+            <DialogTitle>
+              Upload Files — Phase {selectedTask?.current_phase || 1} of {selectedTask?.total_phases || 4}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground mb-2">
                 Task: {selectedTask?.title}
               </p>
+              {selectedTask?.current_phase && selectedTask?.total_phases && (
+                <div className="mb-3">
+                  <PhaseProgress currentPhase={selectedTask.current_phase} totalPhases={selectedTask.total_phases} />
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">
                 Files will be named: {selectedTask?.teams?.name.replace(/\s+/g, "_")}_Task_
                 {selectedTask?.task_number}_[filename]
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Uploading will complete Phase {selectedTask?.current_phase || 1} and advance to the next phase.
               </p>
             </div>
             <div className="space-y-2">
@@ -698,7 +964,6 @@ const DeveloperDashboard = () => {
                   const newFiles = Array.from(e.target.files || []);
                   const currentLength = files.length;
                   
-                  // Create previews for image files
                   newFiles.forEach((file, index) => {
                     if (file.type.startsWith('image/')) {
                       const reader = new FileReader();
@@ -775,7 +1040,7 @@ const DeveloperDashboard = () => {
               disabled={!files.length || uploading}
               className="w-full"
             >
-              {uploading ? "Uploading..." : `Upload ${files.length} File(s)`}
+              {uploading ? "Uploading..." : `Upload ${files.length} File(s) & Complete Phase ${selectedTask?.current_phase || 1}`}
             </Button>
           </div>
         </DialogContent>
@@ -788,6 +1053,22 @@ const DeveloperDashboard = () => {
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] pr-4">
             <div className="space-y-6">
+              {/* Phase Progress in Details */}
+              {viewDetailsTask?.current_phase && viewDetailsTask?.total_phases && (
+                <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                  <h3 className="font-semibold text-lg">Project Progress</h3>
+                  <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} />
+                  {viewDetailsTask.sla_deadline && viewDetailsTask.status !== "completed" && viewDetailsTask.status !== "approved" && (
+                    <SlaCountdown deadline={viewDetailsTask.sla_deadline} />
+                  )}
+                  {viewDetailsTask.acknowledged_at && (
+                    <p className="text-xs text-muted-foreground">
+                      Acknowledged: {format(new Date(viewDetailsTask.acknowledged_at), 'MMM d, yyyy h:mm a')}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Basic Information */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Basic Information</h3>
@@ -830,8 +1111,6 @@ const DeveloperDashboard = () => {
                   </div>
                 </div>
               </div>
-
-
 
               {/* Website Details */}
               <div className="space-y-3">
