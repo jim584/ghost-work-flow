@@ -45,8 +45,16 @@ const SlaCountdown = ({ deadline, label, calendar, leaves }: {
       const overdueMinutes = calculateOverdueWorkingMinutes(now, deadlineDate, calendar, leaves || []);
       hours = Math.floor(overdueMinutes / 60);
       mins = Math.floor(overdueMinutes % 60);
-      secs = 0; // working-minutes precision
-      timeStr = `${hours}h ${mins}m`;
+      // Check if currently in working hours
+      const localNow = toTimezoneDate(now, calendar.timezone);
+      const dayOfWeek = getISODay(localNow);
+      const currentMinute = localNow.getHours() * 60 + localNow.getMinutes();
+      const isSat = dayOfWeek === 6;
+      const todayStart = isSat && calendar.saturday_start_time ? timeToMinutes(calendar.saturday_start_time) : timeToMinutes(calendar.start_time);
+      const todayEnd = isSat && calendar.saturday_end_time ? timeToMinutes(calendar.saturday_end_time) : timeToMinutes(calendar.end_time);
+      const isWorkingNow = calendar.working_days.includes(dayOfWeek) && isWithinShift(currentMinute, todayStart, todayEnd);
+      secs = 0;
+      timeStr = isWorkingNow ? `${hours}h ${mins}m` : `${hours}h ${mins}m (paused)`;
     } else {
       const remainingMinutes = calculateRemainingWorkingMinutes(now, deadlineDate, calendar, leaves || []);
       hours = Math.floor(remainingMinutes / 60);
