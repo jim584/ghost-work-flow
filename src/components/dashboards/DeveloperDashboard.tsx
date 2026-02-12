@@ -24,18 +24,12 @@ import {
   timeToMinutes, getISODay, toTimezoneDate, isOvernightShift, isWithinShift
 } from "@/utils/workingHours";
 
-// Format overdue minutes with days based on SLA hours
+// Format overdue minutes with decimal days based on SLA hours
 function formatOverdueTime(totalMinutes: number, slaHoursPerDay: number, paused: boolean): string {
   if (slaHoursPerDay > 0) {
     const minutesPerDay = slaHoursPerDay * 60;
-    const days = Math.floor(totalMinutes / minutesPerDay);
-    const remainingAfterDays = totalMinutes % minutesPerDay;
-    const h = Math.floor(remainingAfterDays / 60);
-    const m = Math.floor(remainingAfterDays % 60);
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    parts.push(`${h}h ${m}m`);
-    const timeStr = parts.join(' ');
+    const decimalDays = totalMinutes / minutesPerDay;
+    const timeStr = `${decimalDays.toFixed(1)} days`;
     return paused ? `${timeStr} (paused)` : timeStr;
   }
   const h = Math.floor(totalMinutes / 60);
