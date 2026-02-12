@@ -206,6 +206,20 @@ const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: nu
     }
   }
 
+  const getReviewBadge = (phase: any) => {
+    if (!phase.review_status) return null;
+    if (phase.review_status === "approved") {
+      return <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0">Approved</Badge>;
+    }
+    if (phase.review_status === "approved_with_changes") {
+      return <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0">Changes Needed</Badge>;
+    }
+    if (phase.review_status === "disapproved_with_changes") {
+      return <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Changes Required</Badge>;
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
@@ -213,13 +227,32 @@ const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: nu
         <span className="text-muted-foreground">{getPhaseLabel(currentPhase)}</span>
       </div>
       <div className="flex gap-1">
-        {Array.from({ length: currentPhase }).map((_, i) => (
-          <div
-            key={i}
-            className={`h-2 flex-1 rounded-full ${i < completedPhases ? 'bg-primary' : 'bg-primary/40'}`}
-          />
-        ))}
+        {Array.from({ length: currentPhase }).map((_, i) => {
+          const phase = phases?.find(p => p.phase_number === i + 1);
+          let barColor = i < completedPhases ? 'bg-primary' : 'bg-primary/40';
+          if (phase?.review_status === 'disapproved_with_changes' && !phase?.change_completed_at) {
+            barColor = 'bg-destructive';
+          } else if (phase?.review_status === 'approved_with_changes' && !phase?.change_completed_at) {
+            barColor = 'bg-amber-500';
+          } else if (phase?.review_status === 'approved') {
+            barColor = 'bg-green-600';
+          }
+          return (
+            <div key={i} className={`h-2 flex-1 rounded-full ${barColor}`} />
+          );
+        })}
       </div>
+      {/* Review status badges per phase */}
+      {phases?.some(p => p.review_status) && (
+        <div className="flex flex-wrap gap-1">
+          {phases?.filter(p => p.review_status).map(p => (
+            <div key={p.id} className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground">P{p.phase_number}:</span>
+              {getReviewBadge(p)}
+            </div>
+          ))}
+        </div>
+      )}
       {phases?.length ? (
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{totalPages} page{totalPages !== 1 ? 's' : ''} developed</span>
@@ -989,6 +1022,18 @@ const DeveloperDashboard = () => {
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
                             <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} phases={projectPhases?.filter(p => p.task_id === task.id)} />
                             {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={9} />}
+                            {/* Change timers for phases with changes needed */}
+                            {projectPhases?.filter(p => p.task_id === task.id && p.change_deadline && !p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')).map(p => (
+                              <SlaCountdown key={p.id} deadline={p.change_deadline} label={`Changes (P${p.phase_number} - ${p.change_severity})`} calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={
+                                p.change_severity === 'minor' ? 2 : p.change_severity === 'average' ? 4 : p.change_severity === 'major' ? 9 : 18
+                              } />
+                            ))}
+                            {/* Review comments */}
+                            {projectPhases?.filter(p => p.task_id === task.id && p.review_comment && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && !p.change_completed_at).map(p => (
+                              <div key={`comment-${p.id}`} className={`p-2 rounded text-xs ${p.review_status === 'disapproved_with_changes' ? 'bg-destructive/10 border border-destructive/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
+                                <span className="font-medium">PM Comment (P{p.phase_number}):</span> {p.review_comment}
+                              </div>
+                            ))}
                           </div>
                         )}
 
@@ -1087,6 +1132,44 @@ const DeveloperDashboard = () => {
                           <Button size="sm" onClick={() => setSelectedTask(task)}>
                             <Upload className="mr-2 h-4 w-4" />
                             Upload Phase {task.current_phase || 1}
+                          </Button>
+                        )}
+                        {/* Mark Changes Complete button */}
+                        {task.status === "in_progress" && projectPhases?.some(p => 
+                          p.task_id === task.id && 
+                          (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
+                          !p.change_completed_at
+                        ) && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="border-amber-500 text-amber-700 hover:bg-amber-50"
+                            onClick={async () => {
+                              const phasesToComplete = projectPhases?.filter(p => 
+                                p.task_id === task.id && 
+                                (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
+                                !p.change_completed_at
+                              ) || [];
+                              for (const phase of phasesToComplete) {
+                                const updateData: any = { change_completed_at: new Date().toISOString() };
+                                // For disapproved phases, reset review_status to null for re-review
+                                if (phase.review_status === 'disapproved_with_changes') {
+                                  updateData.review_status = null;
+                                  updateData.change_severity = null;
+                                  updateData.change_deadline = null;
+                                  updateData.review_comment = null;
+                                  updateData.reviewed_at = null;
+                                  updateData.reviewed_by = null;
+                                }
+                                await supabase.from("project_phases").update(updateData).eq("id", phase.id);
+                              }
+                              queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+                              queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
+                              toast({ title: "Changes marked as complete" });
+                            }}
+                          >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Mark Changes Complete
                           </Button>
                         )}
                         {hasRevision && (
@@ -1277,41 +1360,68 @@ const DeveloperDashboard = () => {
               Task: <span className="font-medium text-foreground">{phaseCompleteTask?.title}</span>
             </p>
 
-            {!completionAction && (
-              <div className="space-y-3">
-                <p className="text-sm font-medium">What would you like to do next?</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    variant="outline"
-                    className="h-auto py-4 flex flex-col items-center gap-2"
-                    onClick={() => {
-                      // Phase 1 always 3 points, auto-advance
-                      completePhase.mutate({
-                        taskId: phaseCompleteTask.id,
-                        currentPhase: phaseCompleteTask.current_phase || 1,
-                        totalPhases: phaseCompleteTask.total_phases || 4,
-                        action: "next_phase",
-                        pagesCompleted: phaseCompleteTask.current_phase === 1 ? 1 : 3,
-                      });
-                    }}
-                    disabled={completePhase.isPending}
-                  >
-                    <Play className="h-5 w-5" />
-                    <span className="text-sm font-medium">Move to Next Phase</span>
-                    <span className="text-xs text-muted-foreground">3 pages / 3 points</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-auto py-4 flex flex-col items-center gap-2 border-primary"
-                    onClick={() => setCompletionAction("complete_website")}
-                  >
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">Complete Website</span>
-                    <span className="text-xs text-muted-foreground">Finish this project</span>
-                  </Button>
+            {!completionAction && (() => {
+              // Check if any phase is disapproved and changes not completed - block progression
+              const isBlocked = projectPhases?.some(p => 
+                p.task_id === phaseCompleteTask?.id && 
+                p.review_status === 'disapproved_with_changes' && 
+                !p.change_completed_at
+              );
+              
+              if (isBlocked) {
+                return (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                      <div className="flex items-center gap-2 text-destructive font-medium text-sm mb-1">
+                        <AlertTriangle className="h-4 w-4" />
+                        Blocked — Changes Required
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        A previous phase has been disapproved. You must complete the requested changes before advancing to the next phase or completing the website.
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setPhaseCompleteTask(null)} className="w-full">
+                      Close
+                    </Button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">What would you like to do next?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      className="h-auto py-4 flex flex-col items-center gap-2"
+                      onClick={() => {
+                        completePhase.mutate({
+                          taskId: phaseCompleteTask.id,
+                          currentPhase: phaseCompleteTask.current_phase || 1,
+                          totalPhases: phaseCompleteTask.total_phases || 4,
+                          action: "next_phase",
+                          pagesCompleted: phaseCompleteTask.current_phase === 1 ? 1 : 3,
+                        });
+                      }}
+                      disabled={completePhase.isPending}
+                    >
+                      <Play className="h-5 w-5" />
+                      <span className="text-sm font-medium">Move to Next Phase</span>
+                      <span className="text-xs text-muted-foreground">3 pages / 3 points</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-auto py-4 flex flex-col items-center gap-2 border-primary"
+                      onClick={() => setCompletionAction("complete_website")}
+                    >
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                      <span className="text-sm font-medium">Complete Website</span>
+                      <span className="text-xs text-muted-foreground">Finish this project</span>
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {completionAction === "complete_website" && phaseCompleteTask?.current_phase > 1 && (
               <div className="space-y-3">
