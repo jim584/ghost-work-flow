@@ -156,9 +156,11 @@ const AckOverdueBadge = ({ ackDeadline, calendar, leaves }: {
       const todayEnd = isSat && calendar.saturday_end_time ? timeToMinutes(calendar.saturday_end_time) : timeToMinutes(calendar.end_time);
       const isWorkingNow = calendar.working_days.includes(dayOfWeek) && isWithinShift(currentMinute, todayStart, todayEnd);
       const s = isWorkingNow ? (now.getSeconds() % 60) : 0;
+      // ACK uses 9h as a working day for the decimal days display
+      const ackDaysDecimal = totalMin / (9 * 60);
       const timeStr = isWorkingNow
-        ? `${h}h ${m}m ${s.toString().padStart(2, '0')}s`
-        : `${h}h ${m}m (paused)`;
+        ? `${h}h ${m}m ${s.toString().padStart(2, '0')}s — ${ackDaysDecimal.toFixed(1)} days`
+        : `${h}h ${m}m (paused) — ${ackDaysDecimal.toFixed(1)} days`;
       label = `ACK OVERDUE — ${timeStr}`;
     } else {
       // Wall-clock before deadline but working minutes exhausted
