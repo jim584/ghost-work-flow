@@ -1592,7 +1592,7 @@ const PMDashboard = () => {
                             )}
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" />
-                              <span>{format(new Date(task.created_at), 'MMM d, yyyy')}</span>
+                              <span>Created: {format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
                             </div>
                             {groupSubmissions.length > 0 && (
                               <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
