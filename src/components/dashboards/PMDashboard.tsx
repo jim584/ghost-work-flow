@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { calculateOverdueWorkingMinutes, CalendarConfig, LeaveRecord } from "@/utils/workingHours";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -320,7 +321,31 @@ const PMDashboard = () => {
     enabled: !!taskIds.length,
   });
 
-  // Group tasks by order_group_id for multi-team orders
+  // Fetch developer calendars for working-hours overdue calculation
+  const { data: developerCalendars } = useQuery({
+    queryKey: ["pm-developer-calendars"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("developers")
+        .select("id, user_id, availability_calendar_id, timezone, availability_calendars(working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone)")
+        .eq("is_active", true);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: allLeaveRecords } = useQuery({
+    queryKey: ["pm-leave-records"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("leave_records")
+        .select("developer_id, leave_start_datetime, leave_end_datetime")
+        .eq("status", "approved");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const groupedOrders = useMemo(() => {
     if (!tasks) return [];
 
@@ -1301,19 +1326,22 @@ const PMDashboard = () => {
                   const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
                   const lateTask = activeTasks.find((t: any) => t.late_acknowledgement === true && t.ack_deadline);
                   if (!lateTask) return <Badge className="bg-amber-600 text-white">ACK OVERDUE</Badge>;
-                  // Show working minutes/hours overdue based on ack_deadline
-                  const ackDl = new Date(lateTask.ack_deadline);
-                  const now = new Date();
-                  if (now > ackDl) {
-                    // Wall-clock past: show wall-clock hours for PM (they don't have developer calendar context)
-                    const overdueMs = now.getTime() - ackDl.getTime();
-                    const overdueHours = Math.floor(overdueMs / (1000 * 60 * 60));
-                    const overdueMins = Math.floor((overdueMs % (1000 * 60 * 60)) / (1000 * 60));
+                  
+                  // Find developer calendar for working-hours calculation
+                  const devRecord = developerCalendars?.find((d: any) => d.id === lateTask.developer_id);
+                  const cal = devRecord?.availability_calendars as CalendarConfig | undefined;
+                  const devLeaves = (allLeaveRecords?.filter((l: any) => l.developer_id === devRecord?.id) || []) as LeaveRecord[];
+                  
+                  if (cal) {
+                    const overdueMinutes = calculateOverdueWorkingMinutes(new Date(), new Date(lateTask.ack_deadline), cal, devLeaves);
+                    const overdueHours = Math.floor(overdueMinutes / 60);
+                    const overdueMins = Math.floor(overdueMinutes % 60);
                     const timeStr = overdueHours > 0 ? `${overdueHours}h ${overdueMins}m` : `${overdueMins}m`;
                     return <Badge className="bg-amber-600 text-white">ACK OVERDUE — {timeStr}</Badge>;
                   }
-                  // Wall-clock not passed but flagged as late (working minutes exhausted)
-                  return <Badge className="bg-amber-600 text-white">ACK OVERDUE — 30m+ elapsed</Badge>;
+                  
+                  // Fallback: no calendar data available
+                  return <Badge className="bg-amber-600 text-white">ACK OVERDUE</Badge>;
                 };
 
                 const getOrderTypeIcon = () => {
