@@ -24,9 +24,29 @@ import {
   timeToMinutes, getISODay, toTimezoneDate, isOvernightShift, isWithinShift
 } from "@/utils/workingHours";
 
+// Format overdue minutes with days based on SLA hours
+function formatOverdueTime(totalMinutes: number, slaHoursPerDay: number, paused: boolean): string {
+  if (slaHoursPerDay > 0) {
+    const minutesPerDay = slaHoursPerDay * 60;
+    const days = Math.floor(totalMinutes / minutesPerDay);
+    const remainingAfterDays = totalMinutes % minutesPerDay;
+    const h = Math.floor(remainingAfterDays / 60);
+    const m = Math.floor(remainingAfterDays % 60);
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    parts.push(`${h}h ${m}m`);
+    const timeStr = parts.join(' ');
+    return paused ? `${timeStr} (paused)` : timeStr;
+  }
+  const h = Math.floor(totalMinutes / 60);
+  const m = Math.floor(totalMinutes % 60);
+  const timeStr = `${h}h ${m}m`;
+  return paused ? `${timeStr} (paused)` : timeStr;
+}
+
 // SLA Countdown component - shows remaining working hours
-const SlaCountdown = ({ deadline, label, calendar, leaves }: { 
-  deadline: string; label?: string; calendar?: CalendarConfig | null; leaves?: LeaveRecord[] 
+const SlaCountdown = ({ deadline, label, calendar, leaves, slaHours }: { 
+  deadline: string; label?: string; calendar?: CalendarConfig | null; leaves?: LeaveRecord[]; slaHours?: number 
 }) => {
   const [now, setNow] = useState(new Date());
 
@@ -43,8 +63,6 @@ const SlaCountdown = ({ deadline, label, calendar, leaves }: {
   if (calendar) {
     if (diffMs <= 0) {
       const overdueMinutes = calculateOverdueWorkingMinutes(now, deadlineDate, calendar, leaves || []);
-      hours = Math.floor(overdueMinutes / 60);
-      mins = Math.floor(overdueMinutes % 60);
       // Check if currently in working hours
       const localNow = toTimezoneDate(now, calendar.timezone);
       const dayOfWeek = getISODay(localNow);
@@ -53,8 +71,10 @@ const SlaCountdown = ({ deadline, label, calendar, leaves }: {
       const todayStart = isSat && calendar.saturday_start_time ? timeToMinutes(calendar.saturday_start_time) : timeToMinutes(calendar.start_time);
       const todayEnd = isSat && calendar.saturday_end_time ? timeToMinutes(calendar.saturday_end_time) : timeToMinutes(calendar.end_time);
       const isWorkingNow = calendar.working_days.includes(dayOfWeek) && isWithinShift(currentMinute, todayStart, todayEnd);
+      hours = Math.floor(overdueMinutes / 60);
+      mins = Math.floor(overdueMinutes % 60);
       secs = 0;
-      timeStr = isWorkingNow ? `${hours}h ${mins}m` : `${hours}h ${mins}m (paused)`;
+      timeStr = formatOverdueTime(overdueMinutes, slaHours || 0, !isWorkingNow);
     } else {
       const remainingMinutes = calculateRemainingWorkingMinutes(now, deadlineDate, calendar, leaves || []);
       hours = Math.floor(remainingMinutes / 60);
@@ -957,7 +977,7 @@ const DeveloperDashboard = () => {
                               <SlaCountdown deadline={task.ack_deadline} label="Ack Timer" calendar={devCalendar?.calendar} leaves={devLeaves} />
                             )}
                             {task.sla_deadline && (
-                              <SlaCountdown deadline={task.sla_deadline} label="9hr SLA" calendar={devCalendar?.calendar} leaves={devLeaves} />
+                              <SlaCountdown deadline={task.sla_deadline} label="9hr SLA" calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={9} />
                             )}
                           </div>
                         )}
@@ -966,7 +986,7 @@ const DeveloperDashboard = () => {
                         {!isAssigned && task.current_phase && task.status !== "completed" && task.status !== "approved" && (
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
                             <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} phases={projectPhases?.filter(p => p.task_id === task.id)} />
-                            {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={devCalendar?.calendar} leaves={devLeaves} />}
+                            {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={9} />}
                           </div>
                         )}
 
@@ -1417,7 +1437,7 @@ const DeveloperDashboard = () => {
                   <h3 className="font-semibold text-lg">Project Progress</h3>
                   <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} phases={projectPhases?.filter(p => p.task_id === viewDetailsTask?.id)} />
                   {viewDetailsTask.sla_deadline && viewDetailsTask.status !== "completed" && viewDetailsTask.status !== "approved" && (
-                    <SlaCountdown deadline={viewDetailsTask.sla_deadline} label="9hr SLA" calendar={devCalendar?.calendar} leaves={devLeaves} />
+                    <SlaCountdown deadline={viewDetailsTask.sla_deadline} label="9hr SLA" calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={9} />
                   )}
                   {viewDetailsTask.ack_deadline && viewDetailsTask.status === "assigned" && (
                     <SlaCountdown deadline={viewDetailsTask.ack_deadline} label="Ack Timer" calendar={devCalendar?.calendar} leaves={devLeaves} />
