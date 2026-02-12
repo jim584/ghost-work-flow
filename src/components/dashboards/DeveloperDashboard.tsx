@@ -31,8 +31,10 @@ function formatOverdueTime(totalMinutes: number, slaHoursPerDay: number, paused:
   if (slaHoursPerDay > 0) {
     const minutesPerDay = slaHoursPerDay * 60;
     const decimalDays = totalMinutes / minutesPerDay;
-    const timeStr = `${decimalDays.toFixed(1)} days (${h}h ${m}m)`;
-    return paused ? `${timeStr} (paused)` : timeStr;
+    const hm = `${h}h ${m}m`;
+    const pausedStr = paused ? ' (paused)' : '';
+    const timeStr = `${hm}${pausedStr} — ${decimalDays.toFixed(1)} days`;
+    return timeStr;
   }
   const timeStr = `${h}h ${m}m`;
   return paused ? `${timeStr} (paused)` : timeStr;
