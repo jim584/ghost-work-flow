@@ -31,6 +31,7 @@ import { DeveloperResourcesManager } from "@/components/admin/DeveloperResources
 import { LeaveManagement } from "@/components/admin/LeaveManagement";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Database } from "@/integrations/supabase/types";
+import { PhaseReviewSection } from "./PhaseReviewSection";
 
 // Password validation schema
 const passwordSchema = z.string()
@@ -381,6 +382,23 @@ const AdminDashboard = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch project phases for website orders
+  const { data: projectPhases } = useQuery({
+    queryKey: ["admin-project-phases"],
+    queryFn: async () => {
+      const websiteTaskIds = tasks?.filter((t: any) => t.post_type === "Website Design").map((t: any) => t.id) || [];
+      if (!websiteTaskIds.length) return [];
+      const { data, error } = await supabase
+        .from("project_phases")
+        .select("*")
+        .in("task_id", websiteTaskIds)
+        .order("phase_number", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tasks?.length,
   });
 
   const { data: users } = useQuery({
@@ -2234,6 +2252,20 @@ const AdminDashboard = () => {
                               </span>
                             )}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Phase Review Section for Website Orders */}
+                      {task.post_type === "Website Design" && projectPhases && (
+                        <div className="px-4 pb-2">
+                          <PhaseReviewSection
+                            task={task}
+                            phases={projectPhases || []}
+                            userId={user!.id}
+                            isAssignedPM={false}
+                            queryKeysToInvalidate={[["admin-tasks"], ["admin-project-phases"], ["admin-submissions"]]}
+                            readOnly={true}
+                          />
                         </div>
                       )}
                     </div>

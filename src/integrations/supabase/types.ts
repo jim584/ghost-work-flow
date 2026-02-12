@@ -288,12 +288,19 @@ export type Database = {
       }
       project_phases: {
         Row: {
+          change_completed_at: string | null
+          change_deadline: string | null
+          change_severity: string | null
           completed_at: string | null
           created_at: string
           id: string
           pages_completed: number
           phase_number: number
           points: number
+          review_comment: string | null
+          review_status: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           sla_deadline: string | null
           sla_hours: number
           started_at: string | null
@@ -301,12 +308,19 @@ export type Database = {
           task_id: string
         }
         Insert: {
+          change_completed_at?: string | null
+          change_deadline?: string | null
+          change_severity?: string | null
           completed_at?: string | null
           created_at?: string
           id?: string
           pages_completed?: number
           phase_number: number
           points?: number
+          review_comment?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           sla_deadline?: string | null
           sla_hours?: number
           started_at?: string | null
@@ -314,12 +328,19 @@ export type Database = {
           task_id: string
         }
         Update: {
+          change_completed_at?: string | null
+          change_deadline?: string | null
+          change_severity?: string | null
           completed_at?: string | null
           created_at?: string
           id?: string
           pages_completed?: number
           phase_number?: number
           points?: number
+          review_comment?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           sla_deadline?: string | null
           sla_hours?: number
           started_at?: string | null

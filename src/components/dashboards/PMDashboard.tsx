@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+
 import { calculateOverdueWorkingMinutes, CalendarConfig, LeaveRecord } from "@/utils/workingHours";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
 import { format, subDays, isAfter } from "date-fns";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { PhaseReviewSection } from "./PhaseReviewSection";
 
 const PMDashboard = () => {
   const { user, signOut } = useAuth();
@@ -315,6 +317,24 @@ const PMDashboard = () => {
         .in("task_id", taskIds)
         .order("submitted_at", { ascending: false });
       
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!taskIds.length,
+  });
+
+  // Fetch project phases for website orders
+  const { data: projectPhases } = useQuery({
+    queryKey: ["pm-project-phases", taskIds],
+    queryFn: async () => {
+      if (!taskIds.length) return [];
+      const websiteTaskIds = tasks?.filter(t => t.post_type === "Website Design").map(t => t.id) || [];
+      if (!websiteTaskIds.length) return [];
+      const { data, error } = await supabase
+        .from("project_phases")
+        .select("*")
+        .in("task_id", websiteTaskIds)
+        .order("phase_number", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -1638,6 +1658,19 @@ const PMDashboard = () => {
                               </span>
                             )}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Phase Review Section for Website Orders */}
+                      {isWebsiteOrder(task) && projectPhases && (
+                        <div className="px-4 pb-2">
+                          <PhaseReviewSection
+                            task={task}
+                            phases={projectPhases || []}
+                            userId={user!.id}
+                            isAssignedPM={task.project_manager_id === user?.id}
+                            queryKeysToInvalidate={[["pm-tasks"], ["pm-project-phases"], ["design-submissions"]]}
+                          />
                         </div>
                       )}
                     </div>
