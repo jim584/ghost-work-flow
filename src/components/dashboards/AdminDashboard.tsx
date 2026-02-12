@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { calculateOverdueWorkingMinutes, CalendarConfig, LeaveRecord } from "@/utils/workingHours";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -205,7 +206,31 @@ const AdminDashboard = () => {
     },
   });
 
-  // Fetch developer profiles for website orders (team members with developer role)
+  // Fetch developer calendars for working-hours overdue calculation
+  const { data: developerCalendars } = useQuery({
+    queryKey: ["admin-developer-calendars"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("developers")
+        .select("id, user_id, availability_calendar_id, timezone, availability_calendars(working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone)")
+        .eq("is_active", true);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: allLeaveRecords } = useQuery({
+    queryKey: ["admin-leave-records"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("leave_records")
+        .select("developer_id, leave_start_datetime, leave_end_datetime")
+        .eq("status", "approved");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: developerProfiles } = useQuery({
     queryKey: ["developer-profiles"],
     queryFn: async () => {
@@ -1947,12 +1972,23 @@ const AdminDashboard = () => {
                 const getAckOverdueBadge = () => {
                   const allCats = getGroupCategories(group, submissions || []);
                   if (!allCats.includes('delayed_ack')) return null;
-                  const now = new Date();
                   const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
                   const lateTask = activeTasks.find((t: any) => t.late_acknowledgement === true && t.ack_deadline);
                   if (!lateTask) return <Badge className="bg-amber-600 text-white">ACK OVERDUE</Badge>;
-                  const overdueHours = Math.floor((now.getTime() - new Date(lateTask.ack_deadline).getTime()) / (1000 * 60 * 60));
-                  return <Badge className="bg-amber-600 text-white">ACK OVERDUE — {overdueHours} hour{overdueHours !== 1 ? 's' : ''}</Badge>;
+                  
+                  const devRecord = developerCalendars?.find((d: any) => d.id === lateTask.developer_id);
+                  const cal = devRecord?.availability_calendars as CalendarConfig | undefined;
+                  const devLeaves = (allLeaveRecords?.filter((l: any) => l.developer_id === devRecord?.id) || []) as LeaveRecord[];
+                  
+                  if (cal) {
+                    const overdueMinutes = calculateOverdueWorkingMinutes(new Date(), new Date(lateTask.ack_deadline), cal, devLeaves);
+                    const overdueHours = Math.floor(overdueMinutes / 60);
+                    const overdueMins = Math.floor(overdueMinutes % 60);
+                    const timeStr = overdueHours > 0 ? `${overdueHours}h ${overdueMins}m` : `${overdueMins}m`;
+                    return <Badge className="bg-amber-600 text-white">ACK OVERDUE — {timeStr}</Badge>;
+                  }
+                  
+                  return <Badge className="bg-amber-600 text-white">ACK OVERDUE</Badge>;
                 };
 
                 const getOrderTypeIcon = () => {
