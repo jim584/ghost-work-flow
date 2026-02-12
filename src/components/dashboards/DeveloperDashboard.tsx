@@ -143,8 +143,10 @@ const AckOverdueBadge = ({ ackDeadline, calendar, leaves }: {
     const dl = new Date(ackDeadline);
     if (now > dl) {
       const overdueMin = calculateOverdueWorkingMinutes(now, dl, calendar, leaves || []);
-      const h = Math.floor(overdueMin / 60);
-      const m = Math.floor(overdueMin % 60);
+      // Add initial 30-min ACK window to show total elapsed working time
+      const totalMin = overdueMin + 30;
+      const h = Math.floor(totalMin / 60);
+      const m = Math.floor(totalMin % 60);
       // Check if currently in working hours for ticking seconds
       const localNow = toTimezoneDate(now, calendar.timezone);
       const dayOfWeek = getISODay(localNow);
