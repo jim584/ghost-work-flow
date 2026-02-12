@@ -488,7 +488,7 @@ const DeveloperDashboard = () => {
         // Team leaders see ALL website tasks across all teams
         const { data, error } = await supabase
           .from("tasks")
-          .select("*, teams(name)")
+          .select("*, teams(name), profiles!tasks_project_manager_id_fkey(full_name, email)")
           .eq("post_type", "Website Design")
           .order("created_at", { ascending: false });
         if (error) throw error;
@@ -506,7 +506,7 @@ const DeveloperDashboard = () => {
       const teamIds = teamMembers.map((tm) => tm.team_id);
       const { data, error } = await supabase
         .from("tasks")
-        .select("*, teams(name)")
+        .select("*, teams(name), profiles!tasks_project_manager_id_fkey(full_name, email)")
         .in("team_id", teamIds)
         .order("created_at", { ascending: false });
 
@@ -1610,6 +1610,10 @@ const DeveloperDashboard = () => {
                   <div>
                     <Label className="text-muted-foreground">Team</Label>
                     <p className="font-medium">{viewDetailsTask?.teams?.name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Assigned Project Manager</Label>
+                    <p className="font-medium">{(viewDetailsTask as any)?.profiles?.full_name || (viewDetailsTask as any)?.profiles?.email || "N/A"}</p>
                   </div>
                   {viewDetailsTask?.business_email && (
                     <div>
