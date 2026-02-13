@@ -7,16 +7,18 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { FilePreview } from "@/components/FilePreview";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import {
   AlertTriangle, Clock, CheckCircle2, Play, Timer, Globe, Users,
   FileText, Search, MessageCircle, Download, AlertCircle, RotateCcw,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, Upload, Link
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 import {
   CalendarConfig, LeaveRecord, calculateRemainingWorkingMinutes, calculateOverdueWorkingMinutes,
   timeToMinutes, getISODay, toTimezoneDate, isWithinShift
@@ -225,10 +227,25 @@ const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: nu
 };
 
 const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
   const [chatTask, setChatTask] = useState<any>(null);
   const [expandedDeveloper, setExpandedDeveloper] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+
+  // Upload/Phase states
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<{[key: number]: string}>({});
+  const [uploading, setUploading] = useState(false);
+  const [developerComment, setDeveloperComment] = useState("");
+  const [homepageUrls, setHomepageUrls] = useState<string[]>([]);
+  const [urlInput, setUrlInput] = useState("");
+  const [phaseCompleteTask, setPhaseCompleteTask] = useState<any>(null);
+  const [completionAction, setCompletionAction] = useState<"next_phase" | "complete_website" | null>(null);
+  const [finalPhasePages, setFinalPhasePages] = useState<number>(3);
 
   // Fetch all developers with their calendars
   const { data: developers } = useQuery({
@@ -265,7 +282,6 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
     queryFn: async () => {
       if (!allTasks?.length) return [];
       const taskIds = allTasks.map(t => t.id);
-      // Batch in chunks of 50
       const chunks = [];
       for (let i = 0; i < taskIds.length; i += 50) {
         chunks.push(taskIds.slice(i, i + 50));
@@ -278,6 +294,19 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       return results.flatMap(r => r.data || []);
     },
     enabled: !!allTasks?.length,
+  });
+
+  // Fetch submissions for all tasks (team leader can view all)
+  const { data: allSubmissions } = useQuery({
+    queryKey: ["team-overview-submissions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("design_submissions")
+        .select("*")
+        .order("submitted_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   // Fetch leave records for all developers
@@ -331,19 +360,13 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
   // Priority scoring for tasks
   const getPriority = (task: any): number => {
     const now = new Date();
-
-    // Priority 1: SLA overdue
     if (task.sla_deadline && new Date(task.sla_deadline) < now &&
       !["completed", "approved", "cancelled"].includes(task.status)) {
       return 1;
     }
-
-    // Priority 2: Late acknowledgement
     if (task.late_acknowledgement || (task.status === "assigned" && task.ack_deadline && new Date(task.ack_deadline) < now)) {
       return 2;
     }
-
-    // Priority 3: In-progress approaching deadline (within 2 hours working time)
     if (task.status === "in_progress" && task.sla_deadline && task.developer_id) {
       const cal = getDevCalendar(task.developer_id);
       if (cal) {
@@ -351,15 +374,10 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
         if (remaining > 0 && remaining <= 120) return 3;
       }
     }
-
-    // Priority 4: Pending/assigned (not yet acknowledged)
     if (task.status === "assigned" || task.status === "pending") return 4;
-
-    // Priority 5: All other active
     return 5;
   };
 
-  // Overdue amount for sorting within priority 1
   const getOverdueMinutes = (task: any): number => {
     if (!task.sla_deadline || !task.developer_id) return 0;
     const cal = getDevCalendar(task.developer_id);
@@ -384,7 +402,6 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       const pa = getPriority(a);
       const pb = getPriority(b);
       if (pa !== pb) return pa - pb;
-      // Within same priority, sort by most overdue first
       if (pa === 1) return getOverdueMinutes(b) - getOverdueMinutes(a);
       return 0;
     });
@@ -400,7 +417,6 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       t.late_acknowledgement || (t.status === "assigned" && t.ack_deadline && new Date(t.ack_deadline) < now)
     ).length;
     const inRevision = allTasks?.filter(t => {
-      // Tasks with phases that have changes needed
       const taskPhases = allPhases?.filter(p => p.task_id === t.id) || [];
       return taskPhases.some(p =>
         (p.review_status === "approved_with_changes" || p.review_status === "disapproved_with_changes") &&
@@ -424,8 +440,6 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       const hasOverdue = devTasks.some(t => t.sla_deadline && new Date(t.sla_deadline) < now);
       const hasLateAck = devTasks.some(t => t.late_acknowledgement ||
         (t.status === "assigned" && t.ack_deadline && new Date(t.ack_deadline) < now));
-
-      // Current phase info
       const inProgressTask = devTasks.find(t => t.status === "in_progress");
       const currentPhaseInfo = inProgressTask
         ? `Phase ${inProgressTask.current_phase || 1}${inProgressTask.total_phases ? `/${inProgressTask.total_phases}` : ''}`
@@ -441,7 +455,6 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
         tasks: devTasks,
       };
     }).sort((a, b) => {
-      // Sort: overdue first, then late ack, then by active count desc
       if (a.hasOverdue && !b.hasOverdue) return -1;
       if (!a.hasOverdue && b.hasOverdue) return 1;
       if (a.hasLateAck && !b.hasLateAck) return -1;
@@ -470,6 +483,190 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // Acknowledge task
+  const acknowledgeTask = useMutation({
+    mutationFn: async (taskId: string) => {
+      const task = allTasks?.find(t => t.id === taskId);
+      const isLate = task?.ack_deadline && new Date(task.ack_deadline) < new Date();
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          status: "in_progress" as any, 
+          acknowledged_at: new Date().toISOString(),
+          late_acknowledgement: isLate || false,
+        })
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
+      toast({ title: "Task acknowledged", description: "Status changed to In Progress – Phase 1." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  // Complete phase mutation
+  const completePhase = useMutation({
+    mutationFn: async ({ taskId, currentPhase, totalPhases, action, pagesCompleted }: { 
+      taskId: string; currentPhase: number; totalPhases: number; 
+      action: "next_phase" | "complete_website"; pagesCompleted?: number 
+    }) => {
+      const phasePoints = currentPhase === 1 ? 3 : (pagesCompleted || 3);
+      const phasePages = currentPhase === 1 ? 1 : (pagesCompleted || 3);
+
+      const { error: phaseError } = await supabase
+        .from("project_phases")
+        .update({ 
+          status: "completed", 
+          completed_at: new Date().toISOString(),
+          pages_completed: phasePages,
+          points: phasePoints,
+        })
+        .eq("task_id", taskId)
+        .eq("phase_number", currentPhase);
+      
+      if (phaseError) throw phaseError;
+
+      if (action === "next_phase") {
+        const nextPhase = currentPhase + 1;
+        const { data: taskData } = await supabase
+          .from("tasks")
+          .select("developer_id")
+          .eq("id", taskId)
+          .single();
+
+        let slaDeadline: string | null = null;
+        if (taskData?.developer_id) {
+          try {
+            const slaResponse = await supabase.functions.invoke('calculate-sla-deadline', {
+              body: { developer_id: taskData.developer_id, start_time: new Date().toISOString(), sla_hours: 9 },
+            });
+            if (slaResponse.data?.deadline) slaDeadline = slaResponse.data.deadline;
+          } catch (e) {
+            console.error("SLA calculation failed:", e);
+          }
+        }
+
+        await supabase.from("project_phases").insert({
+          task_id: taskId, phase_number: nextPhase, sla_hours: 9,
+          sla_deadline: slaDeadline, started_at: new Date().toISOString(), status: "in_progress",
+        });
+
+        await supabase.from("tasks").update({
+          current_phase: nextPhase, sla_deadline: slaDeadline,
+        }).eq("id", taskId);
+      } else {
+        await supabase.from("tasks").update({
+          status: "completed" as any, current_phase: currentPhase,
+        }).eq("id", taskId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["team-overview-phases"] });
+      setPhaseCompleteTask(null);
+      setCompletionAction(null);
+      setFinalPhasePages(3);
+      toast({ title: "Phase completed!" });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error completing phase", description: error.message });
+    },
+  });
+
+  // Handle file upload for a task
+  const handleFileUpload = async () => {
+    if (!selectedTask || !homepageUrls.length) return;
+
+    setUploading(true);
+    try {
+      const teamName = selectedTask.teams?.name?.replace(/\s+/g, "_") || "Team";
+      let uploadedCount = 0;
+
+      const taskSubmissions = allSubmissions?.filter(s => s.task_id === selectedTask.id) || [];
+      const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
+
+      if (hasRevision) {
+        const revisionsToUpdate = taskSubmissions.filter(s => s.revision_status === "needs_revision");
+        for (const submission of revisionsToUpdate) {
+          await supabase.from("design_submissions").update({ revision_status: "revised" }).eq("id", submission.id);
+        }
+      }
+
+      const urlsText = homepageUrls.map((u, i) => `🔗 ${i === 0 ? 'Homepage' : `URL ${i + 1}`}: ${u}`).join('\n');
+      const commentPayload = [urlsText, developerComment.trim()].filter(Boolean).join('\n') || null;
+
+      if (files.length > 0) {
+        for (const file of files) {
+          const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const timestamp = Date.now();
+          const fileName = `${teamName}_Task_${selectedTask.task_number}_${timestamp}_${sanitizedFileName}`;
+          const filePath = `${userId}/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage.from("design-files").upload(filePath, file);
+          if (uploadError) throw uploadError;
+
+          const { error: submissionError } = await supabase.from("design_submissions").insert({
+            task_id: selectedTask.id, designer_id: userId,
+            file_path: filePath, file_name: fileName,
+            designer_comment: commentPayload,
+          });
+          if (submissionError) throw submissionError;
+          uploadedCount++;
+          toast({ title: `Uploaded ${uploadedCount} of ${files.length} files` });
+        }
+      } else {
+        const { error: submissionError } = await supabase.from("design_submissions").insert({
+          task_id: selectedTask.id, designer_id: userId,
+          file_path: "no-file", file_name: "comment-only",
+          designer_comment: commentPayload,
+        });
+        if (submissionError) throw submissionError;
+      }
+
+      // Reset SLA
+      if (selectedTask.developer_id) {
+        try {
+          const slaResponse = await supabase.functions.invoke('calculate-sla-deadline', {
+            body: { developer_id: selectedTask.developer_id, start_time: new Date().toISOString(), sla_hours: 9 },
+          });
+          if (slaResponse.data?.deadline) {
+            const newDeadline = slaResponse.data.deadline;
+            await supabase.from("project_phases").update({ sla_deadline: newDeadline, sla_hours: 9 })
+              .eq("task_id", selectedTask.id).eq("phase_number", selectedTask.current_phase || 1);
+            await supabase.from("tasks").update({ sla_deadline: newDeadline }).eq("id", selectedTask.id);
+          }
+        } catch (e) {
+          console.error("SLA reset on upload failed:", e);
+        }
+      }
+
+      if (!hasRevision) {
+        setPhaseCompleteTask(selectedTask);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["team-overview-submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["team-overview-phases"] });
+      toast({ 
+        title: hasRevision ? "Revision uploaded successfully" : "Submission complete — choose next action",
+        description: files.length ? `${files.length} file(s) submitted` : "Submitted successfully"
+      });
+      setSelectedTask(null);
+      setFiles([]);
+      setFilePreviews({});
+      setDeveloperComment("");
+      setHomepageUrls([]);
+      setUrlInput("");
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error uploading files", description: error.message });
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -596,6 +793,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
             <div className="space-y-4">
               {sortedActiveTasks.map(task => {
                 const taskPhases = allPhases?.filter(p => p.task_id === task.id) || [];
+                const taskSubmissions = allSubmissions?.filter(s => s.task_id === task.id) || [];
                 const devName = (task as any).developers?.name || "Unassigned";
                 const cal = task.developer_id ? getDevCalendar(task.developer_id) : null;
                 const leaves = task.developer_id ? getDevLeaves(task.developer_id) : [];
@@ -608,6 +806,8 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                 const hasChangesNeeded = taskPhases.some(p =>
                   (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && !p.change_completed_at
                 );
+                const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
+                const isExpanded = expandedTaskId === task.id;
 
                 return (
                   <div
@@ -645,6 +845,12 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                               Changes Needed
                             </Badge>
                           )}
+                          {hasRevision && (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Revision Needed
+                            </Badge>
+                          )}
                           {hasReassignmentRequest && (
                             <Badge variant="outline" className="gap-1 border-orange-500 text-orange-600">
                               <RotateCcw className="h-3 w-3" />
@@ -677,13 +883,11 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
                             <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} phases={taskPhases} />
                             {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={cal} leaves={leaves} slaHours={9} />}
-                            {/* Change timers */}
                             {taskPhases.filter(p => p.change_deadline && !p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')).map(p => (
                               <SlaCountdown key={p.id} deadline={p.change_deadline} label={`Changes (P${p.phase_number} - ${p.change_severity})`} calendar={cal} leaves={leaves} slaHours={
                                 p.change_severity === 'minor' ? 2 : p.change_severity === 'average' ? 4 : p.change_severity === 'major' ? 9 : 18
                               } />
                             ))}
-                            {/* Review comments */}
                             {taskPhases.filter(p => p.review_comment && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && !p.change_completed_at).map(p => (
                               <div key={`comment-${p.id}`} className={`p-2 rounded text-xs ${p.review_status === 'disapproved_with_changes' ? 'bg-destructive/10 border border-destructive/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
                                 <span className="font-medium">PM Comment (P{p.phase_number}):</span> {p.review_comment}
@@ -767,8 +971,148 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                            task.status === "completed" ? "Website Complete" :
                            task.status?.replace("_", " ")}
                         </Badge>
+                        {taskSubmissions.length > 0 && (
+                          <Button size="sm" variant="ghost" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        )}
+
+                        {/* Acknowledge button for assigned tasks */}
+                        {isAssigned && !hasReassignmentRequest && (
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => acknowledgeTask.mutate(task.id)}
+                            disabled={acknowledgeTask.isPending}
+                          >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Acknowledge
+                          </Button>
+                        )}
+
+                        {/* Upload Phase button for in-progress tasks */}
+                        {task.status === "in_progress" && (
+                          <Button size="sm" onClick={() => setSelectedTask(task)}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload Phase {task.current_phase || 1}
+                          </Button>
+                        )}
+
+                        {/* Mark Changes Complete button */}
+                        {task.status === "in_progress" && taskPhases.some(p => 
+                          (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
+                          !p.change_completed_at
+                        ) && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="border-amber-500 text-amber-700 hover:bg-amber-50"
+                            onClick={async () => {
+                              const phasesToComplete = taskPhases.filter(p => 
+                                (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
+                                !p.change_completed_at
+                              );
+                              for (const phase of phasesToComplete) {
+                                const updateData: any = { change_completed_at: new Date().toISOString() };
+                                if (phase.review_status === 'disapproved_with_changes') {
+                                  updateData.review_status = null;
+                                  updateData.change_severity = null;
+                                  updateData.change_deadline = null;
+                                  updateData.review_comment = null;
+                                  updateData.reviewed_at = null;
+                                  updateData.reviewed_by = null;
+                                }
+                                await supabase.from("project_phases").update(updateData).eq("id", phase.id);
+                              }
+                              queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
+                              queryClient.invalidateQueries({ queryKey: ["team-overview-phases"] });
+                              toast({ title: "Changes marked as complete" });
+                            }}
+                          >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Mark Changes Complete
+                          </Button>
+                        )}
+
+                        {/* Upload Revision button */}
+                        {hasRevision && (
+                          <Button size="sm" variant="default" className="bg-destructive hover:bg-destructive/90" onClick={() => setSelectedTask(task)}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload Revision
+                          </Button>
+                        )}
                       </div>
                     </div>
+
+                    {/* Expanded submissions */}
+                    {isExpanded && taskSubmissions.length > 0 && (
+                      <div className="border-t bg-muted/20 p-4">
+                        <h4 className="text-sm font-semibold mb-3">Uploaded Files:</h4>
+                        <div className="space-y-2">
+                          {taskSubmissions.map((submission) => (
+                            <div key={submission.id} className="flex items-center gap-3 justify-between p-3 bg-background rounded-md">
+                              <FilePreview filePath={submission.file_path} fileName={submission.file_name} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium truncate">{submission.file_name}</p>
+                                  <Badge
+                                    variant={submission.revision_status === "approved" ? "default" : submission.revision_status === "needs_revision" ? "destructive" : "secondary"}
+                                    className="text-xs"
+                                  >
+                                    {submission.revision_status?.replace("_", " ")}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Delivered: {submission.submitted_at ? format(new Date(submission.submitted_at), 'MMM d, yyyy h:mm a') : 'N/A'}
+                                </p>
+                                {submission.designer_comment && (
+                                  <div className="mt-2 p-2 bg-primary/10 rounded text-xs">
+                                    <span className="font-medium text-primary">Comment:</span>
+                                    <p className="text-muted-foreground mt-1">{submission.designer_comment}</p>
+                                  </div>
+                                )}
+                                {submission.revision_notes && (
+                                  <div className="mt-2 p-2 bg-destructive/10 rounded text-xs">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="font-medium text-destructive">Revision requested:</span>
+                                      {submission.reviewed_at && (
+                                        <span className="text-xs text-muted-foreground">{format(new Date(submission.reviewed_at), 'MMM d, yyyy h:mm a')}</span>
+                                      )}
+                                    </div>
+                                    <p className="text-muted-foreground mt-1">{submission.revision_notes}</p>
+                                    {submission.revision_reference_file_path && (
+                                      <div className="mt-3 space-y-2">
+                                        <span className="text-xs font-medium text-muted-foreground">Reference files:</span>
+                                        <div className="flex flex-wrap gap-3">
+                                          {submission.revision_reference_file_path.split("|||").map((filePath, fileIndex) => {
+                                            const fileNames = submission.revision_reference_file_name?.split("|||") || [];
+                                            const fileName = fileNames[fileIndex] || `Reference ${fileIndex + 1}`;
+                                            return (
+                                              <div key={fileIndex} className="flex flex-col items-center gap-1">
+                                                <div className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
+                                                  <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} className="w-16 h-16" />
+                                                </div>
+                                                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
+                                                  <Download className="h-3 w-3 mr-1" />
+                                                  Download
+                                                </Button>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <Button size="sm" variant="outline" onClick={() => handleDownload(submission.file_path, submission.file_name)}>
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -782,6 +1126,273 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
         </Card>
       </div>
 
+      {/* Upload Dialog */}
+      <Dialog open={!!selectedTask} onOpenChange={() => { setSelectedTask(null); setFiles([]); setFilePreviews({}); setDeveloperComment(""); setHomepageUrls([]); setUrlInput(""); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit Work — Phase {selectedTask?.current_phase || 1}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">Task: {selectedTask?.title}</p>
+              {selectedTask?.current_phase && (
+                <div className="mb-3">
+                  <PhaseProgress currentPhase={selectedTask.current_phase} totalPhases={selectedTask.total_phases} phases={allPhases?.filter(p => p.task_id === selectedTask?.id)} />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Enter the website URL you are working on. You can also add comments or upload files if needed.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="team-homepage-url" className="flex items-center gap-1.5">
+                <Link className="h-3.5 w-3.5" />
+                Website URLs <span className="text-destructive">*</span>
+                <span className="text-xs text-muted-foreground font-normal ml-1">(at least one required)</span>
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="team-homepage-url"
+                  type="url"
+                  placeholder="https://www.example.com"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const trimmed = urlInput.trim();
+                      if (trimmed && !homepageUrls.includes(trimmed)) {
+                        setHomepageUrls(prev => [...prev, trimmed]);
+                        setUrlInput("");
+                      }
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!urlInput.trim()}
+                  onClick={() => {
+                    const trimmed = urlInput.trim();
+                    if (trimmed && !homepageUrls.includes(trimmed)) {
+                      setHomepageUrls(prev => [...prev, trimmed]);
+                      setUrlInput("");
+                    }
+                  }}
+                >Add</Button>
+              </div>
+              {homepageUrls.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {homepageUrls.map((url, index) => (
+                    <Badge key={index} variant="secondary" className="gap-1 text-xs max-w-full">
+                      <Globe className="h-3 w-3 shrink-0" />
+                      <span className="truncate max-w-[200px]">{url}</span>
+                      <button
+                        type="button"
+                        className="ml-0.5 hover:text-destructive"
+                        onClick={() => setHomepageUrls(prev => prev.filter((_, i) => i !== index))}
+                      >×</button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="team-developer-comment">Comment (optional)</Label>
+              <Textarea id="team-developer-comment" placeholder="Add any notes about your submission..." value={developerComment} onChange={(e) => setDeveloperComment(e.target.value)} rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="team-file">Files (optional)</Label>
+              <Input
+                id="team-file" type="file" multiple
+                onChange={(e) => {
+                  const newFiles = Array.from(e.target.files || []);
+                  const currentLength = files.length;
+                  newFiles.forEach((file, index) => {
+                    if (file.type.startsWith('image/')) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setFilePreviews(prev => ({ ...prev, [currentLength + index]: reader.result as string }));
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  });
+                  setFiles(prev => [...prev, ...newFiles]);
+                  e.target.value = '';
+                }}
+                accept="*/*"
+              />
+              {files.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">{files.length} file(s) selected:</p>
+                  <div className="max-h-64 overflow-y-auto space-y-2">
+                    {files.map((file, index) => (
+                      <div key={index} className="flex items-center gap-3 bg-muted/50 rounded p-2">
+                        {filePreviews[index] && <img src={filePreviews[index]} alt={file.name} className="w-12 h-12 object-cover rounded border" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 ml-2"
+                          onClick={() => {
+                            setFiles(prev => prev.filter((_, i) => i !== index));
+                            setFilePreviews(prev => { const n = { ...prev }; delete n[index]; return n; });
+                          }}
+                        >×</Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <Button onClick={handleFileUpload} disabled={!homepageUrls.length || uploading} className="w-full">
+              {uploading ? "Submitting..." : "Submit"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phase Completion Dialog */}
+      <Dialog open={!!phaseCompleteTask} onOpenChange={() => { setPhaseCompleteTask(null); setCompletionAction(null); setFinalPhasePages(3); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              Phase {phaseCompleteTask?.current_phase || 1} Delivered
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Task: <span className="font-medium text-foreground">{phaseCompleteTask?.title}</span>
+            </p>
+
+            {!completionAction && (() => {
+              const isBlocked = allPhases?.some(p => 
+                p.task_id === phaseCompleteTask?.id && 
+                p.review_status === 'disapproved_with_changes' && 
+                !p.change_completed_at
+              );
+              
+              if (isBlocked) {
+                return (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                      <div className="flex items-center gap-2 text-destructive font-medium text-sm mb-1">
+                        <AlertTriangle className="h-4 w-4" />
+                        Blocked — Changes Required
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        A previous phase has been disapproved. You must complete the requested changes before advancing.
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setPhaseCompleteTask(null)} className="w-full">
+                      Close
+                    </Button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">What would you like to do next?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      className="h-auto py-4 flex flex-col items-center gap-2"
+                      onClick={() => {
+                        completePhase.mutate({
+                          taskId: phaseCompleteTask.id,
+                          currentPhase: phaseCompleteTask.current_phase || 1,
+                          totalPhases: phaseCompleteTask.total_phases || 4,
+                          action: "next_phase",
+                          pagesCompleted: phaseCompleteTask.current_phase === 1 ? 1 : 3,
+                        });
+                      }}
+                      disabled={completePhase.isPending}
+                    >
+                      <Play className="h-5 w-5" />
+                      <span className="text-sm font-medium">Move to Next Phase</span>
+                      <span className="text-xs text-muted-foreground">3 pages / 3 points</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-auto py-4 flex flex-col items-center gap-2 border-primary"
+                      onClick={() => setCompletionAction("complete_website")}
+                    >
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                      <span className="text-sm font-medium">Complete Website</span>
+                      <span className="text-xs text-muted-foreground">Finish this project</span>
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {completionAction === "complete_website" && phaseCompleteTask?.current_phase > 1 && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">How many pages did you complete in Phase {phaseCompleteTask?.current_phase}?</p>
+                <div className="flex gap-3">
+                  {[1, 2, 3].map(n => (
+                    <Button
+                      key={n}
+                      variant={finalPhasePages === n ? "default" : "outline"}
+                      className="flex-1 h-16 flex flex-col items-center gap-1"
+                      onClick={() => setFinalPhasePages(n)}
+                    >
+                      <span className="text-lg font-bold">{n}</span>
+                      <span className="text-xs">page{n > 1 ? 's' : ''} / {n} pts</span>
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    completePhase.mutate({
+                      taskId: phaseCompleteTask.id,
+                      currentPhase: phaseCompleteTask.current_phase || 1,
+                      totalPhases: phaseCompleteTask.total_phases || 4,
+                      action: "complete_website",
+                      pagesCompleted: finalPhasePages,
+                    });
+                  }}
+                  disabled={completePhase.isPending}
+                >
+                  {completePhase.isPending ? "Completing..." : `Complete Website (${finalPhasePages} pts for this phase)`}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setCompletionAction(null)} className="w-full">
+                  ← Back
+                </Button>
+              </div>
+            )}
+
+            {completionAction === "complete_website" && phaseCompleteTask?.current_phase === 1 && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Phase 1 (Homepage) = 3 points. The website will be marked as complete.</p>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    completePhase.mutate({
+                      taskId: phaseCompleteTask.id,
+                      currentPhase: 1,
+                      totalPhases: phaseCompleteTask.total_phases || 4,
+                      action: "complete_website",
+                      pagesCompleted: 1,
+                    });
+                  }}
+                  disabled={completePhase.isPending}
+                >
+                  {completePhase.isPending ? "Completing..." : "Complete Website (3 pts)"}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setCompletionAction(null)} className="w-full">
+                  ← Back
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* View Details Dialog */}
       <Dialog open={!!viewDetailsTask} onOpenChange={() => setViewDetailsTask(null)}>
         <DialogContent className="max-w-2xl">
@@ -790,6 +1401,19 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] pr-4">
             <div className="space-y-4">
+              {/* Phase Progress in Details */}
+              {viewDetailsTask?.current_phase && (
+                <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                  <h3 className="font-semibold text-lg">Project Progress</h3>
+                  <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} phases={allPhases?.filter(p => p.task_id === viewDetailsTask?.id)} />
+                  {viewDetailsTask.sla_deadline && viewDetailsTask.status !== "completed" && viewDetailsTask.status !== "approved" && (() => {
+                    const cal = viewDetailsTask.developer_id ? getDevCalendar(viewDetailsTask.developer_id) : null;
+                    const leaves = viewDetailsTask.developer_id ? getDevLeaves(viewDetailsTask.developer_id) : [];
+                    return <SlaCountdown deadline={viewDetailsTask.sla_deadline} label="9hr SLA" calendar={cal} leaves={leaves} slaHours={9} />;
+                  })()}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><Label className="text-muted-foreground">Title</Label><p className="font-medium">{viewDetailsTask?.title}</p></div>
                 <div><Label className="text-muted-foreground">Developer</Label><p className="font-medium">{(viewDetailsTask as any)?.developers?.name || "Unassigned"}</p></div>
@@ -802,6 +1426,18 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
               </div>
               {viewDetailsTask?.description && (
                 <div><Label className="text-muted-foreground">Description</Label><p className="text-sm mt-1">{viewDetailsTask.description}</p></div>
+              )}
+              {viewDetailsTask?.business_email && (
+                <div><Label className="text-muted-foreground">Business Email</Label><p className="text-sm font-medium">{viewDetailsTask.business_email}</p></div>
+              )}
+              {viewDetailsTask?.business_phone && (
+                <div><Label className="text-muted-foreground">Business Phone</Label><p className="text-sm font-medium">{viewDetailsTask.business_phone}</p></div>
+              )}
+              {viewDetailsTask?.design_references && (
+                <div><Label className="text-muted-foreground">Design References</Label><p className="text-sm mt-1 whitespace-pre-wrap">{viewDetailsTask.design_references}</p></div>
+              )}
+              {viewDetailsTask?.notes_extra_instructions && (
+                <div><Label className="text-muted-foreground">Additional Notes</Label><p className="text-sm mt-1 whitespace-pre-wrap">{viewDetailsTask.notes_extra_instructions}</p></div>
               )}
               {viewDetailsTask?.sla_deadline && (
                 <div className="p-3 bg-muted/30 rounded-md">
