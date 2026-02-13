@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Paperclip, Reply, X, Download, CheckCheck, Check, FileIcon, Mic, Square, Play, Pause, Upload } from "lucide-react";
+import { Send, Paperclip, Reply, X, Download, CheckCheck, Check, FileIcon, Mic, Square, Play, Pause, Upload, SmilePlus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, isToday, isYesterday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -301,6 +302,34 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     enabled: messageIds.length > 0,
   });
 
+  // Fetch reactions for all messages
+  const { data: reactions = [] } = useQuery({
+    queryKey: ["message-reactions", taskId, messageIds],
+    queryFn: async () => {
+      if (!messageIds.length) return [];
+      const { data, error } = await supabase
+        .from("message_reactions")
+        .select("id, message_id, user_id, emoji")
+        .in("message_id", messageIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: messageIds.length > 0,
+  });
+
+  const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+
+  const toggleReaction = async (messageId: string, emoji: string) => {
+    if (!user?.id) return;
+    const existing = reactions.find(r => r.message_id === messageId && r.user_id === user.id && r.emoji === emoji);
+    if (existing) {
+      await supabase.from("message_reactions").delete().eq("id", existing.id);
+    } else {
+      await supabase.from("message_reactions").insert({ message_id: messageId, user_id: user.id, emoji });
+    }
+    queryClient.invalidateQueries({ queryKey: ["message-reactions", taskId] });
+  };
+
   // Update typing display name from profile
   useEffect(() => {
     const myProfile = messages.find(m => m.sender_id === user?.id)?.sender;
@@ -367,6 +396,20 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     return () => { supabase.removeChannel(channel); };
   }, [taskId, messageIds.join(",")]);
 
+  // Realtime subscription for reactions
+  useEffect(() => {
+    const channel = supabase
+      .channel(`message-reactions-${taskId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "message_reactions" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["message-reactions", taskId] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [taskId]);
   // Auto-scroll to bottom
   const scrollToBottom = () => {
     if (scrollViewportRef.current) {
@@ -767,15 +810,70 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
                       </div>
                     )}
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 text-[11px] text-muted-foreground/50 px-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:text-primary hover:bg-primary/5 rounded-full"
-                      onClick={() => setReplyTo(msg)}
-                    >
-                      <Reply className="h-3 w-3 mr-1" />
-                      Reply
-                    </Button>
+                    {/* Emoji reactions display */}
+                    {(() => {
+                      const msgReactions = reactions.filter(r => r.message_id === msg.id);
+                      const grouped = msgReactions.reduce((acc, r) => {
+                        acc[r.emoji] = acc[r.emoji] || [];
+                        acc[r.emoji].push(r.user_id);
+                        return acc;
+                      }, {} as Record<string, string[]>);
+                      if (Object.keys(grouped).length === 0) return null;
+                      return (
+                        <div className={`flex flex-wrap gap-1 ${isOwn ? "justify-end" : ""}`}>
+                          {Object.entries(grouped).map(([emoji, userIds]) => (
+                            <button
+                              key={emoji}
+                              onClick={() => toggleReaction(msg.id, emoji)}
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-all duration-200 hover:scale-110 ${
+                                userIds.includes(user?.id || "")
+                                  ? "bg-primary/10 border-primary/30 shadow-sm"
+                                  : "bg-muted/50 border-border/50 hover:bg-muted"
+                              }`}
+                            >
+                              <span>{emoji}</span>
+                              <span className="text-[10px] font-medium text-muted-foreground">{userIds.length}</span>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    <div className={`flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all duration-200 ${isOwn ? "flex-row-reverse" : ""}`}>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0 text-muted-foreground/50 hover:text-primary hover:bg-primary/5 rounded-full"
+                          >
+                            <SmilePlus className="h-3 w-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-1.5" side="top" align={isOwn ? "end" : "start"}>
+                          <div className="flex gap-1">
+                            {REACTION_EMOJIS.map(emoji => (
+                              <button
+                                key={emoji}
+                                onClick={() => toggleReaction(msg.id, emoji)}
+                                className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-muted hover:scale-125 transition-all duration-150 text-lg"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 text-[11px] text-muted-foreground/50 px-1.5 hover:text-primary hover:bg-primary/5 rounded-full"
+                        onClick={() => setReplyTo(msg)}
+                      >
+                        <Reply className="h-3 w-3 mr-1" />
+                        Reply
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
