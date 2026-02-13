@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Paperclip, Reply, X, Download, CheckCheck, Check, FileIcon, Mic, Square, Play, Pause } from "lucide-react";
+import { Send, Paperclip, Reply, X, Download, CheckCheck, Check, FileIcon, Mic, Square, Play, Pause, Upload } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -156,6 +156,44 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const [waveformBars, setWaveformBars] = useState<number[]>(new Array(32).fill(0));
+
+  // Drag and drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    dragCounterRef.current = 0;
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  }, []);
 
   
 
@@ -522,7 +560,22 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   let lastDateLabel = "";
 
   return (
-    <div className="flex flex-col h-[60vh]">
+    <div
+      className="flex flex-col h-[60vh] relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2 text-primary">
+            <Upload className="h-8 w-8" />
+            <span className="text-sm font-medium">Drop file to attach</span>
+          </div>
+        </div>
+      )}
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4" ref={scrollViewportRef}>
         <div className="space-y-3 py-3">
