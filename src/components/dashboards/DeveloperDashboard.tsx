@@ -355,7 +355,8 @@ const DeveloperDashboard = () => {
   const [phaseCompleteTask, setPhaseCompleteTask] = useState<any>(null);
   const [completionAction, setCompletionAction] = useState<"next_phase" | "complete_website" | null>(null);
   const [finalPhasePages, setFinalPhasePages] = useState<number>(3);
-  const [homepageUrl, setHomepageUrl] = useState("");
+  const [homepageUrls, setHomepageUrls] = useState<string[]>([]);
+  const [urlInput, setUrlInput] = useState("");
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -617,7 +618,7 @@ const DeveloperDashboard = () => {
   });
 
   const handleFileUpload = async () => {
-    if (!selectedTask || !homepageUrl.trim()) return;
+    if (!selectedTask || !homepageUrls.length) return;
 
     setUploading(true);
     try {
@@ -634,7 +635,8 @@ const DeveloperDashboard = () => {
         }
       }
 
-      const commentPayload = [homepageUrl.trim() ? `🔗 Homepage: ${homepageUrl.trim()}` : '', developerComment.trim()].filter(Boolean).join('\n') || null;
+      const urlsText = homepageUrls.map((u, i) => `🔗 ${i === 0 ? 'Homepage' : `URL ${i + 1}`}: ${u}`).join('\n');
+      const commentPayload = [urlsText, developerComment.trim()].filter(Boolean).join('\n') || null;
 
       if (files.length > 0) {
         for (const file of files) {
@@ -706,7 +708,8 @@ const DeveloperDashboard = () => {
       setFiles([]);
       setFilePreviews({});
       setDeveloperComment("");
-      setHomepageUrl("");
+      setHomepageUrls([]);
+      setUrlInput("");
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error uploading files", description: error.message });
     } finally {
@@ -1308,15 +1311,56 @@ const DeveloperDashboard = () => {
             <div className="space-y-2">
               <Label htmlFor="homepage-url" className="flex items-center gap-1.5">
                 <Link className="h-3.5 w-3.5" />
-                Website Homepage URL <span className="text-destructive">*</span>
+                Website URLs <span className="text-destructive">*</span>
+                <span className="text-xs text-muted-foreground font-normal ml-1">(at least one required)</span>
               </Label>
-              <Input
-                id="homepage-url"
-                type="url"
-                placeholder="https://www.example.com"
-                value={homepageUrl}
-                onChange={(e) => setHomepageUrl(e.target.value)}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="homepage-url"
+                  type="url"
+                  placeholder="https://www.example.com"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const trimmed = urlInput.trim();
+                      if (trimmed && !homepageUrls.includes(trimmed)) {
+                        setHomepageUrls(prev => [...prev, trimmed]);
+                        setUrlInput("");
+                      }
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!urlInput.trim()}
+                  onClick={() => {
+                    const trimmed = urlInput.trim();
+                    if (trimmed && !homepageUrls.includes(trimmed)) {
+                      setHomepageUrls(prev => [...prev, trimmed]);
+                      setUrlInput("");
+                    }
+                  }}
+                >Add</Button>
+              </div>
+              {homepageUrls.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {homepageUrls.map((url, index) => (
+                    <Badge key={index} variant="secondary" className="gap-1 text-xs max-w-full">
+                      <Globe className="h-3 w-3 shrink-0" />
+                      <span className="truncate max-w-[200px]">{url}</span>
+                      <button
+                        type="button"
+                        className="ml-0.5 hover:text-destructive"
+                        onClick={() => setHomepageUrls(prev => prev.filter((_, i) => i !== index))}
+                      >×</button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="developer-comment">Comment (optional)</Label>
@@ -1366,7 +1410,7 @@ const DeveloperDashboard = () => {
                 </div>
               )}
             </div>
-            <Button onClick={handleFileUpload} disabled={!homepageUrl.trim() || uploading} className="w-full">
+            <Button onClick={handleFileUpload} disabled={!homepageUrls.length || uploading} className="w-full">
               {uploading ? "Submitting..." : "Submit"}
             </Button>
           </div>
