@@ -262,7 +262,7 @@ const AdminDashboard = () => {
   const [orderTypeFilter, setOrderTypeFilter] = useState<string | null>(null);
   const [editTeamDialog, setEditTeamDialog] = useState<{ open: boolean; teamId: string; currentName: string } | null>(null);
   const [newTeamName, setNewTeamName] = useState("");
-  const [viewMode, setViewMode] = useState<'tasks' | 'portfolio' | 'sales_performance' | 'pm_workload' | 'developer_resources'>('tasks');
+  const [viewMode, setViewMode] = useState<'tasks' | 'portfolio' | 'sales_performance' | 'pm_workload' | 'developer_workload' | 'developer_resources'>('tasks');
   const [passwordResetDialog, setPasswordResetDialog] = useState<{ open: boolean; userId: string; userName: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
@@ -1332,8 +1332,8 @@ const AdminDashboard = () => {
     if (hasAnyCancelled) categories.push('cancelled');
     
     if (categories.length === 0) {
-      if (allApproved) categories.push('other');
-      else if (representativeTask.status === 'completed' || representativeTask.status === 'approved') categories.push('other');
+      if (allApproved) categories.push('approved');
+      else if (representativeTask.status === 'completed' || representativeTask.status === 'approved') categories.push('approved');
       else categories.push('other');
     }
     
@@ -1363,8 +1363,8 @@ const AdminDashboard = () => {
     if (hasPendingReview) return 'recently_delivered';
     if (hasNeedsRevision) return 'needs_revision';
     if (isDelayed) return 'delayed';
-    if (allApproved) return 'other';
-    if (task.status === 'completed' || task.status === 'approved') return 'other';
+    if (allApproved) return 'approved';
+    if (task.status === 'completed' || task.status === 'approved') return 'approved';
     if (task.status === 'pending') return 'pending';
     if (task.status === 'in_progress') return 'in_progress';
     return 'other';
@@ -1379,7 +1379,9 @@ const AdminDashboard = () => {
       pending: 5,
       in_progress: 6,
       needs_revision: 7,
-      other: 8,
+      approved: 8,
+      cancelled: 9,
+      other: 10,
     };
     return priorities[category] || 99;
   };
@@ -1393,9 +1395,8 @@ const AdminDashboard = () => {
     needs_revision: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('needs_revision')).length,
     pending_delivery: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending_delivery')).length,
     cancelled: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('cancelled')).length,
+    approved: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('approved')).length,
     total: groupedOrders.length,
-    completed: tasks?.filter((t) => t.status === "completed").length || 0,
-    approved: tasks?.filter((t) => t.status === "approved").length || 0,
   };
 
   const getStatusColor = (status: string) => {
@@ -1685,6 +1686,12 @@ const AdminDashboard = () => {
               PM Workload
             </Button>
             <Button
+              variant={viewMode === 'developer_workload' ? 'default' : 'outline'}
+              onClick={() => setViewMode('developer_workload')}
+            >
+              Dev Workload
+            </Button>
+            <Button
               variant={viewMode === 'developer_resources' ? 'default' : 'outline'}
               onClick={() => setViewMode('developer_resources')}
             >
@@ -1750,7 +1757,7 @@ const AdminDashboard = () => {
           </div>
         
         {viewMode === 'tasks' && (
-        <div className="grid gap-4 md:grid-cols-7 mb-8">
+        <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-8 mb-8">
           <Card 
             className={`border-l-4 border-l-green-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'recently_delivered' ? 'ring-2 ring-green-500' : ''}`}
             onClick={() => setStatusFilter('recently_delivered')}
@@ -1846,6 +1853,20 @@ const AdminDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold">{stats.delayed_ack}</div>
               <p className="text-xs text-muted-foreground">Late acknowledgement</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={`border-l-4 border-l-emerald-600 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'approved' ? 'ring-2 ring-emerald-600' : ''}`}
+            onClick={() => setStatusFilter('approved')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Approved</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.approved}</div>
+              <p className="text-xs text-muted-foreground">Fully closed</p>
             </CardContent>
           </Card>
         </div>
@@ -2136,6 +2157,7 @@ const AdminDashboard = () => {
                   if (category === 'needs_revision') return 'border-l-4 border-l-orange-500 bg-orange-50/10';
                   if (category === 'pending_delivery') return 'border-l-4 border-l-yellow-500 bg-yellow-50/10';
                   if (category === 'cancelled') return 'border-l-4 border-l-gray-500 bg-gray-50/10 opacity-75';
+                  if (category === 'approved') return 'border-l-4 border-l-emerald-600 bg-emerald-50/10';
                   return '';
                 };
 
@@ -2146,6 +2168,7 @@ const AdminDashboard = () => {
                   if (category === 'needs_revision') return <Badge className="bg-orange-500 text-white">Needs Revision</Badge>;
                   if (category === 'pending_delivery') return <Badge className="bg-yellow-500 text-white">Awaiting Team Delivery</Badge>;
                   if (category === 'cancelled') return <Badge className="bg-gray-500 text-white">{(task as any).is_deleted ? 'Deleted' : 'Cancelled'}</Badge>;
+                  if (category === 'approved') return <Badge className="bg-emerald-600 text-white">Approved / Closed</Badge>;
                   return null;
                 };
 
@@ -2966,6 +2989,92 @@ const AdminDashboard = () => {
                     })}
                 </Accordion>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {viewMode === 'developer_workload' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Code className="h-5 w-5" />
+                Developer Workload Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                if (!developerCalendars?.length) {
+                  return <p className="text-muted-foreground text-center py-8">No developers found.</p>;
+                }
+
+                const now = new Date();
+                const monthStart = startOfMonth(now);
+                const monthEnd = endOfMonth(now);
+
+                return (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Developer</TableHead>
+                        <TableHead className="text-center">Active Tasks</TableHead>
+                        <TableHead className="text-center">Points (This Month)</TableHead>
+                        <TableHead className="text-center">Points (All-Time)</TableHead>
+                        <TableHead className="text-center">Pages (This Month)</TableHead>
+                        <TableHead className="text-center">Pages (All-Time)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {developerCalendars.map((dev: any) => {
+                        const devProfile = developerProfiles?.find((p: any) => p.user_id === dev.user_id);
+                        const profile = devProfile?.profiles as any;
+                        const devName = dev.name || profile?.full_name || profile?.email || 'Unknown';
+                        
+                        const devTasks = tasks?.filter(t => t.developer_id === dev.id && !t.is_deleted) || [];
+                        const activeTasks = devTasks.filter(t => ['assigned', 'in_progress'].includes(t.status));
+                        
+                        const devPhases = projectPhases?.filter(p => 
+                          devTasks.some(t => t.id === p.task_id) && p.status === 'completed'
+                        ) || [];
+                        
+                        const monthlyPhases = devPhases.filter(p => 
+                          p.completed_at && isWithinInterval(new Date(p.completed_at), { start: monthStart, end: monthEnd })
+                        );
+                        
+                        const allTimePoints = devPhases.reduce((s, p) => s + (p.points || 3), 0);
+                        const monthlyPoints = monthlyPhases.reduce((s, p) => s + (p.points || 3), 0);
+                        const allTimePages = devPhases.reduce((s, p) => s + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+                        const monthlyPages = monthlyPhases.reduce((s, p) => s + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+
+                        return (
+                          <TableRow key={dev.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {devName}
+                                {!dev.is_active && <Badge variant="secondary" className="text-[10px]">Inactive</Badge>}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant={activeTasks.length > 0 ? "default" : "secondary"}>{activeTasks.length}</Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className="font-semibold text-primary">{monthlyPoints}</span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline">{allTimePoints}</Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className="font-semibold">{monthlyPages}</span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline">{allTimePages}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                );
+              })()}
             </CardContent>
           </Card>
         )}
