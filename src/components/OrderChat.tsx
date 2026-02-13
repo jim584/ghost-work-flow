@@ -96,6 +96,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
       return data || [];
     },
     enabled: messageIds.length > 0,
+    refetchInterval: 10000, // Poll every 10s to pick up new read receipts
   });
 
   // Mark messages as read when chat opens
@@ -115,8 +116,9 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
             { onConflict: "message_id,user_id" }
           );
       }
-      // Invalidate unread counts
+      // Invalidate unread counts and read receipts
       queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["message-reads", taskId] });
     };
     markAsRead();
   }, [messages, user?.id]);
