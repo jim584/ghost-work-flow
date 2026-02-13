@@ -123,7 +123,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     markAsRead();
   }, [messages, user?.id]);
 
-  // Realtime subscription
+  // Realtime subscription for messages
   useEffect(() => {
     const channel = supabase
       .channel(`order-messages-${taskId}`)
@@ -138,6 +138,25 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
 
     return () => { supabase.removeChannel(channel); };
   }, [taskId]);
+
+  // Realtime subscription for read receipts
+  useEffect(() => {
+    const channel = supabase
+      .channel(`order-message-reads-${taskId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "order_message_reads" },
+        (payload) => {
+          const newRecord = payload.new as any;
+          if (newRecord?.message_id && messageIds.includes(newRecord.message_id)) {
+            queryClient.invalidateQueries({ queryKey: ["message-reads", taskId] });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [taskId, messageIds.join(",")]);
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
