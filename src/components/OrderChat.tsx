@@ -157,6 +157,56 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   const animationFrameRef = useRef<number | null>(null);
   const [waveformBars, setWaveformBars] = useState<number[]>(new Array(32).fill(0));
 
+  // Typing indicator state
+  const [typingUsers, setTypingUsers] = useState<Map<string, { name: string; timeout: NodeJS.Timeout }>>(new Map());
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const lastTypingRef = useRef<number>(0);
+
+  // Set up typing broadcast channel
+  useEffect(() => {
+    const channel = supabase.channel(`typing-${taskId}`);
+    channel
+      .on("broadcast", { event: "typing" }, (payload) => {
+        const { userId, userName } = payload.payload as { userId: string; userName: string };
+        if (userId === user?.id) return;
+
+        setTypingUsers(prev => {
+          const next = new Map(prev);
+          const existing = next.get(userId);
+          if (existing) clearTimeout(existing.timeout);
+          const timeout = setTimeout(() => {
+            setTypingUsers(p => {
+              const n = new Map(p);
+              n.delete(userId);
+              return n;
+            });
+          }, 3000);
+          next.set(userId, { name: userName, timeout });
+          return next;
+        });
+      })
+      .subscribe();
+    typingChannelRef.current = channel;
+
+    return () => {
+      typingUsers.forEach(v => clearTimeout(v.timeout));
+      supabase.removeChannel(channel);
+    };
+  }, [taskId, user?.id]);
+
+  const typingNameRef = useRef<string>("Someone");
+
+  const emitTyping = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTypingRef.current < 2000) return;
+    lastTypingRef.current = now;
+    typingChannelRef.current?.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { userId: user?.id, userName: typingNameRef.current },
+    });
+  }, [user?.id]);
+
   // Drag and drop state
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
@@ -250,6 +300,13 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     },
     enabled: messageIds.length > 0,
   });
+
+  // Update typing display name from profile
+  useEffect(() => {
+    const myProfile = messages.find(m => m.sender_id === user?.id)?.sender;
+    if (myProfile?.full_name) typingNameRef.current = myProfile.full_name;
+    else if (user?.email) typingNameRef.current = user.email.split("@")[0];
+  }, [messages, user?.id, user?.email]);
 
   // Mark messages as read when chat opens
   useEffect(() => {
@@ -727,6 +784,20 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
         </div>
       </div>
 
+      {/* Typing indicator */}
+      {typingUsers.size > 0 && (
+        <div className="flex items-center gap-2 px-4 py-1.5 text-xs text-muted-foreground animate-chat-file">
+          <div className="flex gap-[3px] items-center">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary/60" style={{ animation: 'chat-typing-dot 1.4s ease-in-out infinite' }} />
+            <span className="h-1.5 w-1.5 rounded-full bg-primary/60" style={{ animation: 'chat-typing-dot 1.4s ease-in-out 0.2s infinite' }} />
+            <span className="h-1.5 w-1.5 rounded-full bg-primary/60" style={{ animation: 'chat-typing-dot 1.4s ease-in-out 0.4s infinite' }} />
+          </div>
+          <span className="font-medium text-foreground/60">
+            {Array.from(typingUsers.values()).map(u => u.name).join(", ")} {typingUsers.size === 1 ? "is" : "are"} typing…
+          </span>
+        </div>
+      )}
+
       {/* Reply indicator */}
       {replyTo && (
         <div className="flex items-center gap-2.5 px-4 py-2.5 bg-primary/5 border-t border-primary/20 text-xs animate-chat-file">
@@ -822,7 +893,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
             <Input
               placeholder="Type a message..."
               value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
+              onChange={(e) => { setMessageText(e.target.value); emitTyping(); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               className="h-9 rounded-full bg-muted/50 border-border/50 focus:bg-background transition-colors text-sm"
             />
