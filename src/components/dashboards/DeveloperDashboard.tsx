@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link, MessageCircle, Users } from "lucide-react";
 import TeamOverviewDashboard from "@/components/dashboards/TeamOverviewDashboard";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
@@ -356,6 +357,7 @@ const DeveloperDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [reassignTask, setReassignTask] = useState<any>(null);
   const [reassignReason, setReassignReason] = useState("");
+  const [reassignDevId, setReassignDevId] = useState("");
   const [phaseCompleteTask, setPhaseCompleteTask] = useState<any>(null);
   const [completionAction, setCompletionAction] = useState<"next_phase" | "complete_website" | null>(null);
   const [finalPhasePages, setFinalPhasePages] = useState<number>(3);
@@ -555,7 +557,107 @@ const DeveloperDashboard = () => {
     },
   });
 
-  // Complete phase mutation - now supports "next phase" vs "complete website"
+  // Fetch active developers for team leader direct reassignment
+  const { data: allDevelopers } = useQuery({
+    queryKey: ["active-developers-for-reassign"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("developers")
+        .select("id, name, user_id")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: isTeamLeader,
+  });
+
+  // Direct reassignment mutation for team leaders
+  const directReassignment = useMutation({
+    mutationFn: async ({ taskId, newDevId, reason }: { taskId: string; newDevId: string; reason: string }) => {
+      const task = tasks?.find(t => t.id === taskId);
+      const newDev = allDevelopers?.find(d => d.id === newDevId);
+      if (!newDev) throw new Error("Developer not found");
+
+      // Get new developer's team
+      const { data: teamMember } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("user_id", newDev.user_id)
+        .single();
+      if (!teamMember) throw new Error("Developer team not found");
+
+      const { error: taskError } = await supabase
+        .from("tasks")
+        .update({
+          developer_id: newDevId,
+          team_id: teamMember.team_id,
+          reassigned_from: task?.developer_id || null,
+          reassigned_at: new Date().toISOString(),
+          reassignment_reason: reason,
+          reassignment_requested_at: null,
+          reassignment_request_reason: null,
+        })
+        .eq("id", taskId);
+      if (taskError) throw taskError;
+
+      // Log reassignment history
+      await supabase.from("reassignment_history" as any).insert({
+        task_id: taskId,
+        from_developer_id: task?.developer_id || null,
+        to_developer_id: newDevId,
+        reason: reason,
+        reassigned_by: user!.id,
+      });
+
+      // Recalculate SLA
+      try {
+        await supabase.functions.invoke("calculate-sla-deadline", {
+          body: { taskId },
+        });
+      } catch (e) {
+        console.error("SLA recalculation error:", e);
+      }
+
+      // Notify admins and PM
+      const { data: admins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+      if (admins) {
+        for (const admin of admins) {
+          await supabase.from("notifications").insert({
+            user_id: admin.user_id,
+            type: "task_reassigned",
+            title: "Order Reassigned by Team Leader",
+            message: `Order "${task?.title}" reassigned to ${newDev.name}. Reason: ${reason}`,
+            task_id: taskId,
+          });
+        }
+      }
+      if (task?.project_manager_id) {
+        await supabase.from("notifications").insert({
+          user_id: task.project_manager_id,
+          type: "task_reassigned",
+          title: "Order Reassigned by Team Leader",
+          message: `Order "${task.title}" reassigned to ${newDev.name}. Reason: ${reason}`,
+          task_id: taskId,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+      toast({ title: "Order reassigned", description: "The order has been reassigned successfully." });
+      setReassignTask(null);
+      setReassignReason("");
+      setReassignDevId("");
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+
   const completePhase = useMutation({
     mutationFn: async ({ taskId, currentPhase, totalPhases, action, pagesCompleted }: { 
       taskId: string; currentPhase: number; totalPhases: number; 
@@ -1188,7 +1290,7 @@ const DeveloperDashboard = () => {
                               onClick={() => setReassignTask(task)}
                             >
                               <RotateCcw className="mr-2 h-4 w-4" />
-                              Request Reassignment
+                              {isTeamLeader ? "Reassign" : "Request Reassignment"}
                             </Button>
                           </div>
                         )}
@@ -1600,50 +1702,92 @@ const DeveloperDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Request Reassignment Dialog */}
-      <Dialog open={!!reassignTask} onOpenChange={() => { setReassignTask(null); setReassignReason(""); }}>
+      {/* Reassignment Dialog */}
+      <Dialog open={!!reassignTask} onOpenChange={() => { setReassignTask(null); setReassignReason(""); setReassignDevId(""); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RotateCcw className="h-5 w-5 text-orange-600" />
-              Request Reassignment
+              {isTeamLeader ? "Reassign Order" : "Request Reassignment"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Task: <span className="font-medium text-foreground">{reassignTask?.title}</span>
             </p>
-            <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-md text-sm text-orange-800 dark:text-orange-300">
-              <p className="font-medium mb-1">⚠️ Important:</p>
-              <ul className="list-disc list-inside space-y-1 text-xs">
-                <li>A mandatory reason is required</li>
-                <li>Development Head will be notified immediately</li>
-                <li>The SLA timer continues running until reassigned</li>
-              </ul>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reassign-reason">Reason for Reassignment *</Label>
-              <Textarea
-                id="reassign-reason"
-                placeholder="Please provide a detailed reason for requesting reassignment..."
-                value={reassignReason}
-                onChange={(e) => setReassignReason(e.target.value)}
-                rows={4}
-              />
-            </div>
-            <Button
-              onClick={() => {
-                if (!reassignReason.trim()) {
-                  toast({ variant: "destructive", title: "Reason is required" });
-                  return;
-                }
-                requestReassignment.mutate({ taskId: reassignTask.id, reason: reassignReason.trim() });
-              }}
-              disabled={!reassignReason.trim() || requestReassignment.isPending}
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              {requestReassignment.isPending ? "Submitting..." : "Submit Reassignment Request"}
-            </Button>
+            {isTeamLeader ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Assign to Developer *</Label>
+                  <Select value={reassignDevId} onValueChange={setReassignDevId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select developer..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allDevelopers?.filter(d => d.id !== reassignTask?.developer_id).map(dev => (
+                        <SelectItem key={dev.id} value={dev.id}>{dev.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Reason for Reassignment *</Label>
+                  <Textarea
+                    placeholder="Please provide a reason..."
+                    value={reassignReason}
+                    onChange={(e) => setReassignReason(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <Button
+                  onClick={() => {
+                    if (!reassignDevId || !reassignReason.trim()) {
+                      toast({ variant: "destructive", title: "Developer and reason are required" });
+                      return;
+                    }
+                    directReassignment.mutate({ taskId: reassignTask.id, newDevId: reassignDevId, reason: reassignReason.trim() });
+                  }}
+                  disabled={!reassignDevId || !reassignReason.trim() || directReassignment.isPending}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  {directReassignment.isPending ? "Reassigning..." : "Reassign Order"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-md text-sm text-orange-800 dark:text-orange-300">
+                  <p className="font-medium mb-1">⚠️ Important:</p>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li>A mandatory reason is required</li>
+                    <li>Development Head will be notified immediately</li>
+                    <li>The SLA timer continues running until reassigned</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reassign-reason">Reason for Reassignment *</Label>
+                  <Textarea
+                    id="reassign-reason"
+                    placeholder="Please provide a detailed reason for requesting reassignment..."
+                    value={reassignReason}
+                    onChange={(e) => setReassignReason(e.target.value)}
+                    rows={4}
+                  />
+                </div>
+                <Button
+                  onClick={() => {
+                    if (!reassignReason.trim()) {
+                      toast({ variant: "destructive", title: "Reason is required" });
+                      return;
+                    }
+                    requestReassignment.mutate({ taskId: reassignTask.id, reason: reassignReason.trim() });
+                  }}
+                  disabled={!reassignReason.trim() || requestReassignment.isPending}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  {requestReassignment.isPending ? "Submitting..." : "Submit Reassignment Request"}
+                </Button>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
