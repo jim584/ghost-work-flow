@@ -247,6 +247,23 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
   const [completionAction, setCompletionAction] = useState<"next_phase" | "complete_website" | null>(null);
   const [finalPhasePages, setFinalPhasePages] = useState<number>(3);
 
+  // Real-time subscription for task/phase changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('team-overview-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_phases' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["team-overview-phases"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'design_submissions' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["team-overview-submissions"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
   // Fetch all developers with their calendars
   const { data: developers } = useQuery({
     queryKey: ["team-overview-developers"],
@@ -259,6 +276,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       if (error) throw error;
       return data || [];
     },
+    refetchInterval: 30000,
   });
 
   // Fetch all active website tasks
@@ -274,6 +292,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       if (error) throw error;
       return data || [];
     },
+    refetchInterval: 30000,
   });
 
   // Fetch all phases for active tasks
@@ -294,6 +313,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       return results.flatMap(r => r.data || []);
     },
     enabled: !!allTasks?.length,
+    refetchInterval: 30000,
   });
 
   // Fetch submissions for all tasks (team leader can view all)
@@ -307,6 +327,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       if (error) throw error;
       return data || [];
     },
+    refetchInterval: 30000,
   });
 
   // Fetch leave records for all developers
@@ -323,6 +344,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       return data || [];
     },
     enabled: !!developers?.length,
+    refetchInterval: 30000,
   });
 
   // Unread counts for chat
