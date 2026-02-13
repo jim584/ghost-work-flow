@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Paperclip, Reply, X, Download, CheckCheck, Check, FileIcon } from "lucide-react";
+import { Send, Paperclip, Reply, X, Download, CheckCheck, Check, FileIcon, Mic, Square, Play, Pause } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -30,6 +30,55 @@ interface Message {
   parent_message?: { message: string; sender?: { full_name: string | null } } | null;
 }
 
+// Inline audio player for voice messages
+const VoiceMessagePlayer = ({ filePath, fileName }: { filePath: string; fileName: string }) => {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handlePlayPause = async () => {
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    if (!audioUrl) {
+      setLoading(true);
+      const { data, error } = await supabase.storage.from("design-files").download(filePath);
+      if (error || !data) { setLoading(false); return; }
+      const url = URL.createObjectURL(data);
+      setAudioUrl(url);
+      const audio = new Audio(url);
+      audio.onended = () => setIsPlaying(false);
+      audioRef.current = audio;
+      audio.play();
+      setIsPlaying(true);
+      setLoading(false);
+    } else {
+      audioRef.current?.play();
+      setIsPlaying(true);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded border">
+      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handlePlayPause} disabled={loading}>
+        {loading ? (
+          <span className="h-3 w-3 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+        ) : isPlaying ? (
+          <Pause className="h-4 w-4" />
+        ) : (
+          <Play className="h-4 w-4" />
+        )}
+      </Button>
+      <Mic className="h-3 w-3 text-muted-foreground" />
+      <span className="text-xs text-muted-foreground flex-1">{fileName}</span>
+    </div>
+  );
+};
+
 export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => {
   const { user, role } = useAuth();
   const { toast } = useToast();
@@ -41,6 +90,16 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
+  
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [audioPreview, setAudioPreview] = useState<{ blob: Blob; url: string } | null>(null);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   
 
@@ -231,6 +290,131 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
+  // Voice recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        const url = URL.createObjectURL(blob);
+        setAudioPreview({ blob, url });
+      };
+
+      mediaRecorder.start(250);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(d => d + 1);
+      }, 1000);
+    } catch {
+      toast({ variant: "destructive", title: "Microphone access denied", description: "Please allow microphone access to send voice messages." });
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  };
+
+  const cancelRecording = () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+    if (audioPreview) {
+      URL.revokeObjectURL(audioPreview.url);
+      setAudioPreview(null);
+    }
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
+    setIsPlayingPreview(false);
+    setRecordingDuration(0);
+  };
+
+  const togglePreviewPlayback = () => {
+    if (!audioPreview) return;
+    if (isPlayingPreview && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      setIsPlayingPreview(false);
+    } else {
+      const audio = new Audio(audioPreview.url);
+      audio.onended = () => setIsPlayingPreview(false);
+      previewAudioRef.current = audio;
+      audio.play();
+      setIsPlayingPreview(true);
+    }
+  };
+
+  const sendVoiceMessage = async () => {
+    if (!audioPreview || !user?.id) return;
+    setSending(true);
+    try {
+      const ext = audioPreview.blob.type.includes('webm') ? 'webm' : 'm4a';
+      const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const storagePath = `chat-files/${taskId}/${safeName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("design-files")
+        .upload(storagePath, audioPreview.blob, { contentType: audioPreview.blob.type });
+      if (uploadError) throw uploadError;
+
+      const voiceFileName = `Voice message.${ext}`;
+      const { error } = await supabase.from("order_messages").insert({
+        task_id: taskId,
+        sender_id: user.id,
+        message: "🎤 Voice message",
+        file_path: storagePath,
+        file_name: voiceFileName,
+        parent_message_id: replyTo?.id || null,
+        status: "pending",
+      });
+      if (error) throw error;
+
+      URL.revokeObjectURL(audioPreview.url);
+      setAudioPreview(null);
+      setReplyTo(null);
+      setRecordingDuration(0);
+      setIsPlayingPreview(false);
+      queryClient.invalidateQueries({ queryKey: ["order-messages", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+      setTimeout(() => scrollToBottom(), 100);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error sending voice message", description: error.message });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // Check if a file is a voice message (audio file)
+  const isVoiceMessage = (fileName: string | null) => {
+    if (!fileName) return false;
+    return fileName.startsWith('Voice message') || /\.(webm|m4a|ogg|mp3|wav)$/i.test(fileName);
+  };
+
   // Group messages by date
   const getDateLabel = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -336,14 +520,18 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
 
                     {/* File attachment */}
                     {msg.file_path && msg.file_name && (
-                      <div
-                        className="flex items-center gap-2 p-2 bg-muted/50 rounded border cursor-pointer hover:bg-muted transition-colors"
-                        onClick={() => handleDownload(msg.file_path!, msg.file_name!)}
-                      >
-                        <FileIcon className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs truncate flex-1">{msg.file_name}</span>
-                        <Download className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
+                      isVoiceMessage(msg.file_name) ? (
+                        <VoiceMessagePlayer filePath={msg.file_path} fileName={msg.file_name} />
+                      ) : (
+                        <div
+                          className="flex items-center gap-2 p-2 bg-muted/50 rounded border cursor-pointer hover:bg-muted transition-colors"
+                          onClick={() => handleDownload(msg.file_path!, msg.file_name!)}
+                        >
+                          <FileIcon className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-xs truncate flex-1">{msg.file_name}</span>
+                          <Download className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                      )
                     )}
 
                     <Button
@@ -387,6 +575,23 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
         </div>
       )}
 
+      {/* Voice recording preview */}
+      {audioPreview && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-t text-xs">
+          <Mic className="h-3 w-3 text-destructive" />
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={togglePreviewPlayback}>
+            {isPlayingPreview ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+          </Button>
+          <span className="flex-1 text-muted-foreground">Voice message ({formatDuration(recordingDuration)})</span>
+          <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={cancelRecording}>
+            <X className="h-3 w-3" />
+          </Button>
+          <Button size="sm" className="h-7 px-3 text-xs" disabled={sending} onClick={sendVoiceMessage}>
+            <Send className="h-3 w-3 mr-1" /> Send
+          </Button>
+        </div>
+      )}
+
       {/* Input area */}
       <div className="flex items-center gap-2 px-4 py-3 border-t">
         <input
@@ -397,19 +602,40 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
             if (e.target.files?.[0]) setSelectedFile(e.target.files[0]);
           }}
         />
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fileInputRef.current?.click()}>
-          <Paperclip className="h-4 w-4" />
-        </Button>
-        <Input
-          placeholder="Type a message..."
-          value={messageText}
-          onChange={(e) => setMessageText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-          className="h-9"
-        />
-        <Button size="icon" className="h-8 w-8" disabled={sending || (!messageText.trim() && !selectedFile)} onClick={sendMessage}>
-          <Send className="h-4 w-4" />
-        </Button>
+        
+        {isRecording ? (
+          <>
+            <div className="flex items-center gap-2 flex-1">
+              <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+              <span className="text-sm text-destructive font-medium">Recording {formatDuration(recordingDuration)}</span>
+            </div>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cancelRecording}>
+              <X className="h-4 w-4" />
+            </Button>
+            <Button size="icon" className="h-8 w-8 bg-destructive hover:bg-destructive/90" onClick={stopRecording}>
+              <Square className="h-4 w-4" />
+            </Button>
+          </>
+        ) : audioPreview ? null : (
+          <>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fileInputRef.current?.click()}>
+              <Paperclip className="h-4 w-4" />
+            </Button>
+            <Input
+              placeholder="Type a message..."
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              className="h-9"
+            />
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={startRecording} disabled={!!selectedFile}>
+              <Mic className="h-4 w-4" />
+            </Button>
+            <Button size="icon" className="h-8 w-8" disabled={sending || (!messageText.trim() && !selectedFile)} onClick={sendMessage}>
+              <Send className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
