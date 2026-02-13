@@ -248,6 +248,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
   const [finalPhasePages, setFinalPhasePages] = useState<number>(3);
   const [reassignTask, setReassignTask] = useState<any>(null);
   const [reassignReason, setReassignReason] = useState("");
+  const [reassignDevId, setReassignDevId] = useState<string>("");
 
   // Real-time subscription for task/phase changes
   useEffect(() => {
@@ -533,33 +534,60 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
     },
   });
 
-  // Request reassignment on behalf of developer
-  const requestReassignment = useMutation({
-    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
+  // Direct reassignment to another developer
+  const directReassignment = useMutation({
+    mutationFn: async ({ taskId, newDevId, reason }: { taskId: string; newDevId: string; reason: string }) => {
+      const task = allTasks?.find(t => t.id === taskId);
+      const newDev = developers?.find(d => d.id === newDevId);
+      if (!newDev) throw new Error("Developer not found");
+
+      // Get the new developer's team
+      const { data: teamMember } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("user_id", newDev.user_id)
+        .limit(1)
+        .single();
+      if (!teamMember) throw new Error("Developer has no team");
+
+      // Update the task with new developer and team
       const { error: taskError } = await supabase
         .from("tasks")
-        .update({ 
-          reassignment_requested_at: new Date().toISOString(),
-          reassignment_request_reason: reason,
+        .update({
+          developer_id: newDevId,
+          team_id: teamMember.team_id,
+          reassigned_from: task?.developer_id || null,
+          reassigned_at: new Date().toISOString(),
+          reassignment_reason: reason,
+          reassignment_requested_at: null,
+          reassignment_request_reason: null,
         } as any)
         .eq("id", taskId);
       if (taskError) throw taskError;
 
-      const task = allTasks?.find(t => t.id === taskId);
+      // Recalculate SLA deadline for the new developer if task is in progress
+      if (task?.status === "in_progress" && task?.current_phase) {
+        try {
+          const slaResponse = await supabase.functions.invoke('calculate-sla-deadline', {
+            body: { developer_id: newDevId, start_time: new Date().toISOString(), sla_hours: 9 },
+          });
+          if (slaResponse.data?.deadline) {
+            await supabase.from("tasks").update({ sla_deadline: slaResponse.data.deadline } as any).eq("id", taskId);
+            await supabase.from("project_phases").update({ sla_deadline: slaResponse.data.deadline, started_at: new Date().toISOString() } as any)
+              .eq("task_id", taskId).eq("phase_number", task.current_phase);
+          }
+        } catch (e) { console.error("SLA recalculation failed:", e); }
+      }
 
       // Notify admins
-      const { data: admins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin");
-      
+      const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
       if (admins) {
         for (const admin of admins) {
           await supabase.from("notifications").insert({
             user_id: admin.user_id,
             type: "reassignment_requested",
-            title: "Reassignment Requested",
-            message: `Team Leader requested reassignment for: ${task?.title || 'Website Order'} (#${task?.task_number}). Reason: ${reason}`,
+            title: "Order Reassigned by Team Leader",
+            message: `Order #${task?.task_number} "${task?.title}" reassigned to ${newDev.name}. Reason: ${reason}`,
             task_id: taskId,
           });
         }
@@ -570,17 +598,19 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
         await supabase.from("notifications").insert({
           user_id: task.project_manager_id,
           type: "reassignment_requested",
-          title: "Reassignment Requested",
-          message: `Team Leader requested reassignment for: ${task.title} (#${task.task_number}). Reason: ${reason}`,
+          title: "Order Reassigned by Team Leader",
+          message: `Order #${task.task_number} "${task.title}" reassigned to ${newDev.name}. Reason: ${reason}`,
           task_id: taskId,
         });
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
-      toast({ title: "Reassignment requested", description: "Development Head and PM have been notified." });
+      queryClient.invalidateQueries({ queryKey: ["team-overview-phases"] });
+      toast({ title: "Order reassigned", description: "The order has been reassigned to the selected developer." });
       setReassignTask(null);
       setReassignReason("");
+      setReassignDevId("");
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -1120,8 +1150,8 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                           </Button>
                         )}
 
-                        {/* Request Reassignment button */}
-                        {!hasReassignmentRequest && !["completed", "approved", "cancelled"].includes(task.status) && (
+                        {/* Reassign Order button */}
+                        {!["completed", "approved", "cancelled"].includes(task.status) && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1129,7 +1159,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                             onClick={() => setReassignTask(task)}
                           >
                             <RotateCcw className="mr-2 h-4 w-4" />
-                            Request Reassignment
+                            Reassign
                           </Button>
                         )}
                       </div>
@@ -1556,37 +1586,49 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
         </DialogContent>
       </Dialog>
 
-      {/* Reassignment Request Dialog */}
-      <Dialog open={!!reassignTask} onOpenChange={(open) => { if (!open) { setReassignTask(null); setReassignReason(""); } }}>
+      {/* Reassign Order Dialog */}
+      <Dialog open={!!reassignTask} onOpenChange={(open) => { if (!open) { setReassignTask(null); setReassignReason(""); setReassignDevId(""); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Request Reassignment</DialogTitle>
+            <DialogTitle>Reassign Order</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Request reassignment for <span className="font-semibold text-foreground">#{reassignTask?.task_number} — {reassignTask?.title}</span>.
-              The Development Head and PM will be notified.
+              Reassign <span className="font-semibold text-foreground">#{reassignTask?.task_number} — {reassignTask?.title}</span> to a different developer.
             </p>
+            <div>
+              <Label>Assign to developer *</Label>
+              <select
+                className="w-full mt-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                value={reassignDevId}
+                onChange={(e) => setReassignDevId(e.target.value)}
+              >
+                <option value="">Select a developer...</option>
+                {developers?.filter(d => d.id !== reassignTask?.developer_id).map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <Label>Reason for reassignment *</Label>
               <Textarea
-                placeholder="Explain why this task needs to be reassigned..."
+                placeholder="Explain why this order is being reassigned..."
                 value={reassignReason}
                 onChange={(e) => setReassignReason(e.target.value)}
-                rows={4}
+                rows={3}
               />
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" onClick={() => { setReassignTask(null); setReassignReason(""); }}>
+              <Button variant="ghost" onClick={() => { setReassignTask(null); setReassignReason(""); setReassignDevId(""); }}>
                 Cancel
               </Button>
               <Button
-                className="border-orange-500 bg-orange-500 hover:bg-orange-600 text-white"
-                disabled={!reassignReason.trim() || requestReassignment.isPending}
-                onClick={() => requestReassignment.mutate({ taskId: reassignTask.id, reason: reassignReason.trim() })}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                disabled={!reassignReason.trim() || !reassignDevId || directReassignment.isPending}
+                onClick={() => directReassignment.mutate({ taskId: reassignTask.id, newDevId: reassignDevId, reason: reassignReason.trim() })}
               >
                 <RotateCcw className="mr-2 h-4 w-4" />
-                {requestReassignment.isPending ? "Submitting..." : "Submit Request"}
+                {directReassignment.isPending ? "Reassigning..." : "Reassign Order"}
               </Button>
             </div>
           </div>
