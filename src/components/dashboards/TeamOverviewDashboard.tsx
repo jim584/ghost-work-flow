@@ -354,6 +354,22 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
   const taskIdsForChat = allTasks?.map(t => t.id) || [];
   const { data: unreadCounts } = useUnreadMessageCounts(taskIdsForChat);
 
+  // Fetch reassignment history
+  const { data: reassignmentHistory } = useQuery({
+    queryKey: ["reassignment-history", viewDetailsTask?.id],
+    queryFn: async () => {
+      if (!viewDetailsTask?.id) return [];
+      const { data, error } = await supabase
+        .from("reassignment_history" as any)
+        .select("*")
+        .eq("task_id", viewDetailsTask.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!viewDetailsTask?.id,
+  });
+
   // Active tasks (not completed/approved/cancelled)
   const activeTasks = useMemo(() =>
     allTasks?.filter(t => !["completed", "approved", "cancelled"].includes(t.status)) || [],
@@ -565,6 +581,15 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
         .eq("id", taskId);
       if (taskError) throw taskError;
 
+      // Log reassignment history
+      await supabase.from("reassignment_history" as any).insert({
+        task_id: taskId,
+        from_developer_id: task?.developer_id || null,
+        to_developer_id: newDevId,
+        reason,
+        reassigned_by: userId,
+      } as any);
+
       // Recalculate SLA deadline for the new developer if task is in progress
       if (task?.status === "in_progress" && task?.current_phase) {
         try {
@@ -607,6 +632,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["team-overview-phases"] });
+      queryClient.invalidateQueries({ queryKey: ["reassignment-history"] });
       toast({ title: "Order reassigned", description: "The order has been reassigned to the selected developer." });
       setReassignTask(null);
       setReassignReason("");
@@ -1564,6 +1590,38 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                 <div className="p-3 bg-muted/30 rounded-md">
                   <Label className="text-muted-foreground text-xs">SLA Deadline</Label>
                   <p className="text-sm font-medium">{format(new Date(viewDetailsTask.sla_deadline), 'MMM d, yyyy h:mm a')}</p>
+                </div>
+              )}
+              {/* Reassignment History */}
+              {reassignmentHistory && reassignmentHistory.length > 0 && (
+                <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4" />
+                    Reassignment History ({reassignmentHistory.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {reassignmentHistory.map((entry: any) => {
+                      const fromDev = developers?.find(d => d.id === entry.from_developer_id);
+                      const toDev = developers?.find(d => d.id === entry.to_developer_id);
+                      return (
+                        <div key={entry.id} className="p-3 bg-background rounded-md border text-sm space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground">{fromDev?.name || "Unassigned"}</span>
+                              <span className="text-muted-foreground">→</span>
+                              <span className="font-medium text-foreground">{toDev?.name || "Unknown"}</span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-medium">Reason:</span> {entry.reason}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
