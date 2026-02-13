@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle, RotateCcw } from "lucide-react";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 
 import { useProjectManagers } from "@/hooks/useProjectManagers";
@@ -51,6 +51,39 @@ const PMDashboard = () => {
   const [taskType, setTaskType] = useState<"social_media" | "logo" | "website" | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [viewDetailsTask, setViewDetailsTask] = useState<any>(null);
+
+  // Fetch reassignment history for view details
+  const { data: reassignmentHistory } = useQuery({
+    queryKey: ["pm-reassignment-history", viewDetailsTask?.id],
+    queryFn: async () => {
+      if (!viewDetailsTask?.id) return [];
+      const { data, error } = await supabase
+        .from("reassignment_history" as any)
+        .select("*")
+        .eq("task_id", viewDetailsTask.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      if (data && data.length > 0) {
+        const devIds = new Set<string>();
+        data.forEach((entry: any) => {
+          if (entry.from_developer_id) devIds.add(entry.from_developer_id);
+          if (entry.to_developer_id) devIds.add(entry.to_developer_id);
+        });
+        const { data: devs } = await supabase
+          .from("developers")
+          .select("id, name")
+          .in("id", Array.from(devIds));
+        const devMap = new Map(devs?.map(d => [d.id, d.name]) || []);
+        return data.map((entry: any) => ({
+          ...entry,
+          from_name: devMap.get(entry.from_developer_id) || null,
+          to_name: devMap.get(entry.to_developer_id) || null,
+        }));
+      }
+      return data || [];
+    },
+    enabled: !!viewDetailsTask?.id,
+  });
   
   const [revisionDialog, setRevisionDialog] = useState<{ open: boolean; submissionId: string; fileName: string } | null>(null);
   const [revisionNotes, setRevisionNotes] = useState("");
@@ -2647,6 +2680,35 @@ const PMDashboard = () => {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Reassignment History */}
+              {reassignmentHistory && reassignmentHistory.length > 0 && (
+                <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4" />
+                    Reassignment History ({reassignmentHistory.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {reassignmentHistory.map((entry: any) => (
+                      <div key={entry.id} className="p-3 bg-background rounded-md border text-sm space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-muted-foreground">{entry.from_name || "Unassigned"}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="font-medium text-foreground">{entry.to_name || "Unknown"}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium">Reason:</span> {entry.reason}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
