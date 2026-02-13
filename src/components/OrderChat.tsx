@@ -34,7 +34,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   const { user, role } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [messageText, setMessageText] = useState("");
@@ -140,10 +140,17 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   }, [taskId]);
 
   // Auto-scroll to bottom
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  const scrollToBottom = () => {
+    if (scrollViewportRef.current) {
+      scrollViewportRef.current.scrollTop = scrollViewportRef.current.scrollHeight;
     }
+  };
+
+  useEffect(() => {
+    // Small delay to ensure DOM is updated
+    requestAnimationFrame(() => {
+      scrollToBottom();
+    });
   }, [messages]);
 
   // Send message
@@ -184,6 +191,8 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
       setSelectedFile(null);
       queryClient.invalidateQueries({ queryKey: ["order-messages", taskId] });
       queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+      // Scroll to bottom after sending
+      setTimeout(() => scrollToBottom(), 100);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error sending message", description: error.message });
     } finally {
@@ -223,7 +232,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   return (
     <div className="flex flex-col h-[60vh]">
       {/* Messages */}
-      <ScrollArea className="flex-1 px-4" ref={scrollRef as any}>
+      <div className="flex-1 overflow-y-auto px-4" ref={scrollViewportRef}>
         <div className="space-y-3 py-3">
           {messages.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-8">No messages yet. Start the conversation!</p>
@@ -334,7 +343,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Reply indicator */}
       {replyTo && (
