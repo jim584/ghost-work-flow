@@ -807,8 +807,13 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={startRecording} disabled={selectedFiles.length > 0}>
               <Mic className="h-4 w-4" />
             </Button>
-            <Button size="icon" className="h-8 w-8" disabled={sending || (!messageText.trim() && selectedFiles.length === 0)} onClick={sendMessage}>
+            <Button size="icon" className="h-8 w-8 relative" disabled={sending || (!messageText.trim() && selectedFiles.length === 0)} onClick={sendMessage}>
               <Send className="h-4 w-4" />
+              {selectedFiles.length > 1 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                  {selectedFiles.length}
+                </span>
+              )}
             </Button>
           </>
         )}
