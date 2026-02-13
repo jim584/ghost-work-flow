@@ -35,8 +35,16 @@ interface Message {
 const VoiceMessagePlayer = ({ filePath, fileName }: { filePath: string; fileName: string }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [duration, setDuration] = useState<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioReady, setAudioReady] = useState<HTMLAudioElement | null>(null);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
   const handlePlayPause = async () => {
     if (isPlaying && audioRef.current) {
@@ -52,7 +60,15 @@ const VoiceMessagePlayer = ({ filePath, fileName }: { filePath: string; fileName
       const url = URL.createObjectURL(data);
       const audio = new Audio(url);
       audio.crossOrigin = "anonymous";
-      audio.onended = () => setIsPlaying(false);
+      audio.onended = () => { setIsPlaying(false); setCurrentTime(0); };
+      audio.onloadedmetadata = () => {
+        if (isFinite(audio.duration)) setDuration(audio.duration);
+      };
+      audio.ontimeupdate = () => setCurrentTime(audio.currentTime);
+      // Some formats need this workaround for duration
+      audio.ondurationchange = () => {
+        if (isFinite(audio.duration)) setDuration(audio.duration);
+      };
       audioRef.current = audio;
       setAudioReady(audio);
       audio.play();
@@ -63,6 +79,27 @@ const VoiceMessagePlayer = ({ filePath, fileName }: { filePath: string; fileName
       setIsPlaying(true);
     }
   };
+
+  // Pre-fetch duration on mount without playing
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = "metadata";
+    const loadDuration = async () => {
+      const { data, error } = await supabase.storage.from("design-files").download(filePath);
+      if (error || !data) return;
+      const url = URL.createObjectURL(data);
+      audio.src = url;
+      audio.onloadedmetadata = () => {
+        if (isFinite(audio.duration)) setDuration(audio.duration);
+        URL.revokeObjectURL(url);
+      };
+      audio.ondurationchange = () => {
+        if (isFinite(audio.duration)) setDuration(audio.duration);
+      };
+    };
+    loadDuration();
+    return () => { audio.src = ""; };
+  }, [filePath]);
 
   return (
     <div className="flex items-center gap-2 p-2 bg-muted/50 rounded border">
@@ -76,11 +113,19 @@ const VoiceMessagePlayer = ({ filePath, fileName }: { filePath: string; fileName
         )}
       </Button>
       {isPlaying ? (
-        <PlaybackWaveform audioElement={audioReady} isPlaying={isPlaying} barCount={20} barClassName="bg-primary/70" className="flex-1" />
+        <>
+          <PlaybackWaveform audioElement={audioReady} isPlaying={isPlaying} barCount={20} barClassName="bg-primary/70" className="flex-1" />
+          <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+            {formatTime(currentTime)}{duration ? ` / ${formatTime(duration)}` : ''}
+          </span>
+        </>
       ) : (
         <>
           <Mic className="h-3 w-3 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground flex-1">{fileName}</span>
+          <span className="text-xs text-muted-foreground flex-1">Voice message</span>
+          {duration !== null && (
+            <span className="text-xs text-muted-foreground tabular-nums shrink-0">{formatTime(duration)}</span>
+          )}
         </>
       )}
     </div>
