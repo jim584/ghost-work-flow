@@ -257,24 +257,41 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(msg.created_at), "h:mm a")}
                       </span>
-                      {isOwn && (() => {
-                        const othersWhoRead = readReceipts.filter(
-                          r => r.message_id === msg.id && r.user_id !== user?.id
-                        );
-                        if (othersWhoRead.length > 0) {
+                      {(() => {
+                        if (isOwn) {
+                          // Sender sees when the recipient read their message
+                          const othersWhoRead = readReceipts.filter(
+                            r => r.message_id === msg.id && r.user_id !== user?.id
+                          );
+                          if (othersWhoRead.length > 0) {
+                            return (
+                              <span className="text-xs text-primary flex items-center gap-0.5">
+                                <CheckCheck className="h-3 w-3" />
+                                Seen at {format(new Date(othersWhoRead[0].read_at), "h:mm a")}
+                              </span>
+                            );
+                          }
                           return (
-                            <span className="text-xs text-primary flex items-center gap-0.5">
-                              <CheckCheck className="h-3 w-3" />
-                              Seen at {format(new Date(othersWhoRead[0].read_at), "h:mm a")}
+                            <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                              <Check className="h-3 w-3" />
+                              Sent
                             </span>
                           );
+                        } else {
+                          // Recipient sees when they read this message
+                          const myRead = readReceipts.find(
+                            r => r.message_id === msg.id && r.user_id === user?.id
+                          );
+                          if (myRead) {
+                            return (
+                              <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                                <CheckCheck className="h-3 w-3" />
+                                Seen at {format(new Date(myRead.read_at), "h:mm a")}
+                              </span>
+                            );
+                          }
+                          return null;
                         }
-                        return (
-                          <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-                            <Check className="h-3 w-3" />
-                            Sent
-                          </span>
-                        );
                       })()}
                     </div>
 
