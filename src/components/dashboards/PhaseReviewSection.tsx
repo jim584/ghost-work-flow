@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, AlertTriangle, Clock, MessageSquare } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Clock, MessageSquare, Globe, ExternalLink } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -24,9 +24,10 @@ interface PhaseReviewSectionProps {
   isAssignedPM: boolean;
   queryKeysToInvalidate: string[][];
   readOnly?: boolean;
+  submissions?: any[];
 }
 
-export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKeysToInvalidate, readOnly }: PhaseReviewSectionProps) => {
+export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKeysToInvalidate, readOnly, submissions = [] }: PhaseReviewSectionProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [reviewDialog, setReviewDialog] = useState<{
@@ -146,6 +147,35 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
   const isWebsiteOrder = task.post_type === "Website Design";
   if (!isWebsiteOrder) return null;
 
+  // Extract URLs from submissions' designer_comment field
+  const parseUrls = (comment: string): { label: string; url: string }[] => {
+    const results: { label: string; url: string }[] = [];
+    const lines = comment.split('\n');
+    for (const line of lines) {
+      const match = line.match(/🔗\s*(.+?):\s*(https?:\/\/\S+)/);
+      if (match) {
+        results.push({ label: match[1].trim(), url: match[2].trim() });
+      }
+    }
+    return results;
+  };
+
+  // Group submissions by phase - use submitted_at ordering to match phases
+  const getPhaseSubmissions = (phaseNumber: number) => {
+    // Sort submissions by submitted_at
+    const sorted = [...submissions].sort((a, b) => 
+      new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime()
+    );
+    // Each submission corresponds to the phase that was current when it was submitted
+    // We can match by checking: submissions made while phase was in_progress or completed
+    // Simplest: return submissions whose comment contains "Homepage" for phase 1, otherwise for later phases
+    if (phaseNumber === 1) {
+      return sorted.filter(s => s.designer_comment?.includes('Homepage'));
+    }
+    // For inner pages, show submissions that mention "Inner Page" or don't mention "Homepage"
+    return sorted.filter(s => s.designer_comment && !s.designer_comment.includes('Homepage'));
+  };
+
   return (
     <>
       <div className="border-t pt-3 mt-3">
@@ -155,65 +185,89 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
             const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
             const canReview = isAssignedPM && !readOnly && (phase.status === "in_progress" || phase.status === "completed") && !phase.review_status;
             const hasReview = !!phase.review_status;
+            const phaseUrls = submissions.length > 0 ? getPhaseSubmissions(phase.phase_number) : [];
 
             return (
-              <div key={phase.id} className="flex items-center justify-between p-2 bg-muted/20 rounded-md border">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <span className="text-xs font-medium truncate">{phaseLabel}</span>
-                  <Badge variant="outline" className="text-xs shrink-0">{phase.status}</Badge>
-                  {getReviewBadge(phase)}
-                  {phase.change_completed_at && (
-                    <Badge className="bg-green-100 text-green-700 text-xs">Changes Done</Badge>
-                  )}
+              <div key={phase.id} className="p-2 bg-muted/20 rounded-md border space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-xs font-medium truncate">{phaseLabel}</span>
+                    <Badge variant="outline" className="text-xs shrink-0">{phase.status}</Badge>
+                    {getReviewBadge(phase)}
+                    {phase.change_completed_at && (
+                      <Badge className="bg-green-100 text-green-700 text-xs">Changes Done</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 ml-2">
+                    {canReview && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs bg-green-50 border-green-300 text-green-700 hover:bg-green-100"
+                          onClick={() => submitReview.mutate({
+                            phaseId: phase.id, reviewStatus: "approved",
+                          })}
+                          disabled={submitReview.isPending}
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
+                          onClick={() => setReviewDialog({
+                            open: true, phaseId: phase.id, phaseNumber: phase.phase_number,
+                            reviewType: "approved_with_changes",
+                          })}
+                        >
+                          <Clock className="h-3 w-3 mr-1" />
+                          Approve w/ Changes
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
+                          onClick={() => setReviewDialog({
+                            open: true, phaseId: phase.id, phaseNumber: phase.phase_number,
+                            reviewType: "disapproved_with_changes",
+                          })}
+                        >
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Disapprove
+                        </Button>
+                      </>
+                    )}
+                    {hasReview && phase.review_comment && (
+                      <div className="text-xs text-muted-foreground max-w-[200px] truncate" title={phase.review_comment}>
+                        <MessageSquare className="h-3 w-3 inline mr-1" />
+                        {phase.review_comment}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 ml-2">
-                  {canReview && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs bg-green-50 border-green-300 text-green-700 hover:bg-green-100"
-                        onClick={() => submitReview.mutate({
-                          phaseId: phase.id, reviewStatus: "approved",
-                        })}
-                        disabled={submitReview.isPending}
-                      >
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
-                        onClick={() => setReviewDialog({
-                          open: true, phaseId: phase.id, phaseNumber: phase.phase_number,
-                          reviewType: "approved_with_changes",
-                        })}
-                      >
-                        <Clock className="h-3 w-3 mr-1" />
-                        Approve w/ Changes
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
-                        onClick={() => setReviewDialog({
-                          open: true, phaseId: phase.id, phaseNumber: phase.phase_number,
-                          reviewType: "disapproved_with_changes",
-                        })}
-                      >
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        Disapprove
-                      </Button>
-                    </>
-                  )}
-                  {hasReview && phase.review_comment && (
-                    <div className="text-xs text-muted-foreground max-w-[200px] truncate" title={phase.review_comment}>
-                      <MessageSquare className="h-3 w-3 inline mr-1" />
-                      {phase.review_comment}
-                    </div>
-                  )}
-                </div>
+                {/* Submitted URLs for this phase */}
+                {phaseUrls.length > 0 && (
+                  <div className="pl-2 space-y-1">
+                    {phaseUrls.map((sub: any) => {
+                      const urls = parseUrls(sub.designer_comment || '');
+                      return urls.map((u, i) => (
+                        <a
+                          key={`${sub.id}-${i}`}
+                          href={u.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                        >
+                          <Globe className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{u.label}: {u.url}</span>
+                          <ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
+                        </a>
+                      ));
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
