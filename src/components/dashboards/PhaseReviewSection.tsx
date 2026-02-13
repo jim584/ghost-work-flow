@@ -46,13 +46,20 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     mutationFn: async ({ phaseId, reviewStatus, comment, severity }: {
       phaseId: string; reviewStatus: string; comment?: string; severity?: string;
     }) => {
+      const now = new Date().toISOString();
       const updateData: any = {
         review_status: reviewStatus,
         review_comment: comment || null,
-        reviewed_at: new Date().toISOString(),
+        reviewed_at: now,
         reviewed_by: userId,
         change_severity: severity || null,
       };
+
+      // When a phase is approved (straight approve), mark it as completed
+      if (reviewStatus === "approved") {
+        updateData.status = "completed";
+        updateData.completed_at = now;
+      }
 
       // Calculate change deadline if severity is set
       if (severity && task.developer_id) {
