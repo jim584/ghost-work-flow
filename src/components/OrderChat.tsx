@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Paperclip, Reply, X, Download, CheckCircle, Clock, FileIcon } from "lucide-react";
+import { Send, Paperclip, Reply, X, Download, CheckCheck, Check, FileIcon } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,7 +42,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
 
-  const canUpdateStatus = role === "admin" || role === "project_manager";
+  
 
   // Fetch messages
   const { data: messages = [] } = useQuery({
@@ -58,7 +57,6 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
 
       // Fetch sender profiles
       const senderIds = [...new Set((data || []).map((m: any) => m.sender_id))];
-      const parentIds = (data || []).filter((m: any) => m.parent_message_id).map((m: any) => m.parent_message_id);
       
       let profileMap = new Map<string, any>();
       if (senderIds.length > 0) {
@@ -82,6 +80,22 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
         } as Message;
       });
     },
+  });
+
+  // Fetch read receipts for all messages in this chat
+  const messageIds = messages.map(m => m.id);
+  const { data: readReceipts = [] } = useQuery({
+    queryKey: ["message-reads", taskId, messageIds],
+    queryFn: async () => {
+      if (!messageIds.length) return [];
+      const { data, error } = await supabase
+        .from("order_message_reads")
+        .select("message_id, user_id, read_at")
+        .in("message_id", messageIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: messageIds.length > 0,
   });
 
   // Mark messages as read when chat opens
@@ -175,19 +189,8 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     }
   };
 
-  // Toggle status
-  const toggleStatus = useMutation({
-    mutationFn: async ({ messageId, newStatus }: { messageId: string; newStatus: string }) => {
-      const { error } = await supabase
-        .from("order_messages")
-        .update({ status: newStatus })
-        .eq("id", messageId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-messages", taskId] });
-    },
-  });
+
+
 
   // Download file
   const handleDownload = async (fp: string, fn: string) => {
@@ -252,24 +255,25 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(msg.created_at), "h:mm a")}
                       </span>
-                      <Badge
-                        variant={msg.status === "resolved" ? "secondary" : "outline"}
-                        className="text-[10px] px-1.5 py-0 cursor-pointer"
-                        onClick={() => {
-                          if (canUpdateStatus) {
-                            toggleStatus.mutate({
-                              messageId: msg.id,
-                              newStatus: msg.status === "resolved" ? "pending" : "resolved",
-                            });
-                          }
-                        }}
-                      >
-                        {msg.status === "resolved" ? (
-                          <><CheckCircle className="h-2.5 w-2.5 mr-0.5" />Resolved</>
-                        ) : (
-                          <><Clock className="h-2.5 w-2.5 mr-0.5" />Pending</>
-                        )}
-                      </Badge>
+                      {isOwn && (() => {
+                        const othersWhoRead = readReceipts.filter(
+                          r => r.message_id === msg.id && r.user_id !== user?.id
+                        );
+                        if (othersWhoRead.length > 0) {
+                          return (
+                            <span className="text-xs text-primary flex items-center gap-0.5" title={`Seen at ${format(new Date(othersWhoRead[0].read_at), "h:mm a")}`}>
+                              <CheckCheck className="h-3 w-3" />
+                              Seen
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                            <Check className="h-3 w-3" />
+                            Sent
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {/* Reply reference */}
