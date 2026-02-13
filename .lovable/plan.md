@@ -1,43 +1,37 @@
 
 
-# SLA Reset on Phase Upload
+# Developer Upload: URL as Primary Requirement
 
-## What Changes
+## Summary
 
-Every time a developer uploads deliverables for any phase (Phase 1, 2, 3, etc.), the SLA timer for that phase will automatically reset to 9 working hours from the upload time. This ensures developers get a fresh 9-hour window each time they submit work for PM review.
+Change the developer upload dialog so the Website URL field is **required** (primary action), while comments and file uploads remain optional. The designer upload dialog stays unchanged (files required).
 
-## Current Behavior
-
-- Phase 1 is created at order time with an SLA deadline (but incorrectly uses 8 hours instead of 9)
-- Uploading files for a phase does NOT reset the SLA timer
-- The SLA only resets when the developer moves to the next phase
-
-## New Behavior
-
-- After a developer uploads files for any phase, the system recalculates the SLA deadline to 9 working hours from that moment
-- Both the `project_phases` record and the `tasks` record are updated with the new deadline
-- Phase 1 creation will also use 9 hours (fixing the current 8-hour value)
-
----
-
-## Technical Details
+## Changes
 
 ### File: `src/components/dashboards/DeveloperDashboard.tsx`
 
-In the `handleFileUpload` function, after files are uploaded and submission records created, add SLA recalculation logic:
+1. **URL label**: Change "Website Homepage URL (optional)" to "Website Homepage URL (required)" and add a required visual indicator (asterisk).
 
-1. Fetch the developer's `developer_id` from the task
-2. Call the `calculate-sla-deadline` edge function with `sla_hours: 9` and the current time as `start_time`
-3. Update the `project_phases` record for the current phase with the new `sla_deadline`
-4. Update the `tasks` record with the new `sla_deadline`
+2. **Instruction text**: Update the helper text from "Upload your deliverables..." to "Enter the website URL you are working on. You can also add comments or upload files if needed."
 
-This happens for every upload, whether it is Phase 1 or any subsequent phase.
+3. **Submit button validation**: Change the disabled condition so the button requires `homepageUrl` to be filled:
+   - Current: `(!files.length && !homepageUrl.trim() && !developerComment.trim())`
+   - New: `!homepageUrl.trim()`
 
-### File: `src/components/dashboards/CreateWebsiteOrderForm.tsx`
+4. **handleFileUpload validation**: Update the early return guard to require URL:
+   - Current: `if (!selectedTask || (!files.length && !homepageUrl.trim() && !developerComment.trim())) return;`
+   - New: `if (!selectedTask || !homepageUrl.trim()) return;`
 
-Fix Phase 1 creation to use `sla_hours: 9` instead of `sla_hours: 8` (line 255).
+5. **Field labels**: Update "Comment (optional)" and "Files (multiple allowed)" to "Comment (optional)" and "Files (optional)" to clarify that only the URL is required.
 
-### No database migration needed
+6. **Field order**: Keep the current order (URL first, then Comment, then Files) since it already prioritizes the URL.
 
-The `sla_deadline` columns already exist on both `project_phases` and `tasks`.
+7. **Submit button text**: Change to always show "Submit" since file upload is no longer the primary action.
 
+### No changes to `DesignerDashboard.tsx`
+
+The designer upload flow already requires files and will remain unchanged.
+
+### No database changes needed
+
+The existing schema already supports URL-only submissions via the "no-file" and "comment-only" placeholders.
