@@ -317,7 +317,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     enabled: messageIds.length > 0,
   });
 
-  const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+  const REACTION_EMOJIS = ["👍", "👎", "❤️", "😂", "😮", "😢", "🔥", "✅", "❌", "🙏", "👏", "🎉", "💯", "👀", "🤔"];
 
   const toggleReaction = async (messageId: string, emoji: string) => {
     if (!user?.id) return;
@@ -851,7 +851,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-1.5" side="top" align={isOwn ? "end" : "start"}>
-                          <div className="flex gap-1">
+                          <div className="flex flex-wrap gap-1 max-w-[240px]">
                             {REACTION_EMOJIS.map(emoji => (
                               <button
                                 key={emoji}
