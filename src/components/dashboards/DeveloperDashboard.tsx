@@ -617,7 +617,7 @@ const DeveloperDashboard = () => {
   });
 
   const handleFileUpload = async () => {
-    if (!selectedTask || (!files.length && !homepageUrl.trim() && !developerComment.trim())) return;
+    if (!selectedTask || !homepageUrl.trim()) return;
 
     setUploading(true);
     try {
@@ -1291,7 +1291,7 @@ const DeveloperDashboard = () => {
       <Dialog open={!!selectedTask} onOpenChange={() => setSelectedTask(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upload Files — Phase {selectedTask?.current_phase || 1}</DialogTitle>
+            <DialogTitle>Submit Work — Phase {selectedTask?.current_phase || 1}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -1302,13 +1302,13 @@ const DeveloperDashboard = () => {
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Upload your deliverables for Phase {selectedTask?.current_phase || 1}. After upload, you'll choose to move to the next phase or complete the website.
+                Enter the website URL you are working on. You can also add comments or upload files if needed.
               </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="homepage-url" className="flex items-center gap-1.5">
                 <Link className="h-3.5 w-3.5" />
-                Website Homepage URL (optional)
+                Website Homepage URL <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="homepage-url"
@@ -1323,7 +1323,7 @@ const DeveloperDashboard = () => {
               <Textarea id="developer-comment" placeholder="Add any notes about your submission..." value={developerComment} onChange={(e) => setDeveloperComment(e.target.value)} rows={3} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="file">Files (multiple allowed)</Label>
+              <Label htmlFor="file">Files (optional)</Label>
               <Input
                 id="file" type="file" multiple
                 onChange={(e) => {
@@ -1366,8 +1366,8 @@ const DeveloperDashboard = () => {
                 </div>
               )}
             </div>
-            <Button onClick={handleFileUpload} disabled={(!files.length && !homepageUrl.trim() && !developerComment.trim()) || uploading} className="w-full">
-              {uploading ? "Uploading..." : files.length ? `Upload ${files.length} File(s)` : "Submit"}
+            <Button onClick={handleFileUpload} disabled={!homepageUrl.trim() || uploading} className="w-full">
+              {uploading ? "Submitting..." : "Submit"}
             </Button>
           </div>
         </DialogContent>
