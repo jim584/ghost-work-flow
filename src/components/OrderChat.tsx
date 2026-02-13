@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -100,6 +100,9 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [waveformBars, setWaveformBars] = useState<number[]>(new Array(32).fill(0));
 
   
 
@@ -298,12 +301,32 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
+      // Set up audio analyser for waveform
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      const updateWaveform = () => {
+        if (!analyserRef.current) return;
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(dataArray);
+        // Take 32 bars from the frequency data, normalize to 0-1
+        const bars = Array.from(dataArray.slice(0, 32)).map(v => v / 255);
+        setWaveformBars(bars);
+        animationFrameRef.current = requestAnimationFrame(updateWaveform);
+      };
+      updateWaveform();
+
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
       mediaRecorder.onstop = () => {
         stream.getTracks().forEach(t => t.stop());
+        audioContext.close();
         const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
         const url = URL.createObjectURL(blob);
         setAudioPreview({ blob, url });
@@ -320,7 +343,17 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     }
   };
 
+  const cleanupWaveform = () => {
+    analyserRef.current = null;
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    setWaveformBars(new Array(32).fill(0));
+  };
+
   const stopRecording = () => {
+    cleanupWaveform();
     mediaRecorderRef.current?.stop();
     setIsRecording(false);
     if (recordingTimerRef.current) {
@@ -330,6 +363,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
   };
 
   const cancelRecording = () => {
+    cleanupWaveform();
     if (isRecording) {
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
@@ -605,14 +639,21 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
         
         {isRecording ? (
           <>
-            <div className="flex items-center gap-2 flex-1">
-              <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
-              <span className="text-sm text-destructive font-medium">Recording {formatDuration(recordingDuration)}</span>
+            <span className="h-2 w-2 rounded-full bg-destructive animate-pulse shrink-0" />
+            <span className="text-xs text-destructive font-medium shrink-0">{formatDuration(recordingDuration)}</span>
+            <div className="flex items-end gap-[2px] h-8 flex-1 justify-center">
+              {waveformBars.map((bar, i) => (
+                <div
+                  key={i}
+                  className="w-[3px] rounded-full bg-destructive/70 transition-all duration-75"
+                  style={{ height: `${Math.max(3, bar * 28)}px` }}
+                />
+              ))}
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cancelRecording}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={cancelRecording}>
               <X className="h-4 w-4" />
             </Button>
-            <Button size="icon" className="h-8 w-8 bg-destructive hover:bg-destructive/90" onClick={stopRecording}>
+            <Button size="icon" className="h-8 w-8 bg-destructive hover:bg-destructive/90 shrink-0" onClick={stopRecording}>
               <Square className="h-4 w-4" />
             </Button>
           </>
