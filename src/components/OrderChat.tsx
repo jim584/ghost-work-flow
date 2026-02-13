@@ -141,7 +141,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
 
   const [messageText, setMessageText] = useState("");
   const [replyTo, setReplyTo] = useState<Message | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   
   // Voice recording state
@@ -189,9 +189,9 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     e.stopPropagation();
     setIsDragOver(false);
     dragCounterRef.current = 0;
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      setSelectedFile(file);
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length > 0) {
+      setSelectedFiles(prev => [...prev, ...files]);
     }
   }, []);
 
@@ -326,43 +326,56 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
 
   // Send message
   const sendMessage = async () => {
-    if (!messageText.trim() && !selectedFile) return;
+    if (!messageText.trim() && selectedFiles.length === 0) return;
     if (!user?.id) return;
     setSending(true);
 
     try {
-      let filePath: string | null = null;
-      let fileName: string | null = null;
-
-      if (selectedFile) {
-        const ext = selectedFile.name.split(".").pop();
+      // Upload all selected files
+      const uploadedFiles: { path: string; name: string }[] = [];
+      for (const file of selectedFiles) {
+        const ext = file.name.split(".").pop();
         const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
         const storagePath = `chat-files/${taskId}/${safeName}`;
         const { error: uploadError } = await supabase.storage
           .from("design-files")
-          .upload(storagePath, selectedFile);
+          .upload(storagePath, file);
         if (uploadError) throw uploadError;
-        filePath = storagePath;
-        fileName = selectedFile.name;
+        uploadedFiles.push({ path: storagePath, name: file.name });
       }
 
-      const { error } = await supabase.from("order_messages").insert({
-        task_id: taskId,
-        sender_id: user.id,
-        message: messageText.trim() || (fileName ? `Shared file: ${fileName}` : ""),
-        file_path: filePath,
-        file_name: fileName,
-        parent_message_id: replyTo?.id || null,
-        status: "pending",
-      });
-      if (error) throw error;
+      if (uploadedFiles.length <= 1) {
+        // Single file or text-only: one message
+        const { error } = await supabase.from("order_messages").insert({
+          task_id: taskId,
+          sender_id: user.id,
+          message: messageText.trim() || (uploadedFiles[0] ? `Shared file: ${uploadedFiles[0].name}` : ""),
+          file_path: uploadedFiles[0]?.path || null,
+          file_name: uploadedFiles[0]?.name || null,
+          parent_message_id: replyTo?.id || null,
+          status: "pending",
+        });
+        if (error) throw error;
+      } else {
+        // Multiple files: first message has text + first file, rest are file-only
+        const messages = uploadedFiles.map((f, i) => ({
+          task_id: taskId,
+          sender_id: user.id,
+          message: i === 0 ? (messageText.trim() || `Shared ${uploadedFiles.length} files`) : `Shared file: ${f.name}`,
+          file_path: f.path,
+          file_name: f.name,
+          parent_message_id: i === 0 ? (replyTo?.id || null) : null,
+          status: "pending",
+        }));
+        const { error } = await supabase.from("order_messages").insert(messages);
+        if (error) throw error;
+      }
 
       setMessageText("");
       setReplyTo(null);
-      setSelectedFile(null);
+      setSelectedFiles([]);
       queryClient.invalidateQueries({ queryKey: ["order-messages", taskId] });
       queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-      // Scroll to bottom after sending
       setTimeout(() => scrollToBottom(), 100);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error sending message", description: error.message });
@@ -708,13 +721,17 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
       )}
 
       {/* Selected file indicator */}
-      {selectedFile && (
-        <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/50 border-t text-xs">
-          <Paperclip className="h-3 w-3 text-muted-foreground" />
-          <span className="truncate flex-1">{selectedFile.name}</span>
-          <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setSelectedFile(null)}>
-            <X className="h-3 w-3" />
-          </Button>
+      {selectedFiles.length > 0 && (
+        <div className="flex flex-col gap-1 px-4 py-1.5 bg-muted/50 border-t text-xs">
+          {selectedFiles.map((file, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+              <span className="truncate flex-1">{file.name}</span>
+              <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={() => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -747,8 +764,11 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
           type="file"
           ref={fileInputRef}
           className="hidden"
+          multiple
           onChange={(e) => {
-            if (e.target.files?.[0]) setSelectedFile(e.target.files[0]);
+            const files = Array.from(e.target.files || []);
+            if (files.length > 0) setSelectedFiles(prev => [...prev, ...files]);
+            if (fileInputRef.current) fileInputRef.current.value = "";
           }}
         />
         
@@ -784,10 +804,10 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               className="h-9"
             />
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={startRecording} disabled={!!selectedFile}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={startRecording} disabled={selectedFiles.length > 0}>
               <Mic className="h-4 w-4" />
             </Button>
-            <Button size="icon" className="h-8 w-8" disabled={sending || (!messageText.trim() && !selectedFile)} onClick={sendMessage}>
+            <Button size="icon" className="h-8 w-8" disabled={sending || (!messageText.trim() && selectedFiles.length === 0)} onClick={sendMessage}>
               <Send className="h-4 w-4" />
             </Button>
           </>
