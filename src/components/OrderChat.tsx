@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,10 +33,10 @@ interface Message {
 
 // Inline audio player for voice messages
 const VoiceMessagePlayer = ({ filePath, fileName }: { filePath: string; fileName: string }) => {
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioReady, setAudioReady] = useState<HTMLAudioElement | null>(null);
 
   const handlePlayPause = async () => {
     if (isPlaying && audioRef.current) {
@@ -44,27 +45,28 @@ const VoiceMessagePlayer = ({ filePath, fileName }: { filePath: string; fileName
       return;
     }
 
-    if (!audioUrl) {
+    if (!audioRef.current) {
       setLoading(true);
       const { data, error } = await supabase.storage.from("design-files").download(filePath);
       if (error || !data) { setLoading(false); return; }
       const url = URL.createObjectURL(data);
-      setAudioUrl(url);
       const audio = new Audio(url);
+      audio.crossOrigin = "anonymous";
       audio.onended = () => setIsPlaying(false);
       audioRef.current = audio;
+      setAudioReady(audio);
       audio.play();
       setIsPlaying(true);
       setLoading(false);
     } else {
-      audioRef.current?.play();
+      audioRef.current.play();
       setIsPlaying(true);
     }
   };
 
   return (
     <div className="flex items-center gap-2 p-2 bg-muted/50 rounded border">
-      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handlePlayPause} disabled={loading}>
+      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={handlePlayPause} disabled={loading}>
         {loading ? (
           <span className="h-3 w-3 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
         ) : isPlaying ? (
@@ -73,8 +75,14 @@ const VoiceMessagePlayer = ({ filePath, fileName }: { filePath: string; fileName
           <Play className="h-4 w-4" />
         )}
       </Button>
-      <Mic className="h-3 w-3 text-muted-foreground" />
-      <span className="text-xs text-muted-foreground flex-1">{fileName}</span>
+      {isPlaying ? (
+        <PlaybackWaveform audioElement={audioReady} isPlaying={isPlaying} barCount={20} barClassName="bg-primary/70" className="flex-1" />
+      ) : (
+        <>
+          <Mic className="h-3 w-3 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground flex-1">{fileName}</span>
+        </>
+      )}
     </div>
   );
 };
@@ -390,10 +398,13 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
       previewAudioRef.current.pause();
       setIsPlayingPreview(false);
     } else {
-      const audio = new Audio(audioPreview.url);
-      audio.onended = () => setIsPlayingPreview(false);
-      previewAudioRef.current = audio;
-      audio.play();
+      if (!previewAudioRef.current) {
+        const audio = new Audio(audioPreview.url);
+        audio.crossOrigin = "anonymous";
+        audio.onended = () => setIsPlayingPreview(false);
+        previewAudioRef.current = audio;
+      }
+      previewAudioRef.current.play();
       setIsPlayingPreview(true);
     }
   };
@@ -612,12 +623,18 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
       {/* Voice recording preview */}
       {audioPreview && (
         <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-t text-xs">
-          <Mic className="h-3 w-3 text-destructive" />
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={togglePreviewPlayback}>
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={togglePreviewPlayback}>
             {isPlayingPreview ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
           </Button>
-          <span className="flex-1 text-muted-foreground">Voice message ({formatDuration(recordingDuration)})</span>
-          <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={cancelRecording}>
+          {isPlayingPreview ? (
+            <PlaybackWaveform audioElement={previewAudioRef.current} isPlaying={isPlayingPreview} barCount={24} barClassName="bg-destructive/70" className="flex-1" />
+          ) : (
+            <>
+              <Mic className="h-3 w-3 text-destructive" />
+              <span className="flex-1 text-muted-foreground">Voice message ({formatDuration(recordingDuration)})</span>
+            </>
+          )}
+          <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={cancelRecording}>
             <X className="h-3 w-3" />
           </Button>
           <Button size="sm" className="h-7 px-3 text-xs" disabled={sending} onClick={sendVoiceMessage}>
