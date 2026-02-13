@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+// Global cache: an HTMLMediaElement can only have one MediaElementSourceNode ever
+const audioSourceCache = new WeakMap<HTMLAudioElement, { ctx: AudioContext; source: MediaElementAudioSourceNode; analyser: AnalyserNode }>();
+
 interface PlaybackWaveformProps {
   audioElement: HTMLAudioElement | null;
   isPlaying: boolean;
@@ -17,10 +20,7 @@ export const PlaybackWaveform = ({
 }: PlaybackWaveformProps) => {
   const [bars, setBars] = useState<number[]>(new Array(barCount).fill(0));
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const rafRef = useRef<number | null>(null);
-  const connectedElementRef = useRef<HTMLAudioElement | null>(null);
 
   const animate = useCallback(() => {
     if (!analyserRef.current) return;
@@ -34,23 +34,26 @@ export const PlaybackWaveform = ({
 
   useEffect(() => {
     if (isPlaying && audioElement) {
-      // Only create context/source once per audio element
-      if (connectedElementRef.current !== audioElement) {
-        // Clean up old context
-        if (audioCtxRef.current) {
-          audioCtxRef.current.close().catch(() => {});
+      let cached = audioSourceCache.get(audioElement);
+      if (!cached) {
+        try {
+          const ctx = new AudioContext();
+          const source = ctx.createMediaElementSource(audioElement);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 64;
+          source.connect(analyser);
+          analyser.connect(ctx.destination);
+          cached = { ctx, source, analyser };
+          audioSourceCache.set(audioElement, cached);
+        } catch {
+          // Element already connected elsewhere — skip waveform
+          return;
         }
-        const ctx = new AudioContext();
-        const source = ctx.createMediaElementSource(audioElement);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 64;
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
-        audioCtxRef.current = ctx;
-        sourceRef.current = source;
-        analyserRef.current = analyser;
-        connectedElementRef.current = audioElement;
       }
+      if (cached.ctx.state === 'suspended') {
+        cached.ctx.resume();
+      }
+      analyserRef.current = cached.analyser;
       rafRef.current = requestAnimationFrame(animate);
     } else {
       if (rafRef.current) {
@@ -67,15 +70,6 @@ export const PlaybackWaveform = ({
       }
     };
   }, [isPlaying, audioElement, animate, barCount]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close().catch(() => {});
-      }
-    };
-  }, []);
 
   return (
     <div className={`flex items-end gap-[2px] h-6 ${className}`}>
