@@ -261,9 +261,9 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
                         );
                         if (othersWhoRead.length > 0) {
                           return (
-                            <span className="text-xs text-primary flex items-center gap-0.5" title={`Seen at ${format(new Date(othersWhoRead[0].read_at), "h:mm a")}`}>
+                            <span className="text-xs text-primary flex items-center gap-0.5">
                               <CheckCheck className="h-3 w-3" />
-                              Seen
+                              Seen at {format(new Date(othersWhoRead[0].read_at), "h:mm a")}
                             </span>
                           );
                         }
