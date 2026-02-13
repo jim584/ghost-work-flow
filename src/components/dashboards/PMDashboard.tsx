@@ -1286,6 +1286,11 @@ const PMDashboard = () => {
               {filteredOrders.map((group) => {
                 const task = group.primaryTask;
                 const groupSubmissions = getGroupSubmissions(group);
+                const isWebsite = isWebsiteOrder(task);
+                // For website orders, filter out comment-only submissions (URLs) from the files area
+                const fileSubmissions = isWebsite 
+                  ? groupSubmissions.filter((s: any) => s.file_name !== 'comment-only')
+                  : groupSubmissions;
                 const isExpanded = expandedTaskId === group.groupId;
                 const allCategories = getGroupCategories(group, submissions || []);
                 const category = (statusFilter && allCategories.includes(statusFilter)) ? statusFilter : getGroupCategory(group, submissions || []);
@@ -1619,10 +1624,10 @@ const PMDashboard = () => {
                               <Calendar className="h-3 w-3" />
                               <span>Created: {format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}</span>
                             </div>
-                            {groupSubmissions.length > 0 && (
+                            {fileSubmissions.length > 0 && (
                               <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
                                 <FileText className="h-3 w-3" />
-                                <span>{groupSubmissions.length} file(s) submitted</span>
+                                <span>{fileSubmissions.length} file(s) submitted</span>
                               </div>
                             )}
                           </div>
@@ -1675,6 +1680,7 @@ const PMDashboard = () => {
                             userId={user!.id}
                             isAssignedPM={task.project_manager_id === user?.id}
                             queryKeysToInvalidate={[["pm-tasks"], ["pm-project-phases"], ["design-submissions"]]}
+                            submissions={groupSubmissions.filter((s: any) => s.file_name === 'comment-only')}
                           />
                         </div>
                       )}
@@ -1767,7 +1773,7 @@ const PMDashboard = () => {
                           </p>
                         )}
                       </div>
-                      {groupSubmissions.length > 0 && (
+                      {fileSubmissions.length > 0 && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1790,7 +1796,7 @@ const PMDashboard = () => {
                     </div>
 
                     {/* Expanded Submissions - Organized by Team for Multi-Team Orders */}
-                    {isExpanded && groupSubmissions.length > 0 && (
+                    {isExpanded && fileSubmissions.length > 0 && (
                       <div className="border-t bg-muted/10 p-4 animate-fade-in">
                         <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                           <FileText className="h-4 w-4" />
@@ -2049,9 +2055,9 @@ const PMDashboard = () => {
                         ) : (
                           // Single team: Show flat list as before
                           <div className="space-y-2">
-                            {groupSubmissions.filter((s: any) => !s.parent_submission_id).map((submission: any) => {
+                            {fileSubmissions.filter((s: any) => !s.parent_submission_id).map((submission: any) => {
                               const collectChain = (parentId: string): any[] => {
-                                const children = groupSubmissions.filter((s: any) => s.parent_submission_id === parentId)
+                                const children = fileSubmissions.filter((s: any) => s.parent_submission_id === parentId)
                                   .sort((a: any, b: any) => new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime());
                                 return children.flatMap((child: any) => [child, ...collectChain(child.id)]);
                               };
