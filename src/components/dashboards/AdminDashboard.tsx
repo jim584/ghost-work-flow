@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar, MessageCircle, Timer } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar, MessageCircle, Timer, RotateCcw } from "lucide-react";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { exportTasksToCSV, exportSalesPerformanceToCSV, exportUsersToCSV } from "@/utils/csvExport";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -415,6 +415,41 @@ const AdminDashboard = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch reassignment history for view details
+  const { data: reassignmentHistory } = useQuery({
+    queryKey: ["admin-reassignment-history", viewDetailsTask?.id],
+    queryFn: async () => {
+      if (!viewDetailsTask?.id) return [];
+      const { data, error } = await supabase
+        .from("reassignment_history" as any)
+        .select("*")
+        .eq("task_id", viewDetailsTask.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      
+      // Fetch developer names
+      if (data && data.length > 0) {
+        const devIds = new Set<string>();
+        data.forEach((entry: any) => {
+          if (entry.from_developer_id) devIds.add(entry.from_developer_id);
+          if (entry.to_developer_id) devIds.add(entry.to_developer_id);
+        });
+        const { data: devs } = await supabase
+          .from("developers")
+          .select("id, name")
+          .in("id", Array.from(devIds));
+        const devMap = new Map(devs?.map(d => [d.id, d.name]) || []);
+        return data.map((entry: any) => ({
+          ...entry,
+          from_name: devMap.get(entry.from_developer_id) || null,
+          to_name: devMap.get(entry.to_developer_id) || null,
+        }));
+      }
+      return data || [];
+    },
+    enabled: !!viewDetailsTask?.id,
   });
 
   const { data: developerProfiles } = useQuery({
@@ -3961,6 +3996,35 @@ const AdminDashboard = () => {
                         <p className="font-medium">{viewDetailsTask.additional_details}</p>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Reassignment History */}
+              {reassignmentHistory && reassignmentHistory.length > 0 && (
+                <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4" />
+                    Reassignment History ({reassignmentHistory.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {reassignmentHistory.map((entry: any) => (
+                      <div key={entry.id} className="p-3 bg-background rounded-md border text-sm space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-muted-foreground">{entry.from_name || "Unassigned"}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="font-medium text-foreground">{entry.to_name || "Unknown"}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium">Reason:</span> {entry.reason}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
