@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar, MessageCircle } from "lucide-react";
+import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { exportTasksToCSV, exportSalesPerformanceToCSV, exportUsersToCSV } from "@/utils/csvExport";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -120,6 +121,7 @@ const AdminDashboard = () => {
   const [showAllPreviousDesigner, setShowAllPreviousDesigner] = useState(false);
   const [pmWorkloadDialog, setPmWorkloadDialog] = useState<{ open: boolean; pmId: string; pmName: string } | null>(null);
   const [pmWorkloadFilter, setPmWorkloadFilter] = useState<'all' | 'this_month'>('all');
+  const [chatTask, setChatTask] = useState<any>(null);
 
   // Helper function to filter tasks by metric type for a specific user
   const getFilteredTasksForMetric = (userId: string, metricType: string) => {
@@ -206,6 +208,10 @@ const AdminDashboard = () => {
       return data;
     },
   });
+
+  // Unread message counts for chat
+  const adminTaskIds = tasks?.map((t: any) => t.id) || [];
+  const { data: unreadCounts } = useUnreadMessageCounts(adminTaskIds);
 
   // Fetch developer calendars for working-hours overdue calculation
   const { data: developerCalendars } = useQuery({
@@ -2277,6 +2283,15 @@ const AdminDashboard = () => {
                           <FileText className="h-3.5 w-3.5 mr-1.5" />
                           View Details
                         </Button>
+                        <Button size="sm" variant="outline" className="relative" onClick={() => setChatTask(task)}>
+                          <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+                          Chat
+                          {(unreadCounts?.get(task.id) || 0) > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-[10px] rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">
+                              {unreadCounts!.get(task.id)}
+                            </span>
+                          )}
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => openEditTaskDialog(task)}>
                           <Edit2 className="h-3.5 w-3.5 mr-1.5" />
                           Edit
@@ -4341,6 +4356,20 @@ const AdminDashboard = () => {
               );
             })()}
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+      {/* Chat Dialog */}
+      <Dialog open={!!chatTask} onOpenChange={(open) => !open && setChatTask(null)}>
+        <DialogContent className="max-w-xl max-h-[85vh] p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-3">
+            <DialogTitle>
+              Chat — Order #{chatTask?.task_number}
+              <span className="block text-sm font-normal text-muted-foreground mt-0.5">{chatTask?.title}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {chatTask && (
+            <OrderChat taskId={chatTask.id} taskTitle={chatTask.title} taskNumber={chatTask.task_number} />
+          )}
         </DialogContent>
       </Dialog>
     </div>

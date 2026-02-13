@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link, MessageCircle } from "lucide-react";
+import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -357,6 +358,7 @@ const DeveloperDashboard = () => {
   const [finalPhasePages, setFinalPhasePages] = useState<number>(3);
   const [homepageUrls, setHomepageUrls] = useState<string[]>([]);
   const [urlInput, setUrlInput] = useState("");
+  const [chatTask, setChatTask] = useState<any>(null);
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -411,6 +413,10 @@ const DeveloperDashboard = () => {
       return data?.filter(isWebsiteOrder) || [];
     },
   });
+
+  // Unread message counts for chat
+  const taskIdsForChat = tasks?.map(t => t.id) || [];
+  const { data: unreadCounts } = useUnreadMessageCounts(taskIdsForChat);
 
   const { data: submissions } = useQuery({
     queryKey: ["developer-submissions", user?.id],
@@ -1098,6 +1104,15 @@ const DeveloperDashboard = () => {
                             <FileText className="h-3 w-3 mr-1" />
                             View Details
                           </Button>
+                          <Button size="sm" variant="outline" className="relative" onClick={() => setChatTask(task)}>
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            Chat
+                            {(unreadCounts?.get(task.id) || 0) > 0 && (
+                              <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-[10px] rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">
+                                {unreadCounts!.get(task.id)}
+                              </span>
+                            )}
+                          </Button>
                         </div>
                         {task.attachment_file_path && (
                           <div className="mt-3 space-y-2">
@@ -1764,6 +1779,20 @@ const DeveloperDashboard = () => {
               )}
             </div>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+      {/* Chat Dialog */}
+      <Dialog open={!!chatTask} onOpenChange={(open) => !open && setChatTask(null)}>
+        <DialogContent className="max-w-xl max-h-[85vh] p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-3">
+            <DialogTitle>
+              Chat — Order #{chatTask?.task_number}
+              <span className="block text-sm font-normal text-muted-foreground mt-0.5">{chatTask?.title}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {chatTask && (
+            <OrderChat taskId={chatTask.id} taskTitle={chatTask.title} taskNumber={chatTask.task_number} />
+          )}
         </DialogContent>
       </Dialog>
     </div>
