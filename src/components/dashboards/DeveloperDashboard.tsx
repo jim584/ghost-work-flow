@@ -665,12 +665,39 @@ const DeveloperDashboard = () => {
         if (submissionError) throw submissionError;
       }
 
+      // Reset SLA to 9 working hours from now after every upload
+      if (selectedTask.developer_id) {
+        try {
+          const slaResponse = await supabase.functions.invoke('calculate-sla-deadline', {
+            body: { 
+              developer_id: selectedTask.developer_id, 
+              start_time: new Date().toISOString(), 
+              sla_hours: 9 
+            },
+          });
+          if (slaResponse.data?.deadline) {
+            const newDeadline = slaResponse.data.deadline;
+            // Update project_phases SLA deadline for current phase
+            await supabase.from("project_phases").update({ 
+              sla_deadline: newDeadline, sla_hours: 9 
+            }).eq("task_id", selectedTask.id).eq("phase_number", selectedTask.current_phase || 1);
+            // Update tasks SLA deadline
+            await supabase.from("tasks").update({ 
+              sla_deadline: newDeadline 
+            }).eq("id", selectedTask.id);
+          }
+        } catch (e) {
+          console.error("SLA reset on upload failed:", e);
+        }
+      }
+
       if (!hasRevision) {
         setPhaseCompleteTask(selectedTask);
       }
 
       queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["developer-submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
       toast({ 
         title: hasRevision ? "Revision uploaded successfully" : "Submission complete — choose next action",
         description: files.length ? `${files.length} file(s) submitted` : "Submitted successfully"

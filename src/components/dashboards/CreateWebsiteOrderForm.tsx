@@ -252,7 +252,7 @@ export const CreateWebsiteOrderForm = ({ userId, onSuccess, showProjectManagerSe
             .insert({
               task_id: insertedTask.id,
               phase_number: 1,
-              sla_hours: 8,
+              sla_hours: 9,
               sla_deadline: slaDeadline,
               started_at: now,
               status: "in_progress",
