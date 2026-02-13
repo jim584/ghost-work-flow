@@ -574,7 +574,7 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
 
   return (
     <div
-      className="flex flex-col h-[60vh] relative"
+      className="flex flex-col h-[60vh] relative bg-gradient-to-b from-background to-muted/30 rounded-lg overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -582,78 +582,88 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
     >
       {/* Drag overlay */}
       {isDragOver && (
-        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-2 text-primary">
-            <Upload className="h-8 w-8" />
-            <span className="text-sm font-medium">Drop file to attach</span>
+        <div className="absolute inset-0 z-50 bg-primary/5 border-2 border-dashed border-primary rounded-lg flex items-center justify-center backdrop-blur-md animate-chat-drop-pulse">
+          <div className="flex flex-col items-center gap-3 text-primary animate-chat-bubble">
+            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <Upload className="h-7 w-7" />
+            </div>
+            <span className="text-sm font-semibold">Drop files to attach</span>
+            <span className="text-xs text-muted-foreground">Any file type supported</span>
           </div>
         </div>
       )}
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4" ref={scrollViewportRef}>
-        <div className="space-y-3 py-3">
+
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto px-4 scrollbar-thin" ref={scrollViewportRef}>
+        <div className="space-y-4 py-4">
           {messages.length === 0 && (
-            <p className="text-center text-sm text-muted-foreground py-8">No messages yet. Start the conversation!</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-3 animate-chat-bubble">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <Send className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground font-medium">No messages yet</p>
+              <p className="text-xs text-muted-foreground/70">Start the conversation!</p>
+            </div>
           )}
-          {messages.map((msg) => {
+          {messages.map((msg, msgIndex) => {
             const dateLabel = getDateLabel(msg.created_at);
             const showDate = dateLabel !== lastDateLabel;
             lastDateLabel = dateLabel;
             const isOwn = msg.sender_id === user?.id;
 
             return (
-              <div key={msg.id}>
+              <div key={msg.id} className="animate-chat-bubble" style={{ animationDelay: `${Math.min(msgIndex * 30, 300)}ms` }}>
                 {showDate && (
-                  <div className="flex items-center gap-2 my-3">
-                    <div className="flex-1 h-px bg-border" />
-                    <span className="text-xs text-muted-foreground px-2">{dateLabel}</span>
-                    <div className="flex-1 h-px bg-border" />
+                  <div className="flex items-center gap-3 my-4 animate-chat-date">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+                    <span className="text-[11px] font-medium text-muted-foreground/70 bg-background px-3 py-1 rounded-full border border-border/50 shadow-sm">
+                      {dateLabel}
+                    </span>
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
                   </div>
                 )}
-                <div className={`flex gap-2 ${isOwn ? "flex-row-reverse" : ""}`}>
-                  <Avatar className="h-7 w-7 shrink-0">
-                    <AvatarFallback className="text-xs">
+                <div className={`flex gap-2.5 group ${isOwn ? "flex-row-reverse" : ""}`}>
+                  <Avatar className="h-8 w-8 shrink-0 ring-2 ring-background shadow-sm transition-transform duration-200 group-hover:scale-110">
+                    <AvatarFallback className={`text-xs font-semibold ${isOwn ? "bg-primary/15 text-primary" : "bg-accent/15 text-accent"}`}>
                       {getInitials(msg.sender?.full_name, msg.sender?.email)}
                     </AvatarFallback>
                   </Avatar>
                   <div className={`max-w-[75%] space-y-1 ${isOwn ? "items-end" : ""}`}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium">
-                        {msg.sender?.full_name || msg.sender?.email || "Unknown"}
+                    <div className={`flex items-center gap-2 ${isOwn ? "flex-row-reverse" : ""}`}>
+                      <span className="text-xs font-semibold text-foreground/80">
+                        {isOwn ? "You" : (msg.sender?.full_name || msg.sender?.email || "Unknown")}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[11px] text-muted-foreground/60">
                         {format(new Date(msg.created_at), "h:mm a")}
                       </span>
                       {(() => {
                         if (isOwn) {
-                          // Sender sees when the recipient read their message
                           const othersWhoRead = readReceipts.filter(
                             r => r.message_id === msg.id && r.user_id !== user?.id
                           );
                           if (othersWhoRead.length > 0) {
                             return (
-                              <span className="text-xs text-primary flex items-center gap-0.5">
-                                <CheckCheck className="h-3 w-3" />
-                                Seen at {format(new Date(othersWhoRead[0].read_at), "h:mm a")}
+                              <span className="text-[11px] text-primary flex items-center gap-0.5 font-medium">
+                                <CheckCheck className="h-3.5 w-3.5" />
+                                Seen {format(new Date(othersWhoRead[0].read_at), "h:mm a")}
                               </span>
                             );
                           }
                           return (
-                            <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                            <span className="text-[11px] text-muted-foreground/50 flex items-center gap-0.5">
                               <Check className="h-3 w-3" />
                               Sent
                             </span>
                           );
                         } else {
-                          // Recipient sees when they read this message
                           const myRead = readReceipts.find(
                             r => r.message_id === msg.id && r.user_id === user?.id
                           );
                           if (myRead) {
                             return (
-                              <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                              <span className="text-[11px] text-muted-foreground/50 flex items-center gap-0.5">
                                 <CheckCheck className="h-3 w-3" />
-                                Seen at {format(new Date(myRead.read_at), "h:mm a")}
+                                Seen {format(new Date(myRead.read_at), "h:mm a")}
                               </span>
                             );
                           }
@@ -664,36 +674,46 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
 
                     {/* Reply reference */}
                     {msg.parent_message && (
-                      <div className="text-xs bg-muted/50 border-l-2 border-primary/40 pl-2 py-1 rounded-r text-muted-foreground truncate">
-                        {msg.parent_message.sender?.full_name || "Someone"}: {msg.parent_message.message.slice(0, 60)}
-                        {msg.parent_message.message.length > 60 ? "..." : ""}
+                      <div className={`text-xs bg-primary/5 border-l-2 border-primary/30 pl-2.5 py-1.5 rounded-r-md text-muted-foreground/80 truncate italic ${isOwn ? "ml-auto" : ""}`}>
+                        <span className="font-semibold not-italic">{msg.parent_message.sender?.full_name || "Someone"}</span>: {msg.parent_message.message.slice(0, 60)}
+                        {msg.parent_message.message.length > 60 ? "…" : ""}
                       </div>
                     )}
 
-                    <div className={`rounded-lg px-3 py-2 text-sm ${isOwn ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                    <div
+                      className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed transition-all duration-200 shadow-sm hover:shadow-md ${
+                        isOwn
+                          ? "bg-primary text-primary-foreground rounded-br-md"
+                          : "bg-card border border-border/50 text-card-foreground rounded-bl-md"
+                      }`}
+                    >
                       {msg.message}
                     </div>
 
                     {/* File attachment */}
                     {msg.file_path && msg.file_name && (
-                      isVoiceMessage(msg.file_name) ? (
-                        <VoiceMessagePlayer filePath={msg.file_path} fileName={msg.file_name} />
-                      ) : (
-                        <div
-                          className="flex items-center gap-2 p-2 bg-muted/50 rounded border cursor-pointer hover:bg-muted transition-colors"
-                          onClick={() => handleDownload(msg.file_path!, msg.file_name!)}
-                        >
-                          <FileIcon className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-xs truncate flex-1">{msg.file_name}</span>
-                          <Download className="h-3.5 w-3.5 text-muted-foreground" />
-                        </div>
-                      )
+                      <div className="animate-chat-file">
+                        {isVoiceMessage(msg.file_name) ? (
+                          <VoiceMessagePlayer filePath={msg.file_path} fileName={msg.file_name} />
+                        ) : (
+                          <div
+                            className="flex items-center gap-2.5 p-2.5 bg-card rounded-xl border border-border/50 cursor-pointer hover:bg-accent/5 hover:border-primary/30 hover:shadow-sm transition-all duration-200 group/file"
+                            onClick={() => handleDownload(msg.file_path!, msg.file_name!)}
+                          >
+                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover/file:bg-primary/20 transition-colors">
+                              <FileIcon className="h-4 w-4 text-primary" />
+                            </div>
+                            <span className="text-xs font-medium truncate flex-1">{msg.file_name}</span>
+                            <Download className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover/file:opacity-100 transition-opacity" />
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-5 text-xs text-muted-foreground px-1"
+                      className="h-5 text-[11px] text-muted-foreground/50 px-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:text-primary hover:bg-primary/5 rounded-full"
                       onClick={() => setReplyTo(msg)}
                     >
                       <Reply className="h-3 w-3 mr-1" />
@@ -709,25 +729,27 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
 
       {/* Reply indicator */}
       {replyTo && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-t text-xs">
-          <Reply className="h-3 w-3 text-muted-foreground" />
-          <span className="truncate flex-1">
-            Replying to {replyTo.sender?.full_name || "message"}: {replyTo.message.slice(0, 50)}
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-primary/5 border-t border-primary/20 text-xs animate-chat-file">
+          <Reply className="h-3.5 w-3.5 text-primary" />
+          <span className="truncate flex-1 text-foreground/80">
+            Replying to <span className="font-semibold">{replyTo.sender?.full_name || "message"}</span>: {replyTo.message.slice(0, 50)}
           </span>
-          <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setReplyTo(null)}>
+          <Button variant="ghost" size="sm" className="h-5 w-5 p-0 rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={() => setReplyTo(null)}>
             <X className="h-3 w-3" />
           </Button>
         </div>
       )}
 
-      {/* Selected file indicator */}
+      {/* Selected files indicator */}
       {selectedFiles.length > 0 && (
-        <div className="flex flex-col gap-1 px-4 py-1.5 bg-muted/50 border-t text-xs">
+        <div className="flex flex-col gap-1 px-4 py-2 bg-accent/5 border-t border-accent/20 text-xs">
           {selectedFiles.map((file, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
-              <span className="truncate flex-1">{file.name}</span>
-              <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={() => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))}>
+            <div key={i} className="flex items-center gap-2 animate-chat-file" style={{ animationDelay: `${i * 50}ms` }}>
+              <div className="h-5 w-5 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                <Paperclip className="h-3 w-3 text-primary" />
+              </div>
+              <span className="truncate flex-1 font-medium">{file.name}</span>
+              <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0 rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={() => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))}>
                 <X className="h-3 w-3" />
               </Button>
             </div>
@@ -737,29 +759,29 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
 
       {/* Voice recording preview */}
       {audioPreview && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-t text-xs">
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={togglePreviewPlayback}>
-            {isPlayingPreview ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-destructive/5 border-t border-destructive/20 text-xs animate-chat-file">
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0 rounded-full hover:bg-destructive/10" onClick={togglePreviewPlayback}>
+            {isPlayingPreview ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
           </Button>
           {isPlayingPreview ? (
             <PlaybackWaveform audioElement={previewAudioRef.current} isPlaying={isPlayingPreview} barCount={24} barClassName="bg-destructive/70" className="flex-1" />
           ) : (
             <>
-              <Mic className="h-3 w-3 text-destructive" />
-              <span className="flex-1 text-muted-foreground">Voice message ({formatDuration(recordingDuration)})</span>
+              <Mic className="h-3.5 w-3.5 text-destructive" />
+              <span className="flex-1 text-muted-foreground font-medium">Voice message ({formatDuration(recordingDuration)})</span>
             </>
           )}
-          <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={cancelRecording}>
+          <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0 rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={cancelRecording}>
             <X className="h-3 w-3" />
           </Button>
-          <Button size="sm" className="h-7 px-3 text-xs" disabled={sending} onClick={sendVoiceMessage}>
+          <Button size="sm" className="h-7 px-3 text-xs rounded-full font-medium" disabled={sending} onClick={sendVoiceMessage}>
             <Send className="h-3 w-3 mr-1" /> Send
           </Button>
         </div>
       )}
 
       {/* Input area */}
-      <div className="flex items-center gap-2 px-4 py-3 border-t">
+      <div className="flex items-center gap-2 px-4 py-3 border-t bg-card/50 backdrop-blur-sm">
         <input
           type="file"
           ref={fileInputRef}
@@ -774,8 +796,8 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
         
         {isRecording ? (
           <>
-            <span className="h-2 w-2 rounded-full bg-destructive animate-pulse shrink-0" />
-            <span className="text-xs text-destructive font-medium shrink-0">{formatDuration(recordingDuration)}</span>
+            <span className="h-2.5 w-2.5 rounded-full bg-destructive animate-pulse shrink-0" />
+            <span className="text-xs text-destructive font-semibold shrink-0">{formatDuration(recordingDuration)}</span>
             <div className="flex items-end gap-[2px] h-8 flex-1 justify-center">
               {waveformBars.map((bar, i) => (
                 <div
@@ -785,16 +807,16 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
                 />
               ))}
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={cancelRecording}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full hover:bg-muted" onClick={cancelRecording}>
               <X className="h-4 w-4" />
             </Button>
-            <Button size="icon" className="h-8 w-8 bg-destructive hover:bg-destructive/90 shrink-0" onClick={stopRecording}>
+            <Button size="icon" className="h-8 w-8 bg-destructive hover:bg-destructive/90 shrink-0 rounded-full shadow-sm" onClick={stopRecording}>
               <Square className="h-4 w-4" />
             </Button>
           </>
         ) : audioPreview ? null : (
           <>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fileInputRef.current?.click()}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => fileInputRef.current?.click()}>
               <Paperclip className="h-4 w-4" />
             </Button>
             <Input
@@ -802,15 +824,20 @@ export const OrderChat = ({ taskId, taskTitle, taskNumber }: OrderChatProps) => 
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              className="h-9"
+              className="h-9 rounded-full bg-muted/50 border-border/50 focus:bg-background transition-colors text-sm"
             />
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={startRecording} disabled={selectedFiles.length > 0}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={startRecording} disabled={selectedFiles.length > 0}>
               <Mic className="h-4 w-4" />
             </Button>
-            <Button size="icon" className="h-8 w-8 relative" disabled={sending || (!messageText.trim() && selectedFiles.length === 0)} onClick={sendMessage}>
-              <Send className="h-4 w-4" />
+            <Button
+              size="icon"
+              className="h-9 w-9 rounded-full shadow-sm relative chat-send-btn transition-transform duration-150 active:scale-90"
+              disabled={sending || (!messageText.trim() && selectedFiles.length === 0)}
+              onClick={sendMessage}
+            >
+              <Send className="h-4 w-4 chat-send-icon" />
               {selectedFiles.length > 1 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center shadow-sm">
                   {selectedFiles.length}
                 </span>
               )}
