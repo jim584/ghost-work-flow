@@ -3011,41 +3011,83 @@ const AdminDashboard = () => {
                 const monthStart = startOfMonth(now);
                 const monthEnd = endOfMonth(now);
 
-                return (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Developer</TableHead>
-                        <TableHead className="text-center">Active Tasks</TableHead>
-                        <TableHead className="text-center">Points (This Month)</TableHead>
-                        <TableHead className="text-center">Points (All-Time)</TableHead>
-                        <TableHead className="text-center">Pages (This Month)</TableHead>
-                        <TableHead className="text-center">Pages (All-Time)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {developerCalendars.map((dev: any) => {
-                        const devProfile = developerProfiles?.find((p: any) => p.user_id === dev.user_id);
-                        const profile = devProfile?.profiles as any;
-                        const devName = dev.name || profile?.full_name || profile?.email || 'Unknown';
-                        
-                        const devTasks = tasks?.filter(t => t.developer_id === dev.id && !t.is_deleted) || [];
-                        const activeTasks = devTasks.filter(t => ['assigned', 'in_progress'].includes(t.status));
-                        
-                        const devPhases = projectPhases?.filter(p => 
-                          devTasks.some(t => t.id === p.task_id) && p.status === 'completed'
-                        ) || [];
-                        
-                        const monthlyPhases = devPhases.filter(p => 
-                          p.completed_at && isWithinInterval(new Date(p.completed_at), { start: monthStart, end: monthEnd })
-                        );
-                        
-                        const allTimePoints = devPhases.reduce((s, p) => s + (p.points || 3), 0);
-                        const monthlyPoints = monthlyPhases.reduce((s, p) => s + (p.points || 3), 0);
-                        const allTimePages = devPhases.reduce((s, p) => s + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
-                        const monthlyPages = monthlyPhases.reduce((s, p) => s + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+                // Compute aggregated totals
+                let totalActiveTasks = 0;
+                let totalMonthlyPoints = 0;
+                let totalAllTimePoints = 0;
+                let totalMonthlyPages = 0;
+                let totalAllTimePages = 0;
 
-                        return (
+                const devRows = developerCalendars.map((dev: any) => {
+                  const devProfile = developerProfiles?.find((p: any) => p.user_id === dev.user_id);
+                  const profile = devProfile?.profiles as any;
+                  const devName = dev.name || profile?.full_name || profile?.email || 'Unknown';
+                  
+                  const devTasks = tasks?.filter(t => t.developer_id === dev.id && !t.is_deleted) || [];
+                  const activeTasks = devTasks.filter(t => ['assigned', 'in_progress'].includes(t.status));
+                  
+                  const devPhases = projectPhases?.filter(p => 
+                    devTasks.some(t => t.id === p.task_id) && p.status === 'completed'
+                  ) || [];
+                  
+                  const monthlyPhases = devPhases.filter(p => 
+                    p.completed_at && isWithinInterval(new Date(p.completed_at), { start: monthStart, end: monthEnd })
+                  );
+                  
+                  const allTimePoints = devPhases.reduce((s, p) => s + (p.points || 3), 0);
+                  const monthlyPoints = monthlyPhases.reduce((s, p) => s + (p.points || 3), 0);
+                  const allTimePages = devPhases.reduce((s, p) => s + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+                  const monthlyPages = monthlyPhases.reduce((s, p) => s + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+
+                  totalActiveTasks += activeTasks.length;
+                  totalMonthlyPoints += monthlyPoints;
+                  totalAllTimePoints += allTimePoints;
+                  totalMonthlyPages += monthlyPages;
+                  totalAllTimePages += allTimePages;
+
+                  return { dev, devName, activeTasks, monthlyPoints, allTimePoints, monthlyPages, allTimePages };
+                });
+
+                return (
+                  <div className="space-y-6">
+                    {/* Aggregated Summary */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="rounded-lg border bg-card p-4 text-center">
+                        <p className="text-xs text-muted-foreground mb-1">Active Tasks</p>
+                        <p className="text-2xl font-bold">{totalActiveTasks}</p>
+                      </div>
+                      <div className="rounded-lg border bg-card p-4 text-center">
+                        <p className="text-xs text-muted-foreground mb-1">Points (This Month)</p>
+                        <p className="text-2xl font-bold text-primary">{totalMonthlyPoints}</p>
+                      </div>
+                      <div className="rounded-lg border bg-card p-4 text-center">
+                        <p className="text-xs text-muted-foreground mb-1">Points (All-Time)</p>
+                        <p className="text-2xl font-bold">{totalAllTimePoints}</p>
+                      </div>
+                      <div className="rounded-lg border bg-card p-4 text-center">
+                        <p className="text-xs text-muted-foreground mb-1">Pages (This Month)</p>
+                        <p className="text-2xl font-bold text-primary">{totalMonthlyPages}</p>
+                      </div>
+                      <div className="rounded-lg border bg-card p-4 text-center">
+                        <p className="text-xs text-muted-foreground mb-1">Pages (All-Time)</p>
+                        <p className="text-2xl font-bold">{totalAllTimePages}</p>
+                      </div>
+                    </div>
+
+                    {/* Per-developer table */}
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Developer</TableHead>
+                          <TableHead className="text-center">Active Tasks</TableHead>
+                          <TableHead className="text-center">Points (This Month)</TableHead>
+                          <TableHead className="text-center">Points (All-Time)</TableHead>
+                          <TableHead className="text-center">Pages (This Month)</TableHead>
+                          <TableHead className="text-center">Pages (All-Time)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {devRows.map(({ dev, devName, activeTasks, monthlyPoints, allTimePoints, monthlyPages, allTimePages }) => (
                           <TableRow key={dev.id}>
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
@@ -3069,10 +3111,10 @@ const AdminDashboard = () => {
                               <Badge variant="outline">{allTimePages}</Badge>
                             </TableCell>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 );
               })()}
             </CardContent>
