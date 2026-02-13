@@ -1,157 +1,75 @@
 
 
-# Order-Specific Chat System with Priority Indicators
+# Priority Dashboard for Development Team Leader
 
 ## Overview
+Add a toggle/tab system to the Development Team Leader's dashboard that separates two distinct views:
+- **Team Overview** (default): A priority-sorted dashboard showing all team members' orders with status indicators, overdue alerts, and workload summaries
+- **My Orders**: A focused view showing only the team leader's personally assigned tasks
 
-Add a real-time messaging system embedded within each order card, allowing developers, project managers, and admins to communicate directly about a specific order. Messages trigger priority indicators on the recipient's dashboard.
+## What Changes
 
----
+### 1. Dashboard Header Toggle
+Add a segmented tab control at the top of the DeveloperDashboard (visible only for team leaders) with two options:
+- "Team Overview" -- shows aggregated team status
+- "My Orders" -- shows only tasks where the team leader is the assigned developer
 
-## Database Changes
+### 2. Team Overview Tab
+A new priority-sorted view containing:
 
-### New Table: `order_messages`
+**Summary Cards Row**
+- Total active orders across all developers
+- Orders with overdue SLA deadlines (red highlight)
+- Unacknowledged orders past deadline
+- Orders in revision status
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid (PK) | Auto-generated |
-| task_id | uuid (FK) | Links to the order/task |
-| sender_id | uuid | The user who sent the message |
-| message | text | Message content |
-| file_path | text (nullable) | Optional file attachment path in storage |
-| file_name | text (nullable) | Original file name |
-| parent_message_id | uuid (nullable) | For threading -- references another message |
-| status | text | "pending" or "resolved" (default: "pending") |
-| created_at | timestamptz | Auto-set |
+**Developer Workload Table**
+Each row shows a developer with:
+- Name
+- Active task count
+- Current phase progress (e.g., "Phase 2/4")
+- SLA status indicator (on time / overdue)
+- Late acknowledgement flag
 
-### New Table: `order_message_reads`
+**Priority-Sorted Order List**
+All orders sorted by urgency:
+1. Overdue SLA deadlines (most overdue first)
+2. Late acknowledgements
+3. In-progress orders approaching deadline
+4. Pending/new orders
 
-Tracks which users have seen messages, used to determine priority indicators.
+Each card shows the assigned developer name prominently alongside existing order information.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid (PK) | Auto-generated |
-| message_id | uuid (FK) | References order_messages |
-| user_id | uuid | The user who read the message |
-| read_at | timestamptz | When they read it |
+### 3. My Orders Tab
+Filters the existing task list to only show orders where `developer_id` matches the team leader's developer record, providing a clean personal workspace.
 
-### Realtime
+## Technical Details
 
-Enable realtime on `order_messages` so new messages appear instantly.
+### File Changes
 
-### New Column on `tasks`: `has_unread_messages` (NOT added)
+**`src/components/dashboards/DeveloperDashboard.tsx`**
+- Add a `viewMode` state: `"team"` | `"my_orders"` (default `"team"` for team leaders)
+- Render tab toggle in the header area (only when `isTeamLeader` is true)
+- In "team" view: query all developers with their active task counts and SLA statuses
+- In "my orders" view: filter existing `tasks` array to only those assigned to the team leader's developer ID
+- Add summary cards component for the team overview
+- Sort orders by priority (overdue first, then approaching deadline, then new)
 
-Instead, unread status will be computed client-side by comparing `order_messages` vs `order_message_reads` for the current user. This avoids complex trigger logic and keeps the source of truth in the read-tracking table.
+**New query for team overview**
+- Fetch all developers with profiles to get names
+- Cross-reference with active tasks and their phases/SLA deadlines
+- Compute overdue status using existing `calculateOverdueWorkingMinutes` utility
 
-### RLS Policies
+### Data Access
+- No new tables or RLS policies needed -- the team leader already has SELECT access to all tasks, phases, developers, and profiles
+- Leverages existing queries with additional client-side grouping and sorting
 
-**order_messages:**
-- Developers: SELECT/INSERT on messages for tasks in their teams
-- PMs: SELECT/INSERT on messages for their tasks (project_manager_id = auth.uid()) or all tasks
-- Admins: Full access (ALL)
-- Dev team leaders: SELECT/INSERT on all messages
-- UPDATE (status field): PMs and admins can mark messages as resolved
-
-**order_message_reads:**
-- Users can INSERT/SELECT their own read records
-- Admins can view all
-
-### Notification Type
-
-Add `'order_message'` to the `notifications_type_check` constraint so new message notifications can be stored.
-
----
-
-## New Component: `OrderChat`
-
-A reusable chat component that takes a `taskId` and renders inside a Dialog or collapsible section on the order card.
-
-**Features:**
-- Scrollable message list with sender name, timestamp, and optional file attachment
-- Reply/thread support: click "Reply" on a message to set it as parent
-- Input area with text field, optional file upload, and Send button
-- Messages grouped by date
-- "Resolved" / "Pending" badge on each message, toggleable by PM/Admin
-- Auto-marks messages as read when the chat dialog is opened
-- Realtime subscription for new messages
-
----
-
-## Priority Indicator Logic
-
-**How it works:**
-1. When a developer sends a message, the system creates a notification for the PM (and admin)
-2. When a PM sends a message, the system creates a notification for developers in that team
-3. Each dashboard queries `order_message_reads` to find orders with unread messages from the other party
-4. Orders with unread messages show a visual "priority" badge (e.g., pulsing dot or highlighted border)
-5. Opening the chat dialog marks all messages as read, removing the priority indicator
-
-**Dashboard integration:**
-- Developer Dashboard: order cards show priority when PM/admin has sent unread messages
-- PM Dashboard: order cards show priority when developer has sent unread messages
-- Admin Dashboard: order cards show priority when any party has sent unread messages
-
----
-
-## UI Integration
-
-### Order Card Changes (all 3 dashboards)
-
-- Add a "Chat" or message icon button on each order card
-- Show an unread message count badge on the button
-- Clicking opens a Dialog with the `OrderChat` component
-- Cards with unread messages get a subtle highlight border or a "New Message" badge
-
-### Chat Dialog Layout
-
+### Priority Sorting Logic
 ```text
-+----------------------------------+
-|  Chat - Order #123               |
-|  "Website for ABC Corp"          |
-+----------------------------------+
-|  [Date separator: Feb 12, 2026]  |
-|                                  |
-|  PM John (2:30 PM)         [Pending]
-|  > Please update the homepage    |
-|    [reply] [mark resolved]       |
-|                                  |
-|  Dev Sarah (3:15 PM)             |
-|  > Done, check the updated URL   |
-|    attachment.pdf [download]     |
-|    [reply]                       |
-|                                  |
-+----------------------------------+
-|  Reply to: "Please update..."  X |
-|  [Message input...............]  |
-|  [Attach file]        [Send]     |
-+----------------------------------+
+Priority 1: SLA deadline passed (sorted by most overdue)
+Priority 2: Late acknowledgement flag = true
+Priority 3: In-progress, deadline within 2 hours
+Priority 4: Pending (not yet acknowledged)
+Priority 5: All other active orders
 ```
-
----
-
-## Files to Create/Modify
-
-### New Files
-- `src/components/OrderChat.tsx` -- The chat component with message list, input, file upload, threading, and realtime subscription
-
-### Modified Files
-- `src/components/dashboards/DeveloperDashboard.tsx` -- Add chat button to order cards, unread message query, priority indicator
-- `src/components/dashboards/PMDashboard.tsx` -- Add chat button to order cards, unread message query, priority indicator
-- `src/components/dashboards/AdminDashboard.tsx` -- Add chat button to order cards, unread message query, priority indicator
-
-### Database Migration
-- Create `order_messages` table with RLS
-- Create `order_message_reads` table with RLS
-- Add `'order_message'` to `notifications_type_check` constraint
-- Enable realtime on `order_messages`
-
----
-
-## Implementation Sequence
-
-1. Database migration (tables, RLS, realtime, notification type)
-2. Create `OrderChat` component
-3. Integrate into Developer Dashboard with priority indicators
-4. Integrate into PM Dashboard with priority indicators
-5. Integrate into Admin Dashboard with priority indicators
 
