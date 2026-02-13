@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle } from "lucide-react";
+import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 
 import { useProjectManagers } from "@/hooks/useProjectManagers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -63,6 +64,7 @@ const PMDashboard = () => {
   const [selectedNewPmId, setSelectedNewPmId] = useState("");
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; taskId: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [chatTask, setChatTask] = useState<any>(null);
 
   const { data: projectManagers = [] } = useProjectManagers();
 
@@ -305,6 +307,9 @@ const PMDashboard = () => {
 
   // Memoize taskIds to avoid recalculating on every render
   const taskIds = useMemo(() => tasks?.map(t => t.id) || [], [tasks]);
+
+  // Unread message counts for chat
+  const { data: unreadCounts } = useUnreadMessageCounts(taskIds);
 
   const { data: submissions } = useQuery({
     queryKey: ["design-submissions", user?.id, taskIds],
@@ -1687,6 +1692,15 @@ const PMDashboard = () => {
                           <FileText className="h-3.5 w-3.5 mr-1.5" />
                           View Details
                         </Button>
+                        <Button size="sm" variant="outline" className="relative hover-scale" onClick={() => setChatTask(task)}>
+                          <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+                          Chat
+                          {(unreadCounts?.get(task.id) || 0) > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-[10px] rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">
+                              {unreadCounts!.get(task.id)}
+                            </span>
+                          )}
+                        </Button>
                         {task.status === "completed" && task.project_manager_id === user?.id && (
                           <Button
                             size="sm"
@@ -2795,6 +2809,20 @@ const PMDashboard = () => {
               Cancel Order
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* Chat Dialog */}
+      <Dialog open={!!chatTask} onOpenChange={(open) => !open && setChatTask(null)}>
+        <DialogContent className="max-w-xl max-h-[85vh] p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-3">
+            <DialogTitle>
+              Chat — Order #{chatTask?.task_number}
+              <span className="block text-sm font-normal text-muted-foreground mt-0.5">{chatTask?.title}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {chatTask && (
+            <OrderChat taskId={chatTask.id} taskTitle={chatTask.title} taskNumber={chatTask.task_number} />
+          )}
         </DialogContent>
       </Dialog>
     </div>

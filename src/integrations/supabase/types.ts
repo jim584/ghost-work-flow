@@ -259,6 +259,86 @@ export type Database = {
           },
         ]
       }
+      order_message_reads: {
+        Row: {
+          id: string
+          message_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          message_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_message_reads_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "order_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_messages: {
+        Row: {
+          created_at: string
+          file_name: string | null
+          file_path: string | null
+          id: string
+          message: string
+          parent_message_id: string | null
+          sender_id: string
+          status: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          message: string
+          parent_message_id?: string | null
+          sender_id: string
+          status?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          message?: string
+          parent_message_id?: string | null
+          sender_id?: string
+          status?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_messages_parent_message_id_fkey"
+            columns: ["parent_message_id"]
+            isOneToOne: false
+            referencedRelation: "order_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_messages_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
