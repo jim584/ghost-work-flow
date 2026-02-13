@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { calculateOverdueWorkingMinutes, CalendarConfig, LeaveRecord } from "@/utils/workingHours";
+import { useState, useMemo, useEffect } from "react";
+import { calculateOverdueWorkingMinutes, calculateRemainingWorkingMinutes, CalendarConfig, LeaveRecord, toTimezoneDate, getISODay, timeToMinutes, isWithinShift } from "@/utils/workingHours";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar, MessageCircle } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar, MessageCircle, Timer } from "lucide-react";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { exportTasksToCSV, exportSalesPerformanceToCSV, exportUsersToCSV } from "@/utils/csvExport";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -33,6 +33,104 @@ import { LeaveManagement } from "@/components/admin/LeaveManagement";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Database } from "@/integrations/supabase/types";
 import { PhaseReviewSection } from "./PhaseReviewSection";
+
+// Format overdue minutes with decimal days and hours/minutes
+function formatOverdueTime(totalMinutes: number, slaHoursPerDay: number, paused: boolean): string {
+  const h = Math.floor(totalMinutes / 60);
+  const m = Math.floor(totalMinutes % 60);
+  if (slaHoursPerDay > 0) {
+    const minutesPerDay = slaHoursPerDay * 60;
+    const decimalDays = totalMinutes / minutesPerDay;
+    const hm = `${h}h ${m}m`;
+    const pausedStr = paused ? ' (paused)' : '';
+    return `${hm}${pausedStr} — ${decimalDays.toFixed(1)} days`;
+  }
+  const timeStr = `${h}h ${m}m`;
+  return paused ? `${timeStr} (paused)` : timeStr;
+}
+
+// SLA Countdown component - shows remaining working hours
+const SlaCountdown = ({ deadline, label, calendar, leaves, slaHours }: { 
+  deadline: string; label?: string; calendar?: CalendarConfig | null; leaves?: LeaveRecord[]; slaHours?: number 
+}) => {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const deadlineDate = new Date(deadline);
+  const diffMs = deadlineDate.getTime() - now.getTime();
+
+  let hours: number, mins: number, secs: number, timeStr: string;
+
+  if (calendar) {
+    if (diffMs <= 0) {
+      const overdueMinutes = calculateOverdueWorkingMinutes(now, deadlineDate, calendar, leaves || []);
+      const totalMinutesWithSla = overdueMinutes + (slaHours || 0) * 60;
+      const localNow = toTimezoneDate(now, calendar.timezone);
+      const dayOfWeek = getISODay(localNow);
+      const currentMinute = localNow.getHours() * 60 + localNow.getMinutes();
+      const isSat = dayOfWeek === 6;
+      const todayStart = isSat && calendar.saturday_start_time ? timeToMinutes(calendar.saturday_start_time) : timeToMinutes(calendar.start_time);
+      const todayEnd = isSat && calendar.saturday_end_time ? timeToMinutes(calendar.saturday_end_time) : timeToMinutes(calendar.end_time);
+      const isWorkingNow = calendar.working_days.includes(dayOfWeek) && isWithinShift(currentMinute, todayStart, todayEnd);
+      hours = Math.floor(totalMinutesWithSla / 60);
+      mins = Math.floor(totalMinutesWithSla % 60);
+      secs = 0;
+      timeStr = formatOverdueTime(totalMinutesWithSla, slaHours || 0, !isWorkingNow);
+    } else {
+      const remainingMinutes = calculateRemainingWorkingMinutes(now, deadlineDate, calendar, leaves || []);
+      hours = Math.floor(remainingMinutes / 60);
+      mins = Math.floor(remainingMinutes % 60);
+      const localNow = toTimezoneDate(now, calendar.timezone);
+      const dayOfWeek = getISODay(localNow);
+      const currentMinute = localNow.getHours() * 60 + localNow.getMinutes();
+      const isSat = dayOfWeek === 6;
+      const todayStart = isSat && calendar.saturday_start_time ? timeToMinutes(calendar.saturday_start_time) : timeToMinutes(calendar.start_time);
+      const todayEnd = isSat && calendar.saturday_end_time ? timeToMinutes(calendar.saturday_end_time) : timeToMinutes(calendar.end_time);
+      const isWorkingNow = calendar.working_days.includes(dayOfWeek) && isWithinShift(currentMinute, todayStart, todayEnd);
+      if (isWorkingNow) {
+        secs = 60 - now.getSeconds();
+        if (secs === 60) secs = 0;
+      } else {
+        secs = 0;
+      }
+      timeStr = isWorkingNow
+        ? `${hours}h ${mins}m ${secs.toString().padStart(2, '0')}s`
+        : `${hours}h ${mins}m (paused)`;
+    }
+  } else {
+    const totalSeconds = Math.floor(Math.abs(diffMs) / 1000);
+    hours = Math.floor(totalSeconds / 3600);
+    mins = Math.floor((totalSeconds % 3600) / 60);
+    secs = totalSeconds % 60;
+    timeStr = `${hours}h ${mins}m ${secs.toString().padStart(2, '0')}s`;
+  }
+
+  if (diffMs <= 0) {
+    return (
+      <div className="flex items-center gap-1.5 text-destructive">
+        <Timer className="h-3.5 w-3.5 animate-pulse" />
+        <span className="text-xs font-semibold font-mono">{label || "SLA"} OVERDUE by {timeStr}</span>
+      </div>
+    );
+  }
+
+  const isUrgent = calendar 
+    ? (hours === 0 && mins < 120) || (hours < 2)
+    : diffMs < 120 * 60 * 1000;
+
+  return (
+    <div className={`flex items-center gap-1.5 ${isUrgent ? 'text-destructive' : 'text-warning'}`}>
+      <Timer className="h-3.5 w-3.5" />
+      <span className="text-xs font-semibold font-mono">
+        {label || "SLA"}: {timeStr} remaining
+      </span>
+    </div>
+  );
+};
 
 // Password validation schema
 const passwordSchema = z.string()
@@ -2233,6 +2331,31 @@ const AdminDashboard = () => {
                         </div>
                       </div>
 
+                      {/* SLA Countdown Timers for Website Orders */}
+                      {isWebsiteOrder(task) && !['completed', 'approved', 'cancelled'].includes(task.status) && (() => {
+                        const devRecord = developerCalendars?.find((d: any) => d.id === task.developer_id);
+                        const cal = devRecord?.availability_calendars as CalendarConfig | undefined;
+                        const devLeaves = (allLeaveRecords?.filter((l: any) => l.developer_id === devRecord?.id) || []) as LeaveRecord[];
+                        const hasTimers = task.sla_deadline || (task.ack_deadline && task.status === 'assigned');
+                        const changePhases = projectPhases?.filter(p => p.task_id === task.id && p.change_deadline && !p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')) || [];
+                        if (!hasTimers && changePhases.length === 0) return null;
+                        return (
+                          <div className="p-2.5 bg-blue-500/5 border border-blue-200 dark:border-blue-800 rounded-md space-y-1.5">
+                            {task.ack_deadline && task.status === 'assigned' && (
+                              <SlaCountdown deadline={task.ack_deadline} label="Ack Timer" calendar={cal} leaves={devLeaves} />
+                            )}
+                            {task.sla_deadline && (
+                              <SlaCountdown deadline={task.sla_deadline} label="9hr SLA" calendar={cal} leaves={devLeaves} slaHours={9} />
+                            )}
+                            {changePhases.map(p => (
+                              <SlaCountdown key={p.id} deadline={p.change_deadline!} label={`Changes (P${p.phase_number} - ${p.change_severity})`} calendar={cal} leaves={devLeaves} slaHours={
+                                p.change_severity === 'minor' ? 2 : p.change_severity === 'average' ? 4 : p.change_severity === 'major' ? 9 : 18
+                              } />
+                            ))}
+                          </div>
+                        );
+                      })()}
+
                       {/* Attachments */}
                       {task.attachment_file_path && (
                         <div className="pt-2 border-t">
@@ -3397,6 +3520,32 @@ const AdminDashboard = () => {
                   Created by: {(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}
                 </p>
               </div>
+
+              {/* SLA Timers in Details View */}
+              {isWebsiteOrder(viewDetailsTask) && !['completed', 'approved', 'cancelled'].includes(viewDetailsTask.status) && (() => {
+                const devRecord = developerCalendars?.find((d: any) => d.id === viewDetailsTask.developer_id);
+                const cal = devRecord?.availability_calendars as CalendarConfig | undefined;
+                const devLeaves = (allLeaveRecords?.filter((l: any) => l.developer_id === devRecord?.id) || []) as LeaveRecord[];
+                const changePhases = projectPhases?.filter(p => p.task_id === viewDetailsTask.id && p.change_deadline && !p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')) || [];
+                const hasTimers = viewDetailsTask.sla_deadline || (viewDetailsTask.ack_deadline && viewDetailsTask.status === 'assigned') || changePhases.length > 0;
+                if (!hasTimers) return null;
+                return (
+                  <div className="p-3 bg-blue-500/5 border border-blue-200 dark:border-blue-800 rounded-md space-y-2">
+                    <h3 className="font-semibold text-sm">SLA Timers</h3>
+                    {viewDetailsTask.ack_deadline && viewDetailsTask.status === 'assigned' && (
+                      <SlaCountdown deadline={viewDetailsTask.ack_deadline} label="Ack Timer" calendar={cal} leaves={devLeaves} />
+                    )}
+                    {viewDetailsTask.sla_deadline && (
+                      <SlaCountdown deadline={viewDetailsTask.sla_deadline} label="9hr SLA" calendar={cal} leaves={devLeaves} slaHours={9} />
+                    )}
+                    {changePhases.map(p => (
+                      <SlaCountdown key={p.id} deadline={p.change_deadline!} label={`Changes (P${p.phase_number} - ${p.change_severity})`} calendar={cal} leaves={devLeaves} slaHours={
+                        p.change_severity === 'minor' ? 2 : p.change_severity === 'average' ? 4 : p.change_severity === 'major' ? 9 : 18
+                      } />
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Website Details - Only for Website Orders */}
               {isWebsiteOrder(viewDetailsTask) && (
