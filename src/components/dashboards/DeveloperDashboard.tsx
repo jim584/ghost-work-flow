@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link, MessageCircle } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link, MessageCircle, Users } from "lucide-react";
+import TeamOverviewDashboard from "@/components/dashboards/TeamOverviewDashboard";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -268,6 +270,7 @@ const DeveloperDashboard = () => {
   const { user, role, signOut } = useAuth();
   const { toast } = useToast();
   const isTeamLeader = role === "development_team_leader";
+  const [viewMode, setViewMode] = useState<"team" | "my_orders">(isTeamLeader ? "team" : "my_orders");
   const queryClient = useQueryClient();
   
   const { data: profile } = useQuery({
@@ -794,6 +797,10 @@ const DeveloperDashboard = () => {
   };
 
   const filteredTasks = tasks?.filter((task) => {
+    // In "My Orders" mode for team leaders, only show tasks assigned to their developer record
+    if (isTeamLeader && viewMode === "my_orders" && devCalendar?.developerId) {
+      if (task.developer_id !== devCalendar.developerId) return false;
+    }
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       return task.title?.toLowerCase().includes(query) ||
@@ -826,9 +833,23 @@ const DeveloperDashboard = () => {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Welcome, {profile?.full_name || 'Developer'}</h1>
-            <p className="text-sm text-muted-foreground">Developer Dashboard</p>
+            <p className="text-sm text-muted-foreground">{isTeamLeader ? 'Development Team Leader' : 'Developer Dashboard'}</p>
           </div>
           <div className="flex items-center gap-2">
+            {isTeamLeader && (
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "team" | "my_orders")}>
+                <TabsList>
+                  <TabsTrigger value="team" className="gap-1.5">
+                    <Users className="h-3.5 w-3.5" />
+                    Team Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="my_orders" className="gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    My Orders
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
             <NotificationBell userId={user!.id} />
             <Button onClick={signOut} variant="outline" size="sm">
               <LogOut className="mr-2 h-4 w-4" />
@@ -839,6 +860,10 @@ const DeveloperDashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {isTeamLeader && viewMode === "team" ? (
+          <TeamOverviewDashboard userId={user!.id} />
+        ) : (
+        <>
         {stats.delayed > 0 && (
           <Card className="mb-6 border-destructive bg-destructive/5">
             <CardContent className="pt-6">
@@ -1303,6 +1328,8 @@ const DeveloperDashboard = () => {
             </div>
           </CardContent>
         </Card>
+        </>
+        )}
       </main>
 
       {/* Upload Dialog */}
