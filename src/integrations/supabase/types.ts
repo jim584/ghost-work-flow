@@ -469,6 +469,58 @@ export type Database = {
           },
         ]
       }
+      reassignment_history: {
+        Row: {
+          created_at: string
+          from_developer_id: string | null
+          id: string
+          reason: string
+          reassigned_by: string
+          task_id: string
+          to_developer_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_developer_id?: string | null
+          id?: string
+          reason: string
+          reassigned_by: string
+          task_id: string
+          to_developer_id: string
+        }
+        Update: {
+          created_at?: string
+          from_developer_id?: string | null
+          id?: string
+          reason?: string
+          reassigned_by?: string
+          task_id?: string
+          to_developer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reassignment_history_from_developer_id_fkey"
+            columns: ["from_developer_id"]
+            isOneToOne: false
+            referencedRelation: "developers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reassignment_history_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reassignment_history_to_developer_id_fkey"
+            columns: ["to_developer_id"]
+            isOneToOne: false
+            referencedRelation: "developers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_performance_history: {
         Row: {
           archived_at: string
