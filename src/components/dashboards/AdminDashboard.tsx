@@ -132,6 +132,87 @@ const SlaCountdown = ({ deadline, label, calendar, leaves, slaHours }: {
   );
 };
 
+// Phase progress component for website orders
+const PhaseProgress = ({ currentPhase, totalPhases, phases }: { currentPhase: number; totalPhases?: number | null; phases?: any[] }) => {
+  const getPhaseLabel = (phase: number) => {
+    if (phase === 1) return "Homepage (1 page, 3 pts)";
+    return "Inner pages (3 pts max)";
+  };
+
+  let totalPages = 0;
+  let totalPoints = 0;
+  const completedPhases = phases?.filter(p => p.status === "completed").length || 0;
+  if (phases?.length) {
+    for (const p of phases) {
+      if (p.status === "completed" || p.status === "in_progress") {
+        if (p.phase_number === 1) {
+          totalPages += 1;
+        } else if (p.status === "completed") {
+          totalPages += p.pages_completed || 3;
+        }
+        if (p.status === "completed") {
+          totalPoints += p.points || 3;
+        }
+      }
+    }
+  }
+
+  const getReviewBadge = (phase: any) => {
+    if (!phase.review_status) return null;
+    if (phase.review_status === "approved") {
+      return <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0">Approved</Badge>;
+    }
+    if (phase.review_status === "approved_with_changes") {
+      return <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0">Changes Needed</Badge>;
+    }
+    if (phase.review_status === "disapproved_with_changes") {
+      return <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Changes Required</Badge>;
+    }
+    return null;
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium">Phase {currentPhase}{totalPhases ? ` of ${totalPhases}` : ''}</span>
+        <span className="text-muted-foreground">{getPhaseLabel(currentPhase)}</span>
+      </div>
+      <div className="flex gap-1">
+        {Array.from({ length: currentPhase }).map((_, i) => {
+          const phase = phases?.find(p => p.phase_number === i + 1);
+          let barColor = i < completedPhases ? 'bg-primary' : 'bg-primary/40';
+          if (phase?.review_status === 'disapproved_with_changes' && !phase?.change_completed_at) {
+            barColor = 'bg-destructive';
+          } else if (phase?.review_status === 'approved_with_changes' && !phase?.change_completed_at) {
+            barColor = 'bg-amber-500';
+          } else if (phase?.review_status === 'approved') {
+            barColor = 'bg-green-600';
+          }
+          return (
+            <div key={i} className={`h-2 flex-1 rounded-full ${barColor}`} />
+          );
+        })}
+      </div>
+      {phases?.some(p => p.review_status) && (
+        <div className="flex flex-wrap gap-1">
+          {phases?.filter(p => p.review_status).map(p => (
+            <div key={p.id} className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground">P{p.phase_number}:</span>
+              {getReviewBadge(p)}
+            </div>
+          ))}
+        </div>
+      )}
+      {phases?.length ? (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{totalPages} page{totalPages !== 1 ? 's' : ''} developed</span>
+          <span className="font-semibold text-primary">{totalPoints} pts earned</span>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 // Password validation schema
 const passwordSchema = z.string()
   .min(8, { message: "Password must be at least 8 characters" })
@@ -2331,6 +2412,13 @@ const AdminDashboard = () => {
                         </div>
                       </div>
 
+                      {/* Phase Progress for Website Orders */}
+                      {isWebsiteOrder(task) && task.current_phase && (
+                        <div className="p-2.5 bg-muted/30 rounded-md">
+                          <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} phases={projectPhases?.filter(p => p.task_id === task.id)} />
+                        </div>
+                      )}
+
                       {/* SLA Countdown Timers for Website Orders */}
                       {isWebsiteOrder(task) && !['completed', 'approved', 'cancelled'].includes(task.status) && (() => {
                         const devRecord = developerCalendars?.find((d: any) => d.id === task.developer_id);
@@ -3520,6 +3608,14 @@ const AdminDashboard = () => {
                   Created by: {(viewDetailsTask as any)?.creator?.full_name || (viewDetailsTask as any)?.creator?.email || "N/A"}
                 </p>
               </div>
+
+              {/* Phase Progress in Details View */}
+              {isWebsiteOrder(viewDetailsTask) && viewDetailsTask.current_phase && (
+                <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                  <h3 className="font-semibold text-lg">Project Progress</h3>
+                  <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} phases={projectPhases?.filter(p => p.task_id === viewDetailsTask?.id)} />
+                </div>
+              )}
 
               {/* SLA Timers in Details View */}
               {isWebsiteOrder(viewDetailsTask) && !['completed', 'approved', 'cancelled'].includes(viewDetailsTask.status) && (() => {
