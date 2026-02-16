@@ -479,76 +479,116 @@ const getPhaseStatusBadge = (phase: Phase) => {
 
 // ─── Main Component ─────────────────────────────────────────────────
 
-export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false }: DevPhaseReviewTimelineProps) => {
-  const sortedPhases = [...phases].sort((a, b) => a.phase_number - b.phase_number);
+// ─── Compact Active Phase Card ──────────────────────────────────────
 
-  if (sortedPhases.length === 0) return null;
+const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerNames, taskId, userId, canReply }: {
+  phase: Phase;
+  phaseReviews: PhaseReview[];
+  onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
+  reviewerNames?: Record<string, string>;
+  taskId: string;
+  userId?: string;
+  canReply?: boolean;
+}) => {
+  const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
+  const reviewsForPhase = phaseReviews
+    .filter(pr => pr.phase_id === phase.id)
+    .sort((a, b) => new Date(b.reviewed_at).getTime() - new Date(a.reviewed_at).getTime());
+  const latestReview = reviewsForPhase[0];
 
-  // Determine the active/latest phase (same logic as PM dashboard)
-  const getActivePhaseId = () => {
-    for (const phase of [...sortedPhases].reverse()) {
-      if (phase.status === "in_progress") return phase.id;
-      if ((phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at) return phase.id;
-    }
-    return sortedPhases[sortedPhases.length - 1]?.id;
-  };
+  const hasActiveRevision = latestReview
+    ? (latestReview.review_status === "approved_with_changes" || latestReview.review_status === "disapproved_with_changes") && !latestReview.change_completed_at
+    : (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at;
 
-  const activePhaseId = getActivePhaseId();
-  const activePhase = sortedPhases.find(p => p.id === activePhaseId);
-  const otherPhases = sortedPhases.filter(p => p.id !== activePhaseId);
+  return (
+    <div className="border rounded-md p-3 space-y-2.5">
+      <div className="flex items-center justify-between flex-wrap gap-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium">{phaseLabel}</span>
+          {getPhaseStatusBadge(phase)}
+        </div>
+        <Badge variant="outline" className="text-[10px]">{phase.status}</Badge>
+      </div>
 
-  const getContextualTimestamp = (phase: Phase) => {
-    const reviewsForPhase = phaseReviews
-      .filter(pr => pr.phase_id === phase.id)
-      .sort((a, b) => new Date(b.reviewed_at).getTime() - new Date(a.reviewed_at).getTime());
-    const latestReview = reviewsForPhase[0];
+      {/* Show latest review inline if revision is active */}
+      {hasActiveRevision && latestReview && (
+        <ReviewCard
+          review={latestReview}
+          phaseNumber={phase.phase_number}
+          isCurrent={true}
+          phaseId={phase.id}
+          onMarkComplete={onMarkComplete}
+          reviewerName={latestReview.reviewed_by ? reviewerNames?.[latestReview.reviewed_by] : undefined}
+          taskId={taskId}
+          userId={userId}
+          canReply={canReply}
+        />
+      )}
 
-    const hasActiveRevision = latestReview
-      ? (latestReview.review_status === "approved_with_changes" || latestReview.review_status === "disapproved_with_changes") && !latestReview.change_completed_at
-      : (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at;
+      {/* Show phase-level review if no phase_reviews entries but revision active */}
+      {hasActiveRevision && !latestReview && phase.review_status && phase.reviewed_at && (
+        <ReviewCard
+          review={{
+            review_status: phase.review_status,
+            review_comment: phase.review_comment,
+            review_voice_path: phase.review_voice_path,
+            review_file_paths: phase.review_file_paths,
+            review_file_names: phase.review_file_names,
+            change_severity: phase.change_severity,
+            change_completed_at: phase.change_completed_at,
+            reviewed_at: phase.reviewed_at,
+          }}
+          phaseNumber={phase.phase_number}
+          isCurrent={true}
+          phaseId={phase.id}
+          onMarkComplete={onMarkComplete}
+          taskId={taskId}
+          userId={userId}
+          canReply={canReply}
+        />
+      )}
 
-    const hasCompletedChanges = latestReview
-      ? !!latestReview.change_completed_at
-      : !!phase.change_completed_at;
+      {/* If no active revision, show a brief status summary */}
+      {!hasActiveRevision && (
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          {phase.completed_at && (
+            <span>Submitted {format(new Date(phase.completed_at), "MMM d, h:mm a")}</span>
+          )}
+          {!phase.completed_at && phase.started_at && (
+            <span>Started {format(new Date(phase.started_at), "MMM d, h:mm a")}</span>
+          )}
+          {reviewsForPhase.length > 0 && (
+            <span>· {reviewsForPhase.length} review{reviewsForPhase.length !== 1 ? "s" : ""}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
-    if (hasActiveRevision) {
-      const reviewDate = latestReview?.reviewed_at || phase.reviewed_at;
-      if (reviewDate) {
-        return (
-          <span className="text-[10px] text-destructive font-medium">
-            Changes Needed · {formatDistanceToNow(new Date(reviewDate), { addSuffix: true })}
-          </span>
-        );
-      }
-    }
+// ─── Compact Previous Phase Row ─────────────────────────────────────
 
-    if (hasCompletedChanges) {
-      const completedDate = latestReview?.change_completed_at || phase.change_completed_at;
-      if (completedDate) {
-        return (
-          <span className="text-[10px] text-muted-foreground">
-            Changes Submitted · {formatDistanceToNow(new Date(completedDate), { addSuffix: true })}
-          </span>
-        );
-      }
-    }
+const CompactPhaseRow = ({ phase }: { phase: Phase }) => {
+  const phaseLabel = phase.phase_number === 1 ? "P1 — Homepage" : `P${phase.phase_number} — Inner Pages`;
+  return (
+    <div className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/30">
+      <span className="text-[11px] text-muted-foreground font-medium">{phaseLabel}</span>
+      {getPhaseStatusBadge(phase)}
+    </div>
+  );
+};
 
-    return (
-      <>
-        {phase.started_at && (
-          <span className="text-[10px] text-muted-foreground">
-            Started {format(new Date(phase.started_at), "MMM d, h:mm a")}
-          </span>
-        )}
-        {phase.completed_at && (
-          <span className="text-[10px] text-muted-foreground">
-            · Submitted {format(new Date(phase.completed_at), "MMM d, h:mm a")}
-          </span>
-        )}
-      </>
-    );
-  };
+// ─── Full Timeline Dialog Content ───────────────────────────────────
 
+const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply }: {
+  sortedPhases: Phase[];
+  phaseReviews: PhaseReview[];
+  onMarkPhaseComplete?: (phaseId: string, reviewStatus: string) => void;
+  reviewerNames: Record<string, string>;
+  taskId: string;
+  userId?: string;
+  canReply?: boolean;
+}) => {
   const renderPhaseAccordionItem = (phase: Phase) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
     const events = buildPhaseTimeline(phase, phaseReviews, onMarkPhaseComplete, reviewerNames);
@@ -560,14 +600,11 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2 flex-wrap">
             <span className="text-xs font-medium truncate">{phaseLabel}</span>
             {getPhaseStatusBadge(phase)}
-            <div className="flex items-center gap-2 ml-auto shrink-0">
-              {getContextualTimestamp(phase)}
-              {reviewCount > 0 && (
-                <span className="text-[10px] text-muted-foreground">
-                  · {reviewCount} review{reviewCount !== 1 ? "s" : ""}
-                </span>
-              )}
-            </div>
+            {reviewCount > 0 && (
+              <span className="text-[10px] text-muted-foreground ml-auto">
+                {reviewCount} review{reviewCount !== 1 ? "s" : ""}
+              </span>
+            )}
           </div>
         </AccordionTrigger>
         <AccordionContent className="pb-3">
@@ -585,29 +622,92 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
   };
 
   return (
+    <ScrollArea className="max-h-[70vh]">
+      <Accordion type="multiple" defaultValue={sortedPhases.map(p => p.id)}>
+        {sortedPhases.map(phase => renderPhaseAccordionItem(phase))}
+      </Accordion>
+    </ScrollArea>
+  );
+};
+
+// ─── Main Component ─────────────────────────────────────────────────
+
+export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false }: DevPhaseReviewTimelineProps) => {
+  const [showFullTimeline, setShowFullTimeline] = useState(false);
+  const sortedPhases = [...phases].sort((a, b) => a.phase_number - b.phase_number);
+
+  if (sortedPhases.length === 0) return null;
+
+  // Determine the active/latest phase
+  const getActivePhaseId = () => {
+    for (const phase of [...sortedPhases].reverse()) {
+      if (phase.status === "in_progress") return phase.id;
+      if ((phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at) return phase.id;
+    }
+    return sortedPhases[sortedPhases.length - 1]?.id;
+  };
+
+  const activePhaseId = getActivePhaseId();
+  const activePhase = sortedPhases.find(p => p.id === activePhaseId);
+  const otherPhases = sortedPhases.filter(p => p.id !== activePhaseId);
+
+  return (
     <div className="space-y-2">
-      {/* Active phase shown prominently */}
+      {/* Compact: Active phase with latest review info */}
       {activePhase && (
-        <Accordion type="single" collapsible defaultValue={activePhase.id}>
-          {renderPhaseAccordionItem(activePhase)}
-        </Accordion>
+        <CompactActivePhaseCard
+          phase={activePhase}
+          phaseReviews={phaseReviews}
+          onMarkComplete={onMarkPhaseComplete}
+          reviewerNames={reviewerNames}
+          taskId={taskId}
+          userId={userId}
+          canReply={canReply}
+        />
       )}
 
-      {/* Previous phases collapsed */}
+      {/* Compact: Previous phases as minimal rows */}
       {otherPhases.length > 0 && (
         <Collapsible defaultOpen={false}>
           <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Previous Phases</h4>
-            <Badge variant="outline" className="text-[10px] ml-auto">{otherPhases.length} phase{otherPhases.length !== 1 ? "s" : ""}</Badge>
+            <Badge variant="outline" className="text-[10px] ml-auto">{otherPhases.length}</Badge>
           </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2">
-            <Accordion type="single" collapsible>
-              {otherPhases.map(phase => renderPhaseAccordionItem(phase))}
-            </Accordion>
+          <CollapsibleContent className="mt-1.5 space-y-1">
+            {otherPhases.map(phase => (
+              <CompactPhaseRow key={phase.id} phase={phase} />
+            ))}
           </CollapsibleContent>
         </Collapsible>
       )}
+
+      {/* View Full Timeline button */}
+      <Dialog open={showFullTimeline} onOpenChange={setShowFullTimeline}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-[11px] text-muted-foreground gap-1.5 h-7"
+          onClick={() => setShowFullTimeline(true)}
+        >
+          <History className="h-3 w-3" />
+          View Full Timeline
+        </Button>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Full Phase Timeline</DialogTitle>
+          </DialogHeader>
+          <FullTimelineDialogContent
+            sortedPhases={sortedPhases}
+            phaseReviews={phaseReviews}
+            onMarkPhaseComplete={onMarkPhaseComplete}
+            reviewerNames={reviewerNames}
+            taskId={taskId}
+            userId={userId}
+            canReply={canReply}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
