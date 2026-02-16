@@ -552,13 +552,45 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
 
 // ─── Compact Previous Phase Row ─────────────────────────────────────
 
-const CompactPhaseRow = ({ phase }: { phase: Phase }) => {
+const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, taskId, userId, canReply }: { 
+  phase: Phase; 
+  phaseReviews: PhaseReview[];
+  onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
+  reviewerNames?: Record<string, string>;
+  taskId: string;
+  userId?: string;
+  canReply?: boolean;
+}) => {
   const phaseLabel = phase.phase_number === 1 ? "P1 — Homepage" : `P${phase.phase_number} — Inner Pages`;
+  const events = buildPhaseTimeline(phase, phaseReviews, onMarkComplete, reviewerNames);
+  const reviewCount = events.filter(e => e.type === "pm_review").length;
+
   return (
-    <div className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/30">
-      <span className="text-[11px] text-muted-foreground font-medium">{phaseLabel}</span>
-      {getPhaseStatusBadge(phase)}
-    </div>
+    <Accordion type="single" collapsible>
+      <AccordionItem value={phase.id} className="border rounded-md px-2 bg-muted/30">
+        <AccordionTrigger className="py-1.5 hover:no-underline">
+          <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+            <span className="text-[11px] text-muted-foreground font-medium">{phaseLabel}</span>
+            {getPhaseStatusBadge(phase)}
+            {reviewCount > 0 && (
+              <span className="text-[10px] text-muted-foreground ml-auto">
+                {reviewCount} review{reviewCount !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        </AccordionTrigger>
+        <AccordionContent className="pb-3 space-y-2.5">
+          <PhaseTimelineContent
+            events={events}
+            onMarkComplete={onMarkComplete}
+            reviewerNames={reviewerNames}
+            taskId={taskId}
+            userId={userId}
+            canReply={canReply}
+          />
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 };
 
@@ -660,7 +692,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1.5 space-y-1">
             {otherPhases.map(phase => (
-              <CompactPhaseRow key={phase.id} phase={phase} />
+              <CompactPhaseRow key={phase.id} phase={phase} phaseReviews={phaseReviews} onMarkComplete={onMarkPhaseComplete} reviewerNames={reviewerNames} taskId={taskId} userId={userId} canReply={canReply} />
             ))}
           </CollapsibleContent>
         </Collapsible>
