@@ -502,6 +502,20 @@ const DeveloperDashboard = () => {
     enabled: !!tasks?.length,
   });
 
+  // Realtime subscription for phase_reviews and project_phases updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('developer-phase-reviews-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_reviews' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["developer-phase-reviews"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_phases' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
   const handleDownload = async (filePath: string, fileName: string) => {
     try {
       const { data, error } = await supabase.storage
