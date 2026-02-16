@@ -6,7 +6,7 @@ import { FilePreview } from "@/components/FilePreview";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNow } from "date-fns";
-import { Download, Play, Pause, Mic, FileText, CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Download, Play, Pause, Mic, FileText, CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronUp, Upload, PlayCircle, RotateCcw } from "lucide-react";
 
 interface PhaseReview {
   id: string;
@@ -28,6 +28,9 @@ interface PhaseReview {
 interface Phase {
   id: string;
   phase_number: number;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
   review_status: string | null;
   review_comment: string | null;
   review_voice_path: string | null;
@@ -47,6 +50,8 @@ interface DevPhaseReviewTimelineProps {
   onMarkPhaseComplete?: (phaseId: string, reviewStatus: string) => void;
 }
 
+// ─── Shared Sub-components ──────────────────────────────────────────
+
 const VoicePlayer = ({ voicePath }: { voicePath: string }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -59,7 +64,6 @@ const VoicePlayer = ({ voicePath }: { voicePath: string }) => {
       setIsPlaying(false);
       return;
     }
-
     if (!audioRef.current) {
       const { data } = await supabase.storage.from("design-files").download(voicePath);
       if (!data) return;
@@ -131,6 +135,57 @@ const ReviewFileAttachments = ({ filePaths, fileNames }: { filePaths: string; fi
   );
 };
 
+// ─── Timestamp helper ──────────────────────────────────────────────
+
+const TimeStamp = ({ date }: { date: string }) => (
+  <span className="text-[10px] text-muted-foreground">
+    {format(new Date(date), "MMM d, h:mm a")} · {formatDistanceToNow(new Date(date), { addSuffix: true })}
+  </span>
+);
+
+// ─── Developer Action Card ─────────────────────────────────────────
+
+type DevActionType = "phase_started" | "phase_completed" | "changes_done";
+
+const DevActionCard = ({ type, phaseNumber, timestamp }: {
+  type: DevActionType;
+  phaseNumber: number;
+  timestamp: string;
+}) => {
+  const config = {
+    phase_started: {
+      icon: <PlayCircle className="h-3.5 w-3.5 text-primary" />,
+      label: "Phase Started",
+      border: "border-primary/20 bg-primary/5",
+    },
+    phase_completed: {
+      icon: <Upload className="h-3.5 w-3.5 text-primary" />,
+      label: "Phase Submitted",
+      border: "border-primary/20 bg-primary/5",
+    },
+    changes_done: {
+      icon: <RotateCcw className="h-3.5 w-3.5 text-primary" />,
+      label: "Changes Submitted",
+      border: "border-primary/20 bg-primary/5",
+    },
+  }[type];
+
+  return (
+    <div className={`border rounded-md p-2.5 flex items-center justify-between ${config.border}`}>
+      <div className="flex items-center gap-2">
+        {config.icon}
+        <span className="text-[10px] font-semibold text-muted-foreground">P{phaseNumber}</span>
+        <Badge variant="secondary" className="text-[10px] gap-0.5">
+          {config.label}
+        </Badge>
+      </div>
+      <TimeStamp date={timestamp} />
+    </div>
+  );
+};
+
+// ─── PM Review Card ─────────────────────────────────────────────────
+
 const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete }: { 
   review: { review_status: string; review_comment: string | null; review_voice_path: string | null; review_file_paths: string | null; review_file_names: string | null; change_severity: string | null; change_completed_at: string | null; reviewed_at: string | null; round_number?: number };
   phaseNumber: number;
@@ -168,14 +223,11 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete }:
     <div className={`border rounded-md p-3 space-y-2 ${borderClass}`}>
       <div className="flex items-center justify-between flex-wrap gap-1">
         <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30">PM Review</Badge>
           <span className="text-[10px] font-semibold text-muted-foreground">P{phaseNumber}{review.round_number ? ` · Round ${review.round_number}` : ""}</span>
           {statusBadge}
         </div>
-        {review.reviewed_at && (
-          <span className="text-[10px] text-muted-foreground">
-            {format(new Date(review.reviewed_at), "MMM d, h:mm a")} · {formatDistanceToNow(new Date(review.reviewed_at), { addSuffix: true })}
-          </span>
-        )}
+        {review.reviewed_at && <TimeStamp date={review.reviewed_at} />}
       </div>
 
       {review.review_comment && (
@@ -222,40 +274,120 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete }:
   );
 };
 
+// ─── Unified Timeline Item ──────────────────────────────────────────
+
+interface TimelineItem {
+  key: string;
+  timestamp: number; // ms for sorting
+  type: "dev_action" | "pm_review";
+  // dev_action fields
+  actionType?: DevActionType;
+  phaseNumber: number;
+  phaseId: string;
+  dateStr: string;
+  // pm_review fields
+  review?: any;
+  isCurrent?: boolean;
+}
+
+// ─── Main Component ─────────────────────────────────────────────────
+
 export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete }: DevPhaseReviewTimelineProps) => {
   const [expanded, setExpanded] = useState(!compact);
 
-  // Build a timeline: combine phase_reviews records with latest phase-level review data
-  const reviewItems: Array<{
-    key: string;
-    phaseNumber: number;
-    phaseId: string;
-    review: any;
-    isCurrent: boolean;
-  }> = [];
+  // Build unified timeline
+  const timelineItems: TimelineItem[] = [];
 
-  // Add all phase_reviews entries
+  // 1. Add developer actions from phases
+  for (const phase of phases) {
+    if (phase.started_at) {
+      timelineItems.push({
+        key: `start-${phase.id}`,
+        timestamp: new Date(phase.started_at).getTime(),
+        type: "dev_action",
+        actionType: "phase_started",
+        phaseNumber: phase.phase_number,
+        phaseId: phase.id,
+        dateStr: phase.started_at,
+      });
+    }
+    if (phase.completed_at) {
+      timelineItems.push({
+        key: `complete-${phase.id}`,
+        timestamp: new Date(phase.completed_at).getTime(),
+        type: "dev_action",
+        actionType: "phase_completed",
+        phaseNumber: phase.phase_number,
+        phaseId: phase.id,
+        dateStr: phase.completed_at,
+      });
+    }
+  }
+
+  // 2. Add change_completed_at from phase_reviews
+  for (const pr of phaseReviews) {
+    if (pr.change_completed_at) {
+      const phase = phases.find(p => p.id === pr.phase_id);
+      if (phase) {
+        timelineItems.push({
+          key: `changes-done-${pr.id}`,
+          timestamp: new Date(pr.change_completed_at).getTime(),
+          type: "dev_action",
+          actionType: "changes_done",
+          phaseNumber: phase.phase_number,
+          phaseId: phase.id,
+          dateStr: pr.change_completed_at,
+        });
+      }
+    }
+  }
+
+  // Also add change_completed_at from phases themselves (for phases without matching phase_reviews)
+  for (const phase of phases) {
+    if (phase.change_completed_at) {
+      const hasReviewWithChange = phaseReviews.some(pr => pr.phase_id === phase.id && pr.change_completed_at);
+      if (!hasReviewWithChange) {
+        timelineItems.push({
+          key: `changes-done-phase-${phase.id}`,
+          timestamp: new Date(phase.change_completed_at).getTime(),
+          type: "dev_action",
+          actionType: "changes_done",
+          phaseNumber: phase.phase_number,
+          phaseId: phase.id,
+          dateStr: phase.change_completed_at,
+        });
+      }
+    }
+  }
+
+  // 3. Add PM reviews from phase_reviews table
   for (const pr of phaseReviews) {
     const phase = phases.find(p => p.id === pr.phase_id);
     if (!phase) continue;
-    reviewItems.push({
+    timelineItems.push({
       key: `pr-${pr.id}`,
+      timestamp: new Date(pr.reviewed_at).getTime(),
+      type: "pm_review",
       phaseNumber: phase.phase_number,
       phaseId: phase.id,
+      dateStr: pr.reviewed_at,
       review: { ...pr, round_number: pr.round_number },
       isCurrent: !pr.change_completed_at && (pr.review_status === "approved_with_changes" || pr.review_status === "disapproved_with_changes"),
     });
   }
 
-  // For phases with review data but no matching phase_reviews entry, add them too
+  // 4. Add phase-level reviews without matching phase_reviews entries
   for (const phase of phases) {
-    if (!phase.review_status) continue;
+    if (!phase.review_status || !phase.reviewed_at) continue;
     const hasReviewRecord = phaseReviews.some(pr => pr.phase_id === phase.id);
     if (!hasReviewRecord) {
-      reviewItems.push({
-        key: `phase-${phase.id}`,
+      timelineItems.push({
+        key: `phase-review-${phase.id}`,
+        timestamp: new Date(phase.reviewed_at).getTime(),
+        type: "pm_review",
         phaseNumber: phase.phase_number,
         phaseId: phase.id,
+        dateStr: phase.reviewed_at,
         review: {
           review_status: phase.review_status,
           review_comment: phase.review_comment,
@@ -271,24 +403,20 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
     }
   }
 
-  // Sort by reviewed_at ascending
-  reviewItems.sort((a, b) => {
-    const aDate = a.review.reviewed_at ? new Date(a.review.reviewed_at).getTime() : 0;
-    const bDate = b.review.reviewed_at ? new Date(b.review.reviewed_at).getTime() : 0;
-    return aDate - bDate;
-  });
+  // Sort chronologically
+  timelineItems.sort((a, b) => a.timestamp - b.timestamp);
 
-  if (reviewItems.length === 0) return null;
+  if (timelineItems.length === 0) return null;
 
-  const activeReviews = reviewItems.filter(r => r.isCurrent);
-  const historicalReviews = reviewItems.filter(r => !r.isCurrent);
+  const totalEvents = timelineItems.length;
+  const reviewCount = timelineItems.filter(t => t.type === "pm_review").length;
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold flex items-center gap-1.5">
           <FileText className="h-3.5 w-3.5" />
-          PM Reviews ({reviewItems.length})
+          Phase Timeline ({totalEvents} events{reviewCount > 0 ? ` · ${reviewCount} reviews` : ""})
         </span>
         {compact && (
           <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => setExpanded(!expanded)}>
@@ -299,37 +427,33 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
       </div>
 
       {expanded && (
-        <div className="space-y-2">
-          {/* Active reviews first */}
-          {activeReviews.map(item => (
-            <ReviewCard key={item.key} review={item.review} phaseNumber={item.phaseNumber} isCurrent={true} phaseId={item.phaseId} onMarkComplete={onMarkPhaseComplete} />
-          ))}
+        <div className="relative space-y-1.5">
+          {/* Vertical connector line */}
+          <div className="absolute left-3 top-2 bottom-2 w-px bg-border" />
 
-          {/* Historical reviews */}
-          {historicalReviews.length > 0 && (
-            <HistoricalReviews reviews={historicalReviews} />
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+          {timelineItems.map((item) => (
+            <div key={item.key} className="relative pl-7">
+              {/* Timeline dot */}
+              <div className={`absolute left-[9px] top-3 w-1.5 h-1.5 rounded-full ${
+                item.type === "pm_review" ? "bg-amber-500" : "bg-primary"
+              }`} />
 
-const HistoricalReviews = ({ reviews }: { reviews: Array<{ key: string; phaseNumber: number; review: any; isCurrent: boolean }> }) => {
-  const [showHistory, setShowHistory] = useState(false);
-
-  if (reviews.length === 0) return null;
-
-  return (
-    <div>
-      <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-muted-foreground w-full justify-start gap-1" onClick={() => setShowHistory(!showHistory)}>
-        {showHistory ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        {showHistory ? "Hide" : "Show"} Previous Reviews ({reviews.length})
-      </Button>
-      {showHistory && (
-        <div className="space-y-2 mt-1.5 opacity-80">
-          {reviews.map(item => (
-            <ReviewCard key={item.key} review={item.review} phaseNumber={item.phaseNumber} isCurrent={false} />
+              {item.type === "dev_action" ? (
+                <DevActionCard
+                  type={item.actionType!}
+                  phaseNumber={item.phaseNumber}
+                  timestamp={item.dateStr}
+                />
+              ) : (
+                <ReviewCard
+                  review={item.review}
+                  phaseNumber={item.phaseNumber}
+                  isCurrent={item.isCurrent || false}
+                  phaseId={item.phaseId}
+                  onMarkComplete={onMarkPhaseComplete}
+                />
+              )}
+            </div>
           ))}
         </div>
       )}
