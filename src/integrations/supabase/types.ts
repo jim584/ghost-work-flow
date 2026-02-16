@@ -371,6 +371,57 @@ export type Database = {
           },
         ]
       }
+      phase_review_replies: {
+        Row: {
+          created_at: string
+          file_names: string | null
+          file_paths: string | null
+          id: string
+          message: string | null
+          phase_review_id: string
+          task_id: string
+          user_id: string
+          voice_path: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_names?: string | null
+          file_paths?: string | null
+          id?: string
+          message?: string | null
+          phase_review_id: string
+          task_id: string
+          user_id: string
+          voice_path?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_names?: string | null
+          file_paths?: string | null
+          id?: string
+          message?: string | null
+          phase_review_id?: string
+          task_id?: string
+          user_id?: string
+          voice_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "phase_review_replies_phase_review_id_fkey"
+            columns: ["phase_review_id"]
+            isOneToOne: false
+            referencedRelation: "phase_reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "phase_review_replies_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       phase_reviews: {
         Row: {
           change_completed_at: string | null

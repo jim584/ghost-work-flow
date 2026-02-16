@@ -6,6 +6,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { FilePreview } from "@/components/FilePreview";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
+import { PhaseReviewReplySection } from "@/components/dashboards/PhaseReviewReplySection";
 import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNow } from "date-fns";
 import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw } from "lucide-react";
@@ -51,6 +52,8 @@ interface DevPhaseReviewTimelineProps {
   compact?: boolean;
   onMarkPhaseComplete?: (phaseId: string, reviewStatus: string) => void;
   reviewerNames?: Record<string, string>;
+  userId?: string;
+  canReply?: boolean;
 }
 
 // ─── Shared Sub-components ──────────────────────────────────────────
@@ -264,10 +267,13 @@ const buildPhaseTimeline = (
 
 // ─── Inline timeline rendering ──────────────────────────────────────
 
-const PhaseTimelineContent = ({ events, onMarkComplete, reviewerNames }: {
+const PhaseTimelineContent = ({ events, onMarkComplete, reviewerNames, taskId, userId, canReply }: {
   events: TimelineEvent[];
   onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
   reviewerNames?: Record<string, string>;
+  taskId?: string;
+  userId?: string;
+  canReply?: boolean;
 }) => {
   if (events.length === 0) {
     return <p className="text-xs text-muted-foreground italic">No activity yet.</p>;
@@ -291,6 +297,9 @@ const PhaseTimelineContent = ({ events, onMarkComplete, reviewerNames }: {
               phaseId={item.phaseId}
               onMarkComplete={onMarkComplete}
               reviewerName={item.review?.reviewed_by ? reviewerNames?.[item.review.reviewed_by] : undefined}
+              taskId={taskId}
+              userId={userId}
+              canReply={canReply}
             />
           )}
         </div>
@@ -340,13 +349,16 @@ const DevActionCard = ({ type, phaseNumber, timestamp }: {
 
 // ─── PM Review Card ─────────────────────────────────────────────────
 
-const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, reviewerName }: { 
-  review: { review_status: string; review_comment: string | null; review_voice_path: string | null; review_file_paths: string | null; review_file_names: string | null; change_severity: string | null; change_completed_at: string | null; reviewed_at: string | null; round_number?: number; reviewed_by?: string };
+const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, reviewerName, taskId, userId, canReply }: { 
+  review: { id?: string; review_status: string; review_comment: string | null; review_voice_path: string | null; review_file_paths: string | null; review_file_names: string | null; change_severity: string | null; change_completed_at: string | null; reviewed_at: string | null; round_number?: number; reviewed_by?: string };
   phaseNumber: number;
   isCurrent: boolean;
   phaseId?: string;
   onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
   reviewerName?: string;
+  taskId?: string;
+  userId?: string;
+  canReply?: boolean;
 }) => {
   const isDisapproved = review.review_status === "disapproved_with_changes";
   const isApprovedWithChanges = review.review_status === "approved_with_changes";
@@ -425,6 +437,16 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* Phase-specific reply section */}
+      {review.id && taskId && userId && canReply && (
+        <PhaseReviewReplySection
+          phaseReviewId={review.id}
+          taskId={taskId}
+          userId={userId}
+          canReply={canReply}
+        />
+      )}
     </div>
   );
 };
@@ -455,7 +477,7 @@ const getPhaseStatusBadge = (phase: Phase) => {
 
 // ─── Main Component ─────────────────────────────────────────────────
 
-export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {} }: DevPhaseReviewTimelineProps) => {
+export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false }: DevPhaseReviewTimelineProps) => {
   const sortedPhases = [...phases].sort((a, b) => a.phase_number - b.phase_number);
 
   if (sortedPhases.length === 0) return null;
@@ -551,6 +573,9 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
             events={events}
             onMarkComplete={onMarkPhaseComplete}
             reviewerNames={reviewerNames}
+            taskId={taskId}
+            userId={userId}
+            canReply={canReply}
           />
         </AccordionContent>
       </AccordionItem>

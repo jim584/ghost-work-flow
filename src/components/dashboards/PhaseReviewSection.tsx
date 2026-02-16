@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow } from "date-fns";
 import { PhaseReviewSubmissionPanel } from "@/components/PhaseReviewSubmissionPanel";
+import { PhaseReviewReplySection } from "@/components/dashboards/PhaseReviewReplySection";
 
 const SEVERITY_OPTIONS = [
   { value: "minor", label: "Minor", hours: 2, description: "Small tweaks" },
@@ -20,7 +21,7 @@ const SEVERITY_OPTIONS = [
   { value: "major_major", label: "Major Major", hours: 18, description: "Extensive rework (2 days)" },
 ] as const;
 
-const ReviewHistoryItem = ({ review }: { review: any }) => {
+const ReviewHistoryItem = ({ review, taskId }: { review: any; taskId?: string }) => {
   const [playingVoice, setPlayingVoice] = useState(false);
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
 
@@ -135,6 +136,15 @@ const ReviewHistoryItem = ({ review }: { review: any }) => {
             ))}
           </div>
         </div>
+      )}
+      {/* Show developer replies (read-only for PM) */}
+      {review.id && taskId && (
+        <PhaseReviewReplySection
+          phaseReviewId={review.id}
+          taskId={taskId}
+          userId=""
+          canReply={false}
+        />
       )}
     </div>
   );
@@ -476,7 +486,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
             <div className="space-y-2">
               <span className="text-xs font-medium text-muted-foreground">Review History</span>
               {reviewsForPhase.map((review: any) => (
-                <ReviewHistoryItem key={review.id} review={review} />
+                <ReviewHistoryItem key={review.id} review={review} taskId={task.id} />
               ))}
             </div>
           )}
