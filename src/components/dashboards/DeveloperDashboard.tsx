@@ -706,6 +706,18 @@ const DeveloperDashboard = () => {
     },
   });
 
+  // Build reviewer names map from phase_reviews reviewed_by + task PM profiles
+  const reviewerNames: Record<string, string> = {};
+  // From task PM profiles (already fetched via tasks join)
+  if (tasks) {
+    for (const task of tasks) {
+      const pm = (task as any).profiles;
+      if (pm && task.project_manager_id) {
+        reviewerNames[task.project_manager_id] = pm.full_name || pm.email || "PM";
+      }
+    }
+  }
+
 
   const completePhase = useMutation({
     mutationFn: async ({ taskId, currentPhase, totalPhases, action, pagesCompleted }: { 
@@ -1245,7 +1257,7 @@ const DeveloperDashboard = () => {
                               const taskPhases = projectPhases?.filter(p => p.task_id === task.id) || [];
                               const taskReviews = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
                               if (taskPhases.some(p => p.review_status)) {
-                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} compact onMarkPhaseComplete={handleMarkPhaseComplete} />;
+                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} compact onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} />;
                               }
                               return null;
                             })()}
@@ -1845,7 +1857,7 @@ const DeveloperDashboard = () => {
                   return (
                     <div className="p-4 bg-muted/30 rounded-lg">
                       <h3 className="font-semibold text-lg mb-3">Phase Reviews</h3>
-                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} />
+                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} />
                     </div>
                   );
                 }
