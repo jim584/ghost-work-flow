@@ -803,10 +803,11 @@ const DeveloperDashboard = () => {
           }
         }
 
-        await supabase.from("project_phases").insert({
+        const { error: insertPhaseError } = await supabase.from("project_phases").insert({
           task_id: taskId, phase_number: nextPhase, sla_hours: 9,
           sla_deadline: slaDeadline, started_at: new Date().toISOString(), started_by: user!.id, status: "in_progress",
         } as any);
+        if (insertPhaseError) throw insertPhaseError;
 
         await supabase.from("tasks").update({
           current_phase: nextPhase, sla_deadline: slaDeadline,
