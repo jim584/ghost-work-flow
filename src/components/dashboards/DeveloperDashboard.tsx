@@ -1318,6 +1318,20 @@ const DeveloperDashboard = () => {
                           </div>
                         )}
 
+                        {/* Pages & Points summary for all non-completed cards */}
+                        {task.status !== "completed" && task.status !== "approved" && (() => {
+                          const taskPhases = projectPhases?.filter(p => p.task_id === task.id && p.status === "completed") || [];
+                          if (taskPhases.length === 0) return null;
+                          const totalPts = taskPhases.reduce((sum, p) => sum + (p.points || 3), 0);
+                          const totalPgs = taskPhases.reduce((sum, p) => sum + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+                          return (
+                            <div className="mt-2 flex items-center justify-between text-xs px-2.5 py-1.5 bg-primary/5 rounded-md">
+                              <span className="text-muted-foreground">{taskPhases.length} phase{taskPhases.length !== 1 ? 's' : ''} • {totalPgs} pages developed</span>
+                              <span className="font-semibold text-primary">{totalPts} pts earned</span>
+                            </div>
+                          );
+                        })()}
+
                         {/* Points summary for completed tasks */}
                         {(task.status === "completed" || task.status === "approved") && (
                           <div className="mt-2 p-2.5 bg-primary/5 rounded-md">
