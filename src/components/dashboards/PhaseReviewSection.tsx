@@ -393,8 +393,13 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
 
   return (
     <>
-      <div className="border-t pt-3 mt-3">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Phase Reviews</h4>
+      <Collapsible defaultOpen={false} className="border-t pt-3 mt-3">
+        <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Phase Reviews</h4>
+          <Badge variant="outline" className="text-xs ml-auto">{taskPhases.length} phase{taskPhases.length !== 1 ? "s" : ""}</Badge>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2">
         <Accordion type="single" collapsible defaultValue={getDefaultAccordionValue()}>
           {taskPhases.map(phase => {
             const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
@@ -499,7 +504,8 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
             );
           })}
         </Accordion>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Review Dialog */}
       <Dialog open={!!reviewDialog} onOpenChange={() => { setReviewDialog(null); setReviewComment(""); setChangeSeverity("minor"); setReviewVoiceBlob(null); setReviewFiles([]); }}>
