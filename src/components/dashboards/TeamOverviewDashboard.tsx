@@ -408,8 +408,11 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
   }, [allTasks]);
 
   // Handle mark phase complete (for DevPhaseReviewTimeline)
-  const handleMarkPhaseComplete = async (phaseId: string, reviewStatus: string) => {
+  const handleMarkPhaseComplete = async (phaseId: string, reviewStatus: string, changeComment?: string, changeFilePaths?: string, changeFileNames?: string) => {
     const updateData: any = { change_completed_at: new Date().toISOString() };
+    if (changeComment) updateData.change_comment = changeComment;
+    if (changeFilePaths) updateData.change_file_paths = changeFilePaths;
+    if (changeFileNames) updateData.change_file_names = changeFileNames;
     if (reviewStatus === 'disapproved_with_changes') {
       updateData.review_status = null;
       updateData.change_severity = null;
@@ -431,7 +434,11 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       .limit(1)
       .maybeSingle();
     if (latestReview) {
-      await supabase.from("phase_reviews").update({ change_completed_at: new Date().toISOString() }).eq("id", latestReview.id);
+      const reviewUpdate: any = { change_completed_at: new Date().toISOString() };
+      if (changeComment) reviewUpdate.change_comment = changeComment;
+      if (changeFilePaths) reviewUpdate.change_file_paths = changeFilePaths;
+      if (changeFileNames) reviewUpdate.change_file_names = changeFileNames;
+      await supabase.from("phase_reviews").update(reviewUpdate).eq("id", latestReview.id);
     }
     queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["team-overview-phases"] });

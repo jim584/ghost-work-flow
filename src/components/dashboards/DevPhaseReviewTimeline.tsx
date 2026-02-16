@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,7 +11,7 @@ import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { PhaseReviewReplySection } from "@/components/dashboards/PhaseReviewReplySection";
 import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNow } from "date-fns";
-import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History } from "lucide-react";
+import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X } from "lucide-react";
 
 interface PhaseReview {
   id: string;
@@ -58,7 +58,7 @@ interface DevPhaseReviewTimelineProps {
   phaseReviews: PhaseReview[];
   taskId: string;
   compact?: boolean;
-  onMarkPhaseComplete?: (phaseId: string, reviewStatus: string) => void;
+  onMarkPhaseComplete?: (phaseId: string, reviewStatus: string, comment?: string, filePaths?: string, fileNames?: string) => void;
   reviewerNames?: Record<string, string>;
   userId?: string;
   canReply?: boolean;
@@ -242,6 +242,9 @@ const buildPhaseTimeline = (
         phaseId: phase.id,
         dateStr: pr.change_completed_at,
         devName: pr.change_completed_by ? devNames?.[pr.change_completed_by] : undefined,
+        submissionComment: (pr as any).change_comment,
+        submissionFilePaths: (pr as any).change_file_paths,
+        submissionFileNames: (pr as any).change_file_names,
       });
     }
   }
@@ -289,7 +292,7 @@ const buildPhaseTimeline = (
 
 const PhaseTimelineContent = ({ events, onMarkComplete, reviewerNames, taskId, userId, canReply }: {
   events: TimelineEvent[];
-  onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
+  onMarkComplete?: (phaseId: string, reviewStatus: string, comment?: string, filePaths?: string, fileNames?: string) => void;
   reviewerNames?: Record<string, string>;
   taskId?: string;
   userId?: string;
@@ -394,12 +397,133 @@ const DevActionCard = ({ type, phaseNumber, timestamp, devName, submissionFilePa
 
 // ─── PM Review Card ─────────────────────────────────────────────────
 
+const MarkChangesCompletePanel = ({ phaseId, phaseNumber, reviewStatus, onMarkComplete }: {
+  phaseId: string;
+  phaseNumber: number;
+  reviewStatus: string;
+  onMarkComplete: (phaseId: string, reviewStatus: string, comment?: string, filePaths?: string, fileNames?: string) => void;
+}) => {
+  const [showPanel, setShowPanel] = useState(false);
+  const [comment, setComment] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      let uploadedPaths: string | undefined;
+      let uploadedNames: string | undefined;
+
+      if (files.length > 0) {
+        const paths: string[] = [];
+        const names: string[] = [];
+        for (const file of files) {
+          const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const storagePath = `phase-changes/${phaseId}/${Date.now()}-${sanitized}`;
+          const { error } = await supabase.storage.from("design-files").upload(storagePath, file);
+          if (error) throw error;
+          paths.push(storagePath);
+          names.push(file.name);
+        }
+        uploadedPaths = paths.join("|||");
+        uploadedNames = names.join("|||");
+      }
+
+      onMarkComplete(phaseId, reviewStatus, comment.trim() || undefined, uploadedPaths, uploadedNames);
+      setShowPanel(false);
+      setComment("");
+      setFiles([]);
+    } catch (e: any) {
+      console.error("Error uploading change files:", e);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!showPanel) {
+    return (
+      <Button 
+        size="sm" 
+        variant="outline"
+        className="w-full border-green-500 text-green-700 hover:bg-green-50 gap-1.5 mt-1"
+        onClick={() => setShowPanel(true)}
+      >
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        Mark Changes Complete (P{phaseNumber})
+      </Button>
+    );
+  }
+
+  return (
+    <div className="border border-green-500/30 rounded-md p-2.5 space-y-2 bg-green-500/5 mt-1">
+      <div className="text-[11px] font-medium text-foreground">Mark Changes Complete — Phase {phaseNumber}</div>
+      <Textarea
+        placeholder="Optional: describe what you changed..."
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        className="min-h-[60px] text-xs resize-none"
+      />
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {files.map((f, i) => (
+            <div key={i} className="flex items-center gap-1 bg-muted rounded px-2 py-0.5 text-[10px]">
+              <span className="truncate max-w-[120px]">{f.name}</span>
+              <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <Button
+          size="sm"
+          className="h-7 text-xs gap-1 bg-green-600 hover:bg-green-700 text-white"
+          disabled={submitting}
+          onClick={handleSubmit}
+        >
+          <Send className="h-3 w-3" />
+          {submitting ? "Submitting..." : "Confirm Complete"}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs gap-1"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Paperclip className="h-3 w-3" />
+          Attach
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs"
+          onClick={() => { setShowPanel(false); setComment(""); setFiles([]); }}
+        >
+          Cancel
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) setFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+            e.target.value = "";
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
 const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, reviewerName, taskId, userId, canReply }: { 
-  review: { id?: string; review_status: string; review_comment: string | null; review_voice_path: string | null; review_file_paths: string | null; review_file_names: string | null; change_severity: string | null; change_completed_at: string | null; reviewed_at: string | null; round_number?: number; reviewed_by?: string };
+  review: { id?: string; review_status: string; review_comment: string | null; review_voice_path: string | null; review_file_paths: string | null; review_file_names: string | null; change_severity: string | null; change_completed_at: string | null; reviewed_at: string | null; round_number?: number; reviewed_by?: string; change_comment?: string | null; change_file_paths?: string | null; change_file_names?: string | null };
   phaseNumber: number;
   isCurrent: boolean;
   phaseId?: string;
-  onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
+  onMarkComplete?: (phaseId: string, reviewStatus: string, comment?: string, filePaths?: string, fileNames?: string) => void;
   reviewerName?: string;
   taskId?: string;
   userId?: string;
@@ -455,32 +579,12 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
       )}
 
       {isCurrent && phaseId && onMarkComplete && (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button 
-              size="sm" 
-              variant="outline"
-              className="w-full border-green-500 text-green-700 hover:bg-green-50 gap-1.5 mt-1"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Mark Changes Complete (P{phaseNumber})
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Changes Complete</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to mark Phase {phaseNumber} changes as complete? This will notify the PM for re-review.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => onMarkComplete(phaseId, review.review_status)}>
-                Confirm
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <MarkChangesCompletePanel
+          phaseId={phaseId}
+          phaseNumber={phaseNumber}
+          reviewStatus={review.review_status}
+          onMarkComplete={onMarkComplete}
+        />
       )}
 
       {/* Phase-specific reply section */}
@@ -644,7 +748,7 @@ const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, t
 const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames }: {
   sortedPhases: Phase[];
   phaseReviews: PhaseReview[];
-  onMarkPhaseComplete?: (phaseId: string, reviewStatus: string) => void;
+  onMarkPhaseComplete?: (phaseId: string, reviewStatus: string, comment?: string, filePaths?: string, fileNames?: string) => void;
   reviewerNames: Record<string, string>;
   taskId: string;
   userId?: string;

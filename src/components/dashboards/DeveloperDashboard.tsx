@@ -386,8 +386,11 @@ const DeveloperDashboard = () => {
 
   const isWebsiteOrder = (task: any) => task.post_type === 'Website Design';
 
-  const handleMarkPhaseComplete = async (phaseId: string, reviewStatus: string) => {
-    const updateData: any = { change_completed_at: new Date().toISOString() };
+  const handleMarkPhaseComplete = async (phaseId: string, reviewStatus: string, changeComment?: string, changeFilePaths?: string, changeFileNames?: string) => {
+    const updateData: any = { change_completed_at: new Date().toISOString(), change_completed_by: user!.id };
+    if (changeComment) updateData.change_comment = changeComment;
+    if (changeFilePaths) updateData.change_file_paths = changeFilePaths;
+    if (changeFileNames) updateData.change_file_names = changeFileNames;
     if (reviewStatus === 'disapproved_with_changes') {
       updateData.review_status = null;
       updateData.change_severity = null;
@@ -410,7 +413,11 @@ const DeveloperDashboard = () => {
       .limit(1)
       .maybeSingle();
     if (latestReview) {
-      await supabase.from("phase_reviews").update({ change_completed_at: new Date().toISOString(), change_completed_by: user!.id } as any).eq("id", latestReview.id);
+      const reviewUpdate: any = { change_completed_at: new Date().toISOString(), change_completed_by: user!.id };
+      if (changeComment) reviewUpdate.change_comment = changeComment;
+      if (changeFilePaths) reviewUpdate.change_file_paths = changeFilePaths;
+      if (changeFileNames) reviewUpdate.change_file_names = changeFileNames;
+      await supabase.from("phase_reviews").update(reviewUpdate).eq("id", latestReview.id);
     }
     queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
