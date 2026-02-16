@@ -335,18 +335,26 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
       return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Approved</Badge>;
     }
     if (phase.review_status === "approved_with_changes") {
+      const severity = phase.change_severity ? `(${phase.change_severity})` : "";
+      if (phase.change_completed_at) {
+        return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Changes Done {severity}</Badge>;
+      }
       return (
         <Badge className="bg-amber-500 text-white text-xs gap-1">
           <Clock className="h-3 w-3" />
-          Changes Needed {phase.change_severity ? `(${phase.change_severity})` : ""}
+          Revision In Progress {severity}
         </Badge>
       );
     }
     if (phase.review_status === "disapproved_with_changes") {
+      const severity = phase.change_severity ? `(${phase.change_severity})` : "";
+      if (phase.change_completed_at) {
+        return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Changes Done {severity}</Badge>;
+      }
       return (
         <Badge variant="destructive" className="text-xs gap-1">
           <AlertTriangle className="h-3 w-3" />
-          Changes Required {phase.change_severity ? `(${phase.change_severity})` : ""}
+          Revision In Progress {severity}
         </Badge>
       );
     }
@@ -409,9 +417,6 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
             <span className="text-xs font-medium truncate">{phaseLabel}</span>
             <Badge variant="outline" className="text-xs shrink-0">{phase.status}</Badge>
             {getReviewBadge(phase)}
-            {phase.change_completed_at && (
-              <Badge className="bg-green-100 text-green-700 text-xs">Changes Done</Badge>
-            )}
             {reviewsForPhase.length > 0 && (
               <span className="text-xs text-muted-foreground ml-auto shrink-0">
                 {reviewsForPhase.length} review{reviewsForPhase.length !== 1 ? "s" : ""}
