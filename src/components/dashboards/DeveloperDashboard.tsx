@@ -410,7 +410,7 @@ const DeveloperDashboard = () => {
       .limit(1)
       .maybeSingle();
     if (latestReview) {
-      await supabase.from("phase_reviews").update({ change_completed_at: new Date().toISOString() }).eq("id", latestReview.id);
+      await supabase.from("phase_reviews").update({ change_completed_at: new Date().toISOString(), change_completed_by: user!.id } as any).eq("id", latestReview.id);
     }
     queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
@@ -554,6 +554,13 @@ const DeveloperDashboard = () => {
         })
         .eq("id", taskId);
       if (error) throw error;
+
+      // Set started_by on Phase 1
+      await supabase
+        .from("project_phases")
+        .update({ started_by: user!.id } as any)
+        .eq("task_id", taskId)
+        .eq("phase_number", 1);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
@@ -722,6 +729,7 @@ const DeveloperDashboard = () => {
 
   // Build reviewer names map from phase_reviews reviewed_by + task PM profiles
   const reviewerNames: Record<string, string> = {};
+  const devNames: Record<string, string> = {};
   // From task PM profiles (already fetched via tasks join)
   if (tasks) {
     for (const task of tasks) {
@@ -729,6 +737,18 @@ const DeveloperDashboard = () => {
       if (pm && task.project_manager_id) {
         reviewerNames[task.project_manager_id] = pm.full_name || pm.email || "PM";
       }
+    }
+  }
+  // Build dev names from allDevelopers
+  if (allDevelopers) {
+    for (const dev of allDevelopers) {
+      devNames[dev.user_id] = dev.name;
+    }
+  }
+  // Add current user
+  if (user?.id && user?.email) {
+    if (!devNames[user.id]) {
+      devNames[user.id] = user.user_metadata?.full_name || user.email || "You";
     }
   }
 
@@ -747,9 +767,10 @@ const DeveloperDashboard = () => {
         .update({ 
           status: "completed", 
           completed_at: new Date().toISOString(),
+          completed_by: user!.id,
           pages_completed: phasePages,
           points: phasePoints,
-        })
+        } as any)
         .eq("task_id", taskId)
         .eq("phase_number", currentPhase);
       
@@ -777,8 +798,8 @@ const DeveloperDashboard = () => {
 
         await supabase.from("project_phases").insert({
           task_id: taskId, phase_number: nextPhase, sla_hours: 9,
-          sla_deadline: slaDeadline, started_at: new Date().toISOString(), status: "in_progress",
-        });
+          sla_deadline: slaDeadline, started_at: new Date().toISOString(), started_by: user!.id, status: "in_progress",
+        } as any);
 
         await supabase.from("tasks").update({
           current_phase: nextPhase, sla_deadline: slaDeadline,
@@ -824,6 +845,9 @@ const DeveloperDashboard = () => {
       const urlsText = homepageUrls.map((u, i) => `🔗 ${i === 0 ? 'Homepage' : `URL ${i + 1}`}: ${u}`).join('\n');
       const commentPayload = [urlsText, developerComment.trim()].filter(Boolean).join('\n') || null;
 
+      const uploadedPaths: string[] = [];
+      const uploadedNames: string[] = [];
+
       if (files.length > 0) {
         for (const file of files) {
           const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -833,6 +857,9 @@ const DeveloperDashboard = () => {
 
           const { error: uploadError } = await supabase.storage.from("design-files").upload(filePath, file);
           if (uploadError) throw uploadError;
+
+          uploadedPaths.push(filePath);
+          uploadedNames.push(file.name);
 
           const { error: submissionError } = await supabase.from("design_submissions").insert({
             task_id: selectedTask.id, designer_id: user!.id,
@@ -852,6 +879,20 @@ const DeveloperDashboard = () => {
         });
         if (submissionError) throw submissionError;
       }
+
+      // Update phase with submission files and comment
+      const phaseUpdate: any = {
+        submission_comment: commentPayload,
+        completed_by: user!.id,
+      };
+      if (uploadedPaths.length > 0) {
+        phaseUpdate.submission_file_paths = uploadedPaths.join("|||");
+        phaseUpdate.submission_file_names = uploadedNames.join("|||");
+      }
+      await supabase.from("project_phases")
+        .update(phaseUpdate)
+        .eq("task_id", selectedTask.id)
+        .eq("phase_number", selectedTask.current_phase || 1);
 
       // Reset SLA to 9 working hours from now after every upload
       if (selectedTask.developer_id) {
@@ -1270,7 +1311,7 @@ const DeveloperDashboard = () => {
                               const taskPhases = projectPhases?.filter(p => p.task_id === task.id) || [];
                               const taskReviews = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
                               if (taskPhases.length > 0) {
-                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} />;
+                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} devNames={devNames} />;
                               }
                               return null;
                             })()}
@@ -1870,7 +1911,7 @@ const DeveloperDashboard = () => {
                   return (
                     <div className="p-4 bg-muted/30 rounded-lg">
                       <h3 className="font-semibold text-lg mb-3">Phase Submissions</h3>
-                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} />
+                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} devNames={devNames} />
                     </div>
                   );
                 }
