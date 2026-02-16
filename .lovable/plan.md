@@ -1,109 +1,66 @@
 
 
-# Enhanced Phase Review Submission System
+# Display PM Review Feedback in Phase Review Section
 
-## Overview
-Transform the Phase Review dialog in the PM Dashboard from a simple text comment box into a full-featured submission panel matching the order-specific chat system's capabilities. This includes voice recording, file attachments, drag-and-drop, and mandatory input validation for "Approve with Changes" and "Disapprove with Changes" actions.
+## Problem
+After a PM submits a phase review with comments, voice notes, or file attachments, they cannot see or review what they submitted. The Phase Reviews section only shows a tiny truncated comment snippet. Voice notes and files are completely invisible to the PM.
 
-## Current Behavior
-- Simple `Textarea` for review comments
-- Comment mandatory only for "Disapprove with Changes"
-- No voice recording, no file attachments, no emoji support
-- Severity selection exists and connects to SLA timer
+The Developer Dashboard already displays all of this (comment, voice playback, file downloads), but the PM's own view in `PhaseReviewSection.tsx` does not.
+
+## Solution
+Add a collapsible "PM Review" block under each reviewed phase that shows:
+- Full text comment
+- Reviewed timestamp and severity badge
+- Voice note with a play button (downloads and plays via signed URL)
+- Attached files with preview thumbnails and download buttons
+- Styled consistently with the existing PM Review blocks used elsewhere in the app (orange-themed for "with changes")
 
 ## What Changes
 
-### 1. Mandatory Input Enforcement
-- **Approve**: No comment required (unchanged)
-- **Approve with Changes**: Comment OR voice message OR file attachment required
-- **Disapprove with Changes**: Comment OR voice message OR file attachment required
+### PhaseReviewSection.tsx
+After the review status badge row (line ~290), add a detailed review block for phases that have been reviewed. This block will:
 
-The Submit button stays disabled until at least one form of input (text, voice, or file) is provided for the two "with changes" actions.
+1. **Full Comment Display** -- Show the complete `review_comment` text (not truncated)
+2. **Timestamp** -- Show `reviewed_at` formatted as a readable date
+3. **Severity Badge** -- Show the change severity level
+4. **Voice Note Playback** -- If `review_voice_path` exists, render a play button that creates a signed URL and plays the audio
+5. **File Attachments** -- If `review_file_paths` exists, parse the delimiter-separated paths/names and render:
+   - Image thumbnails (using the existing `FilePreview` component) for image files
+   - File icon + name for non-image files
+   - Download button for each file (via signed URL)
+6. **Collapsible** -- Use a Collapsible component so it doesn't overwhelm the compact phase list; default open for phases with active change requests
 
-### 2. Enhanced Review Dialog UI
-The review dialog will be rebuilt with a larger, richer submission panel containing:
+### No New Files Needed
+All changes are within `PhaseReviewSection.tsx`, reusing existing components:
+- `FilePreview` for image thumbnails
+- `Collapsible` / `CollapsibleTrigger` / `CollapsibleContent` from the UI library
+- `supabase.storage.from("design-files").createSignedUrl()` for secure access
+- `format()` from date-fns for timestamps
 
-**A. Text Input with Emoji Support**
-- Multi-line text area (same styling as chat input)
-- Emoji picker popover using the same 15-emoji set from OrderChat
+### Technical Details
 
-**B. Voice Recording**
-- Record button with live waveform visualization during recording
-- Preview recorded audio before submitting (play/pause, duration display)
-- Cancel or re-record option
-- Voice note alone satisfies the mandatory requirement
+**Replace the truncated comment display (lines 285-290) with an expandable review details block:**
 
-**C. File Attachments**
-- Paperclip button to attach files (any type: AI, PSD, ZIP, JPEG, PNG, PDF, DOC, XLSX, etc.)
-- Drag-and-drop zone on the dialog
-- File preview thumbnails (images inline, file icons for others)
-- Multiple file support
-- Remove individual files before submission
-
-### 3. Storage and Data Flow
-- Voice recordings uploaded to `design-files` bucket at `phase-reviews/{task_id}/{timestamp}.{ext}`
-- Attached files uploaded to `design-files` bucket at `phase-reviews/{task_id}/{timestamp}_{filename}`
-- Store file paths in `review_comment` field using a structured format, or add new columns to `project_phases` table:
-  - `review_voice_path` (text, nullable) -- voice recording file path
-  - `review_file_paths` (text, nullable) -- delimiter-separated file paths
-  - `review_file_names` (text, nullable) -- delimiter-separated file names
-
-### 4. Developer Dashboard Impact
-When a review with changes is submitted:
-- SLA change timer starts (already implemented via severity)
-- Notification sent to developer (already implemented)
-- Developer can see the review comment, voice note, and attached files in their dashboard's phase review block
-
-### 5. Component Architecture
-Create a new reusable component: `PhaseReviewSubmissionPanel.tsx`
-- Extracts voice recording logic (same pattern as OrderChat: MediaRecorder API, waveform via AnalyserNode, preview playback)
-- Extracts file attachment logic (click-to-browse + drag-and-drop)
-- Emoji picker
-- Validation logic (at least one input present)
-
-The PhaseReviewSection dialog will use this new panel instead of the plain Textarea.
-
----
-
-## Technical Details
-
-### Database Migration
-```sql
-ALTER TABLE project_phases
-  ADD COLUMN review_voice_path text,
-  ADD COLUMN review_file_paths text,
-  ADD COLUMN review_file_names text;
+```
+{hasReview && (review_comment || review_voice_path || review_file_paths)} -->
+  Collapsible block:
+    - Header: "PM Review" + reviewed_at timestamp + severity badge
+    - Content:
+      - Full comment text
+      - Voice note: Play/Download button
+      - Files: FilePreview thumbnails + download links
 ```
 
-### Files to Create
-- `src/components/PhaseReviewSubmissionPanel.tsx` -- Reusable panel with text + voice + file + emoji
+**Voice playback pattern** (same as DeveloperDashboard):
+- Download blob via `supabase.storage.from("design-files").download(path)`
+- Create object URL and play with `new Audio(url)`
 
-### Files to Modify
-- `src/components/dashboards/PhaseReviewSection.tsx` -- Replace Textarea with new panel, update validation, handle file/voice uploads, pass data to mutation
-- `src/components/dashboards/DeveloperDashboard.tsx` -- Display review voice notes and attached files in the phase review block (if applicable)
-- `src/components/dashboards/PMDashboard.tsx` -- Display review attachments in the PM's own phase review history view
+**File download pattern**:
+- Create signed URL via `supabase.storage.from("design-files").createSignedUrl(path, 3600)`
+- Open in new tab for download
 
-### Upload Flow
-1. PM selects severity, types comment / records voice / attaches files
-2. On submit: upload voice + files to storage in parallel
-3. Update `project_phases` row with review data (comment, voice path, file paths)
-4. Calculate SLA deadline (existing logic)
-5. Send notification to developer (existing logic, enhanced message to mention attachments)
-
-### Validation Rules
-```
-canSubmit = (
-  reviewType === "approved_with_changes" || reviewType === "disapproved_with_changes"
-)
-  ? (hasText || hasVoice || hasFiles)
-  : true
-```
-
-### Voice Recording Pattern
-Reuses the exact same MediaRecorder + AnalyserNode + waveform bar visualization pattern from OrderChat.tsx, including:
-- `startRecording()` with `getUserMedia`
-- Live waveform bars during recording
-- `stopRecording()` producing a preview blob
-- `togglePreviewPlayback()` for listen-before-send
-- `cancelRecording()` cleanup
+**Imports to add**:
+- `Collapsible, CollapsibleTrigger, CollapsibleContent` from UI
+- `FilePreview` component
+- `Download, Play, ChevronDown` icons from lucide-react
 
