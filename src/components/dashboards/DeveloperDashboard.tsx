@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
+import { DevPhaseReviewTimeline } from "@/components/dashboards/DevPhaseReviewTimeline";
 import { differenceInHours, differenceInMinutes, format } from "date-fns";
 import { useDesignerNotifications } from "@/hooks/useDesignerNotifications";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -447,6 +448,22 @@ const DeveloperDashboard = () => {
         .select("*")
         .in("task_id", taskIds)
         .order("phase_number", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tasks?.length,
+  });
+
+  const { data: phaseReviews } = useQuery({
+    queryKey: ["developer-phase-reviews", user?.id],
+    queryFn: async () => {
+      if (!tasks?.length) return [];
+      const taskIds = tasks.map(t => t.id);
+      const { data, error } = await supabase
+        .from("phase_reviews")
+        .select("*")
+        .in("task_id", taskIds)
+        .order("reviewed_at", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -1191,63 +1208,15 @@ const DeveloperDashboard = () => {
                                 p.change_severity === 'minor' ? 2 : p.change_severity === 'average' ? 4 : p.change_severity === 'major' ? 9 : 18
                               } />
                             ))}
-                            {/* Review comments, voice notes, and files */}
-                            {projectPhases?.filter(p => p.task_id === task.id && (p.review_comment || (p as any).review_voice_path || (p as any).review_file_paths) && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && !p.change_completed_at).map(p => (
-                              <div key={`comment-${p.id}`} className={`p-2 rounded text-xs space-y-1.5 ${p.review_status === 'disapproved_with_changes' ? 'bg-destructive/10 border border-destructive/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
-                                {p.review_comment && (
-                                  <div><span className="font-medium">PM Comment (P{p.phase_number}):</span> {p.review_comment}</div>
-                                )}
-                                {(p as any).review_voice_path && (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-medium">🎤 Voice Note (P{p.phase_number}):</span>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-6 text-[10px] gap-1"
-                                      onClick={async () => {
-                                        const { data } = await supabase.storage.from("design-files").download((p as any).review_voice_path);
-                                        if (data) {
-                                          const url = URL.createObjectURL(data);
-                                          const audio = new Audio(url);
-                                          audio.play();
-                                        }
-                                      }}
-                                    >
-                                      ▶ Play
-                                    </Button>
-                                  </div>
-                                )}
-                                {(p as any).review_file_paths && (
-                                  <div>
-                                    <span className="font-medium">📎 Files (P{p.phase_number}):</span>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                      {((p as any).review_file_names as string).split("|||").map((name: string, i: number) => {
-                                        const paths = ((p as any).review_file_paths as string).split("|||");
-                                        return (
-                                          <Button
-                                            key={i}
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-6 text-[10px] gap-1"
-                                            onClick={async () => {
-                                              const { data } = await supabase.storage.from("design-files").download(paths[i]);
-                                              if (data) {
-                                                const url = URL.createObjectURL(data);
-                                                const a = document.createElement("a");
-                                                a.href = url; a.download = name; document.body.appendChild(a); a.click();
-                                                document.body.removeChild(a); URL.revokeObjectURL(url);
-                                              }
-                                            }}
-                                          >
-                                            📄 {name}
-                                          </Button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                            {/* Phase Review Timeline */}
+                            {(() => {
+                              const taskPhases = projectPhases?.filter(p => p.task_id === task.id) || [];
+                              const taskReviews = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
+                              if (taskPhases.some(p => p.review_status)) {
+                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} compact />;
+                              }
+                              return null;
+                            })()}
                           </div>
                         )}
 
@@ -1875,6 +1844,21 @@ const DeveloperDashboard = () => {
                   )}
                 </div>
               )}
+
+              {/* Phase Review Timeline in Details */}
+              {viewDetailsTask && (() => {
+                const taskPhases = projectPhases?.filter(p => p.task_id === viewDetailsTask.id) || [];
+                const taskReviews = phaseReviews?.filter(pr => pr.task_id === viewDetailsTask.id) || [];
+                if (taskPhases.some(p => p.review_status) || taskReviews.length > 0) {
+                  return (
+                    <div className="p-4 bg-muted/30 rounded-lg">
+                      <h3 className="font-semibold text-lg mb-3">Phase Reviews</h3>
+                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} />
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Basic Information</h3>
