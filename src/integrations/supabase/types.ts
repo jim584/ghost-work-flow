@@ -410,7 +410,10 @@ export type Database = {
           phase_number: number
           points: number
           review_comment: string | null
+          review_file_names: string | null
+          review_file_paths: string | null
           review_status: string | null
+          review_voice_path: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           sla_deadline: string | null
@@ -430,7 +433,10 @@ export type Database = {
           phase_number: number
           points?: number
           review_comment?: string | null
+          review_file_names?: string | null
+          review_file_paths?: string | null
           review_status?: string | null
+          review_voice_path?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           sla_deadline?: string | null
@@ -450,7 +456,10 @@ export type Database = {
           phase_number?: number
           points?: number
           review_comment?: string | null
+          review_file_names?: string | null
+          review_file_paths?: string | null
           review_status?: string | null
+          review_voice_path?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           sla_deadline?: string | null

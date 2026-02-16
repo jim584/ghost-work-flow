@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, AlertTriangle, Clock, MessageSquare, Globe, ExternalLink } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { PhaseReviewSubmissionPanel } from "@/components/PhaseReviewSubmissionPanel";
 
 const SEVERITY_OPTIONS = [
   { value: "minor", label: "Minor", hours: 2, description: "Small tweaks" },
@@ -38,22 +38,63 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
   } | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [changeSeverity, setChangeSeverity] = useState<string>("minor");
+  const [reviewVoiceBlob, setReviewVoiceBlob] = useState<Blob | null>(null);
+  const [reviewFiles, setReviewFiles] = useState<File[]>([]);
 
   const taskPhases = phases.filter(p => p.task_id === task.id).sort((a, b) => a.phase_number - b.phase_number);
 
   if (taskPhases.length === 0) return null;
 
   const submitReview = useMutation({
-    mutationFn: async ({ phaseId, reviewStatus, comment, severity }: {
+    mutationFn: async ({ phaseId, reviewStatus, comment, severity, voiceBlob, files }: {
       phaseId: string; reviewStatus: string; comment?: string; severity?: string;
+      voiceBlob?: Blob | null; files?: File[];
     }) => {
       const now = new Date().toISOString();
+
+      // Upload voice recording if present
+      let reviewVoicePath: string | null = null;
+      if (voiceBlob) {
+        const ext = voiceBlob.type.includes('webm') ? 'webm' : 'm4a';
+        const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const storagePath = `phase-reviews/${phaseId}/${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("design-files")
+          .upload(storagePath, voiceBlob, { contentType: voiceBlob.type });
+        if (uploadError) throw uploadError;
+        reviewVoicePath = storagePath;
+      }
+
+      // Upload attached files
+      let reviewFilePaths: string | null = null;
+      let reviewFileNames: string | null = null;
+      if (files && files.length > 0) {
+        const paths: string[] = [];
+        const names: string[] = [];
+        for (const file of files) {
+          const ext = file.name.split(".").pop();
+          const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const storagePath = `phase-reviews/${phaseId}/${safeName}`;
+          const { error: uploadError } = await supabase.storage
+            .from("design-files")
+            .upload(storagePath, file);
+          if (uploadError) throw uploadError;
+          paths.push(storagePath);
+          names.push(file.name);
+        }
+        reviewFilePaths = paths.join("|||");
+        reviewFileNames = names.join("|||");
+      }
+
       const updateData: any = {
         review_status: reviewStatus,
         review_comment: comment || null,
         reviewed_at: now,
         reviewed_by: userId,
         change_severity: severity || null,
+        review_voice_path: reviewVoicePath,
+        review_file_paths: reviewFilePaths,
+        review_file_names: reviewFileNames,
       };
 
       // When a phase is approved (straight approve), mark it as completed
@@ -114,6 +155,8 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
       setReviewDialog(null);
       setReviewComment("");
       setChangeSeverity("minor");
+      setReviewVoiceBlob(null);
+      setReviewFiles([]);
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Error submitting review", description: error.message });
@@ -275,8 +318,8 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
       </div>
 
       {/* Review Dialog */}
-      <Dialog open={!!reviewDialog} onOpenChange={() => { setReviewDialog(null); setReviewComment(""); setChangeSeverity("minor"); }}>
-        <DialogContent>
+      <Dialog open={!!reviewDialog} onOpenChange={() => { setReviewDialog(null); setReviewComment(""); setChangeSeverity("minor"); setReviewVoiceBlob(null); setReviewFiles([]); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {reviewDialog?.reviewType === "approved_with_changes" ? "Approve with Changes" : "Disapprove with Changes"}
@@ -285,12 +328,12 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           </DialogHeader>
           <div className="space-y-4">
             {reviewDialog?.reviewType === "disapproved_with_changes" && (
-              <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-800 dark:text-red-300">
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
                 <p className="font-medium">⚠️ The developer will be blocked from advancing to the next phase until changes are completed.</p>
               </div>
             )}
             {reviewDialog?.reviewType === "approved_with_changes" && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-800 dark:text-amber-300">
+              <div className="p-3 bg-accent border border-border rounded-md text-sm text-accent-foreground">
                 <p>The developer can continue to the next phase while addressing these changes. A separate change timer will run.</p>
               </div>
             )}
@@ -312,22 +355,24 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="review-comment">
-                Comment {reviewDialog?.reviewType === "disapproved_with_changes" ? "*" : "(optional)"}
+              <Label>
+                Feedback <span className="text-destructive">*</span>
+                <span className="text-xs text-muted-foreground ml-1">(text, voice, or file required)</span>
               </Label>
-              <Textarea
-                id="review-comment"
-                placeholder="Describe the changes needed..."
-                value={reviewComment}
-                onChange={(e) => setReviewComment(e.target.value)}
-                rows={4}
+              <PhaseReviewSubmissionPanel
+                comment={reviewComment}
+                onCommentChange={setReviewComment}
+                voiceBlob={reviewVoiceBlob}
+                onVoiceBlobChange={setReviewVoiceBlob}
+                files={reviewFiles}
+                onFilesChange={setReviewFiles}
               />
             </div>
             <Button
               className="w-full"
               disabled={
                 submitReview.isPending ||
-                (reviewDialog?.reviewType === "disapproved_with_changes" && !reviewComment.trim())
+                (!reviewComment.trim() && !reviewVoiceBlob && reviewFiles.length === 0)
               }
               onClick={() => {
                 if (!reviewDialog) return;
@@ -336,6 +381,8 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
                   reviewStatus: reviewDialog.reviewType,
                   comment: reviewComment.trim() || undefined,
                   severity: changeSeverity,
+                  voiceBlob: reviewVoiceBlob,
+                  files: reviewFiles,
                 });
               }}
             >
