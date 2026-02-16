@@ -1258,7 +1258,6 @@ const DeveloperDashboard = () => {
                         {/* Phase Progress & SLA for in-progress tasks */}
                         {!isAssigned && task.current_phase && task.status !== "completed" && task.status !== "approved" && (
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
-                            <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} phases={projectPhases?.filter(p => p.task_id === task.id)} />
                             {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={9} />}
                             {/* Change timers for phases with changes needed */}
                             {projectPhases?.filter(p => p.task_id === task.id && p.change_deadline && !p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')).map(p => (
