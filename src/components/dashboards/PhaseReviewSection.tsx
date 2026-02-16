@@ -10,7 +10,7 @@ import { FilePreview } from "@/components/FilePreview";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { PhaseReviewSubmissionPanel } from "@/components/PhaseReviewSubmissionPanel";
 
 const SEVERITY_OPTIONS = [
@@ -339,10 +339,11 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
       if (phase.change_completed_at) {
         return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Changes Done {severity}</Badge>;
       }
+      const timeAgo = phase.reviewed_at ? formatDistanceToNow(new Date(phase.reviewed_at), { addSuffix: true }) : "";
       return (
         <Badge className="bg-amber-500 text-white text-xs gap-1">
           <Clock className="h-3 w-3" />
-          Revision In Progress {severity}
+          Revision In Progress {severity} {timeAgo && <span className="opacity-75">· {timeAgo}</span>}
         </Badge>
       );
     }
@@ -351,10 +352,11 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
       if (phase.change_completed_at) {
         return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Changes Done {severity}</Badge>;
       }
+      const timeAgo = phase.reviewed_at ? formatDistanceToNow(new Date(phase.reviewed_at), { addSuffix: true }) : "";
       return (
         <Badge variant="destructive" className="text-xs gap-1">
           <AlertTriangle className="h-3 w-3" />
-          Revision In Progress {severity}
+          Revision In Progress {severity} {timeAgo && <span className="opacity-75">· {timeAgo}</span>}
         </Badge>
       );
     }
