@@ -1271,7 +1271,7 @@ const DeveloperDashboard = () => {
                               const taskPhases = projectPhases?.filter(p => p.task_id === task.id) || [];
                               const taskReviews = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
                               if (taskPhases.length > 0) {
-                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} />;
+                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} />;
                               }
                               return null;
                             })()}
@@ -1871,7 +1871,7 @@ const DeveloperDashboard = () => {
                   return (
                     <div className="p-4 bg-muted/30 rounded-lg">
                       <h3 className="font-semibold text-lg mb-3">Phase Submissions</h3>
-                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} />
+                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} />
                     </div>
                   );
                 }

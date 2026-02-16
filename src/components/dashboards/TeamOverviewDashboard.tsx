@@ -1099,6 +1099,8 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                                 taskId={task.id}
                                 onMarkPhaseComplete={handleMarkPhaseComplete}
                                 reviewerNames={reviewerNames}
+                                userId={userId}
+                                canReply={true}
                               />
                             )}
                           </div>
@@ -1643,7 +1645,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                   return (
                     <div className="p-4 bg-muted/30 rounded-lg">
                       <h3 className="font-semibold text-lg mb-3">Phase Submissions</h3>
-                      <DevPhaseReviewTimeline phases={detailPhases} phaseReviews={detailReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} />
+                      <DevPhaseReviewTimeline phases={detailPhases} phaseReviews={detailReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={userId} canReply={true} />
                     </div>
                   );
                 }
