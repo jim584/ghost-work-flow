@@ -305,6 +305,16 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           .update(phaseUpdateData)
           .eq("id", phaseId);
         if (error) throw error;
+
+        // If PM requests changes (approved_with_changes or disapproved_with_changes),
+        // ensure the task status is set back to in_progress so it appears in the developer's active view
+        if (reviewStatus === "approved_with_changes" || reviewStatus === "disapproved_with_changes") {
+          const { error: taskError } = await supabase
+            .from("tasks")
+            .update({ status: "in_progress" as any })
+            .eq("id", task.id);
+          if (taskError) console.error("Failed to revert task status to in_progress:", taskError);
+        }
       }
 
       // Notify the developer
