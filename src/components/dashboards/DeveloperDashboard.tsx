@@ -386,6 +386,38 @@ const DeveloperDashboard = () => {
 
   const isWebsiteOrder = (task: any) => task.post_type === 'Website Design';
 
+  const handleMarkPhaseComplete = async (phaseId: string, reviewStatus: string) => {
+    const updateData: any = { change_completed_at: new Date().toISOString() };
+    if (reviewStatus === 'disapproved_with_changes') {
+      updateData.review_status = null;
+      updateData.change_severity = null;
+      updateData.change_deadline = null;
+      updateData.review_comment = null;
+      updateData.reviewed_at = null;
+      updateData.reviewed_by = null;
+      updateData.review_voice_path = null;
+      updateData.review_file_paths = null;
+      updateData.review_file_names = null;
+    }
+    await supabase.from("project_phases").update(updateData).eq("id", phaseId);
+    // Also update corresponding phase_reviews record
+    const { data: latestReview } = await supabase
+      .from("phase_reviews")
+      .select("id")
+      .eq("phase_id", phaseId)
+      .is("change_completed_at", null)
+      .order("round_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestReview) {
+      await supabase.from("phase_reviews").update({ change_completed_at: new Date().toISOString() }).eq("id", latestReview.id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
+    queryClient.invalidateQueries({ queryKey: ["developer-phase-reviews"] });
+    toast({ title: "Phase changes marked as complete" });
+  };
+
   const { data: tasks } = useQuery({
     queryKey: ["developer-tasks", user?.id, isTeamLeader],
     queryFn: async () => {
@@ -1213,7 +1245,7 @@ const DeveloperDashboard = () => {
                               const taskPhases = projectPhases?.filter(p => p.task_id === task.id) || [];
                               const taskReviews = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
                               if (taskPhases.some(p => p.review_status)) {
-                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} compact />;
+                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} compact onMarkPhaseComplete={handleMarkPhaseComplete} />;
                               }
                               return null;
                             })()}
@@ -1326,47 +1358,7 @@ const DeveloperDashboard = () => {
                             Upload Phase {task.current_phase || 1}
                           </Button>
                         )}
-                        {/* Mark Changes Complete button */}
-                        {task.status === "in_progress" && projectPhases?.some(p => 
-                          p.task_id === task.id && 
-                          (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
-                          !p.change_completed_at
-                        ) && (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="border-amber-500 text-amber-700 hover:bg-amber-50"
-                            onClick={async () => {
-                              const phasesToComplete = projectPhases?.filter(p => 
-                                p.task_id === task.id && 
-                                (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
-                                !p.change_completed_at
-                              ) || [];
-                              for (const phase of phasesToComplete) {
-                                const updateData: any = { change_completed_at: new Date().toISOString() };
-                                // For disapproved phases, reset review_status to null for re-review
-                                if (phase.review_status === 'disapproved_with_changes') {
-                                  updateData.review_status = null;
-                                  updateData.change_severity = null;
-                                  updateData.change_deadline = null;
-                                  updateData.review_comment = null;
-                                  updateData.reviewed_at = null;
-                                  updateData.reviewed_by = null;
-                                  updateData.review_voice_path = null;
-                                  updateData.review_file_paths = null;
-                                  updateData.review_file_names = null;
-                                }
-                                await supabase.from("project_phases").update(updateData).eq("id", phase.id);
-                              }
-                              queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
-                              queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
-                              toast({ title: "Changes marked as complete" });
-                            }}
-                          >
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
-                            Mark Changes Complete
-                          </Button>
-                        )}
+                        {/* Mark Changes Complete button removed - now inline in review timeline cards */}
                         {hasRevision && (
                           <Button size="sm" variant="default" className="bg-destructive hover:bg-destructive/90" onClick={() => setSelectedTask(task)}>
                             <Upload className="mr-2 h-4 w-4" />
@@ -1853,7 +1845,7 @@ const DeveloperDashboard = () => {
                   return (
                     <div className="p-4 bg-muted/30 rounded-lg">
                       <h3 className="font-semibold text-lg mb-3">Phase Reviews</h3>
-                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} />
+                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} />
                     </div>
                   );
                 }
