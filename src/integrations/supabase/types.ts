@@ -424,9 +424,12 @@ export type Database = {
       }
       phase_reviews: {
         Row: {
+          change_comment: string | null
           change_completed_at: string | null
           change_completed_by: string | null
           change_deadline: string | null
+          change_file_names: string | null
+          change_file_paths: string | null
           change_severity: string | null
           created_at: string
           id: string
@@ -442,9 +445,12 @@ export type Database = {
           task_id: string
         }
         Insert: {
+          change_comment?: string | null
           change_completed_at?: string | null
           change_completed_by?: string | null
           change_deadline?: string | null
+          change_file_names?: string | null
+          change_file_paths?: string | null
           change_severity?: string | null
           created_at?: string
           id?: string
@@ -460,9 +466,12 @@ export type Database = {
           task_id: string
         }
         Update: {
+          change_comment?: string | null
           change_completed_at?: string | null
           change_completed_by?: string | null
           change_deadline?: string | null
+          change_file_names?: string | null
+          change_file_paths?: string | null
           change_severity?: string | null
           created_at?: string
           id?: string
@@ -523,8 +532,12 @@ export type Database = {
       }
       project_phases: {
         Row: {
+          change_comment: string | null
           change_completed_at: string | null
+          change_completed_by: string | null
           change_deadline: string | null
+          change_file_names: string | null
+          change_file_paths: string | null
           change_severity: string | null
           completed_at: string | null
           completed_by: string | null
@@ -551,8 +564,12 @@ export type Database = {
           task_id: string
         }
         Insert: {
+          change_comment?: string | null
           change_completed_at?: string | null
+          change_completed_by?: string | null
           change_deadline?: string | null
+          change_file_names?: string | null
+          change_file_paths?: string | null
           change_severity?: string | null
           completed_at?: string | null
           completed_by?: string | null
@@ -579,8 +596,12 @@ export type Database = {
           task_id: string
         }
         Update: {
+          change_comment?: string | null
           change_completed_at?: string | null
+          change_completed_by?: string | null
           change_deadline?: string | null
+          change_file_names?: string | null
+          change_file_paths?: string | null
           change_severity?: string | null
           completed_at?: string | null
           completed_by?: string | null
