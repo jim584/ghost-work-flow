@@ -473,6 +473,58 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
   const activePhase = sortedPhases.find(p => p.id === activePhaseId);
   const otherPhases = sortedPhases.filter(p => p.id !== activePhaseId);
 
+  const getContextualTimestamp = (phase: Phase) => {
+    const reviewsForPhase = phaseReviews
+      .filter(pr => pr.phase_id === phase.id)
+      .sort((a, b) => new Date(b.reviewed_at).getTime() - new Date(a.reviewed_at).getTime());
+    const latestReview = reviewsForPhase[0];
+
+    const hasActiveRevision = latestReview
+      ? (latestReview.review_status === "approved_with_changes" || latestReview.review_status === "disapproved_with_changes") && !latestReview.change_completed_at
+      : (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at;
+
+    const hasCompletedChanges = latestReview
+      ? !!latestReview.change_completed_at
+      : !!phase.change_completed_at;
+
+    if (hasActiveRevision) {
+      const reviewDate = latestReview?.reviewed_at || phase.reviewed_at;
+      if (reviewDate) {
+        return (
+          <span className="text-[10px] text-destructive font-medium">
+            Changes Needed · {formatDistanceToNow(new Date(reviewDate), { addSuffix: true })}
+          </span>
+        );
+      }
+    }
+
+    if (hasCompletedChanges) {
+      const completedDate = latestReview?.change_completed_at || phase.change_completed_at;
+      if (completedDate) {
+        return (
+          <span className="text-[10px] text-muted-foreground">
+            Changes Submitted · {formatDistanceToNow(new Date(completedDate), { addSuffix: true })}
+          </span>
+        );
+      }
+    }
+
+    return (
+      <>
+        {phase.started_at && (
+          <span className="text-[10px] text-muted-foreground">
+            Started {format(new Date(phase.started_at), "MMM d, h:mm a")}
+          </span>
+        )}
+        {phase.completed_at && (
+          <span className="text-[10px] text-muted-foreground">
+            · Submitted {format(new Date(phase.completed_at), "MMM d, h:mm a")}
+          </span>
+        )}
+      </>
+    );
+  };
+
   const renderPhaseAccordionItem = (phase: Phase) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
     const events = buildPhaseTimeline(phase, phaseReviews, onMarkPhaseComplete, reviewerNames);
@@ -485,16 +537,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
             <span className="text-xs font-medium truncate">{phaseLabel}</span>
             {getPhaseStatusBadge(phase)}
             <div className="flex items-center gap-2 ml-auto shrink-0">
-              {phase.started_at && (
-                <span className="text-[10px] text-muted-foreground">
-                  Started {format(new Date(phase.started_at), "MMM d, h:mm a")}
-                </span>
-              )}
-              {phase.completed_at && (
-                <span className="text-[10px] text-muted-foreground">
-                  · Submitted {format(new Date(phase.completed_at), "MMM d, h:mm a")}
-                </span>
-              )}
+              {getContextualTimestamp(phase)}
               {reviewCount > 0 && (
                 <span className="text-[10px] text-muted-foreground">
                   · {reviewCount} review{reviewCount !== 1 ? "s" : ""}
