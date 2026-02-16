@@ -427,10 +427,17 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     return taskPhases[taskPhases.length - 1]?.id;
   };
 
-  // Identify the latest/active phase to show prominently
+  // Identify the latest/active phase and phases with pending changes to show prominently
   const latestPhaseId = getDefaultAccordionValue();
   const latestPhase = taskPhases.find(p => p.id === latestPhaseId);
-  const otherPhases = taskPhases.filter(p => p.id !== latestPhaseId);
+  
+  // Phases with pending changes should be promoted alongside the active phase
+  const hasPendingChanges = (phase: any) =>
+    (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") &&
+    !phase.change_completed_at;
+  
+  const promotedPhases = taskPhases.filter(p => p.id !== latestPhaseId && hasPendingChanges(p));
+  const otherPhases = taskPhases.filter(p => p.id !== latestPhaseId && !hasPendingChanges(p));
 
   const renderPhaseItem = (phase: any, defaultOpen: boolean) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
@@ -506,12 +513,11 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
   return (
     <>
       <div className="border-t pt-3 mt-3 space-y-2">
-        {/* Latest/active phase shown prominently */}
-        {latestPhase && (
-          <Accordion type="single" collapsible>
-            {renderPhaseItem(latestPhase, true)}
-          </Accordion>
-        )}
+        {/* Active phase and phases with pending changes shown prominently */}
+        <Accordion type="single" collapsible>
+          {latestPhase && renderPhaseItem(latestPhase, true)}
+          {promotedPhases.map(phase => renderPhaseItem(phase, false))}
+        </Accordion>
 
         {/* Other phases hidden in collapsible */}
         {otherPhases.length > 0 && (
