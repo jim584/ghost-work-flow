@@ -481,14 +481,26 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
     return (
       <AccordionItem key={phase.id} value={phase.id} className="border rounded-md mb-2 px-2">
         <AccordionTrigger className="py-2 hover:no-underline">
-          <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0 pr-2 flex-wrap">
             <span className="text-xs font-medium truncate">{phaseLabel}</span>
             {getPhaseStatusBadge(phase)}
-            {reviewCount > 0 && (
-              <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                {reviewCount} review{reviewCount !== 1 ? "s" : ""}
-              </span>
-            )}
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              {phase.started_at && (
+                <span className="text-[10px] text-muted-foreground">
+                  Started {format(new Date(phase.started_at), "MMM d, h:mm a")}
+                </span>
+              )}
+              {phase.completed_at && (
+                <span className="text-[10px] text-muted-foreground">
+                  · Submitted {format(new Date(phase.completed_at), "MMM d, h:mm a")}
+                </span>
+              )}
+              {reviewCount > 0 && (
+                <span className="text-[10px] text-muted-foreground">
+                  · {reviewCount} review{reviewCount !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
           </div>
         </AccordionTrigger>
         <AccordionContent className="pb-3">
