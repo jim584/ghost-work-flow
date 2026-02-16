@@ -508,11 +508,14 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
             <span className="text-xs font-medium truncate">{phaseLabel}</span>
             {getPhaseStatusBadge(phase)}
             <div className="flex items-center gap-2 ml-auto shrink-0">
-              {hasActiveRevision && (
-                <span className="text-[10px] text-destructive font-medium">
-                  Action Required
-                </span>
-              )}
+              {hasActiveRevision && (() => {
+                const reviewDate = latestReview?.reviewed_at || phase.reviewed_at;
+                return (
+                  <span className="text-[10px] text-destructive font-medium">
+                    Revision Requested · {reviewDate ? formatDistanceToNow(new Date(reviewDate), { addSuffix: true }) : ""}
+                  </span>
+                );
+              })()}
               {!hasActiveRevision && phase.completed_at && (
                 <span className="text-[10px] text-muted-foreground">
                   Submitted {format(new Date(phase.completed_at), "MMM d, h:mm a")}
