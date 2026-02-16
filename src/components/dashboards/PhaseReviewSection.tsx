@@ -408,7 +408,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
 
   const renderPhaseItem = (phase: any, defaultOpen: boolean) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
-    const canReview = isAssignedPM && !readOnly && (phase.status === "in_progress" || phase.status === "completed") && !phase.review_status;
+    const canReview = isAssignedPM && !readOnly && (phase.status === "in_progress" || phase.status === "completed");
     const phaseUrls = submissions.length > 0 ? getPhaseSubmissions(phase.phase_number) : [];
     const reviewsForPhase = phaseReviews.filter((r: any) => r.phase_id === phase.id);
 
