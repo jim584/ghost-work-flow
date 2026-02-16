@@ -158,7 +158,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     open: boolean;
     phaseId: string;
     phaseNumber: number;
-    reviewType: "approved_with_changes" | "disapproved_with_changes";
+    reviewType: "approved_with_changes" | "disapproved_with_changes" | "add_revision_notes";
   } | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [changeSeverity, setChangeSeverity] = useState<string>("minor");
@@ -247,48 +247,55 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
         }
       }
 
+      // For add_revision_notes, keep existing review status and skip phase update
+      const effectiveReviewStatus = reviewStatus === "add_revision_notes" 
+        ? (taskPhases.find(p => p.id === phaseId)?.review_status || "disapproved_with_changes")
+        : reviewStatus;
+
       // Insert into phase_reviews table
       const { error: insertError } = await supabase
         .from("phase_reviews")
         .insert({
           phase_id: phaseId,
           task_id: task.id,
-          review_status: reviewStatus,
+          review_status: effectiveReviewStatus,
           review_comment: comment || null,
-          change_severity: severity || null,
+          change_severity: reviewStatus === "add_revision_notes" ? null : (severity || null),
           review_voice_path: reviewVoicePath,
           review_file_paths: reviewFilePaths,
           review_file_names: reviewFileNames,
           reviewed_by: userId,
           reviewed_at: now,
-          change_deadline: changeDeadline,
+          change_deadline: reviewStatus === "add_revision_notes" ? null : changeDeadline,
           round_number: nextRound,
         });
       if (insertError) throw insertError;
 
-      // Also update project_phases with the latest review status (for backward compatibility)
-      const phaseUpdateData: any = {
-        review_status: reviewStatus,
-        review_comment: comment || null,
-        reviewed_at: now,
-        reviewed_by: userId,
-        change_severity: severity || null,
-        review_voice_path: reviewVoicePath,
-        review_file_paths: reviewFilePaths,
-        review_file_names: reviewFileNames,
-        change_deadline: changeDeadline,
-      };
+      // Skip project_phases update for add_revision_notes (keep existing state)
+      if (reviewStatus !== "add_revision_notes") {
+        const phaseUpdateData: any = {
+          review_status: reviewStatus,
+          review_comment: comment || null,
+          reviewed_at: now,
+          reviewed_by: userId,
+          change_severity: severity || null,
+          review_voice_path: reviewVoicePath,
+          review_file_paths: reviewFilePaths,
+          review_file_names: reviewFileNames,
+          change_deadline: changeDeadline,
+        };
 
-      if (reviewStatus === "approved") {
-        phaseUpdateData.status = "completed";
-        phaseUpdateData.completed_at = now;
+        if (reviewStatus === "approved") {
+          phaseUpdateData.status = "completed";
+          phaseUpdateData.completed_at = now;
+        }
+
+        const { error } = await supabase
+          .from("project_phases")
+          .update(phaseUpdateData)
+          .eq("id", phaseId);
+        if (error) throw error;
       }
-
-      const { error } = await supabase
-        .from("project_phases")
-        .update(phaseUpdateData)
-        .eq("id", phaseId);
-      if (error) throw error;
 
       // Notify the developer
       if (task.developer_id) {
@@ -302,7 +309,8 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           const phase = taskPhases.find(p => p.id === phaseId);
           const phaseLabel = phase?.phase_number === 1 ? "Homepage" : `Phase ${phase?.phase_number}`;
           const statusLabelText = reviewStatus === "approved" ? "Approved" :
-            reviewStatus === "approved_with_changes" ? "Approved with Changes" : "Disapproved with Changes";
+            reviewStatus === "approved_with_changes" ? "Approved with Changes" : 
+            reviewStatus === "add_revision_notes" ? "Additional Revision Notes" : "Disapproved with Changes";
 
           await supabase.from("notifications").insert({
             user_id: dev.user_id,
@@ -412,6 +420,13 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     const phaseUrls = submissions.length > 0 ? getPhaseSubmissions(phase.phase_number) : [];
     const reviewsForPhase = phaseReviews.filter((r: any) => r.phase_id === phase.id);
 
+    // Check if there's an active revision in progress (review exists with no change_completed_at)
+    const hasActiveRevision = reviewsForPhase.some((r: any) => 
+      (r.review_status === "approved_with_changes" || r.review_status === "disapproved_with_changes") && !r.change_completed_at
+    ) || (
+      (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at
+    );
+
     return (
       <AccordionItem key={phase.id} value={phase.id} className="border rounded-md mb-2 px-2">
         <AccordionTrigger className="py-2 hover:no-underline">
@@ -427,7 +442,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           </div>
         </AccordionTrigger>
         <AccordionContent className="pb-3 space-y-3">
-          {canReview && (
+          {canReview && !hasActiveRevision && (
             <div className="flex items-center gap-1">
               <Button size="sm" variant="outline" className="h-7 text-xs bg-green-50 border-green-300 text-green-700 hover:bg-green-100" onClick={() => submitReview.mutate({ phaseId: phase.id, reviewStatus: "approved" })} disabled={submitReview.isPending}>
                 <CheckCircle2 className="h-3 w-3 mr-1" />Approve
@@ -439,6 +454,11 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
                 <AlertTriangle className="h-3 w-3 mr-1" />Disapprove
               </Button>
             </div>
+          )}
+          {canReview && hasActiveRevision && (
+            <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "add_revision_notes" })}>
+              <MessageSquare className="h-3 w-3 mr-1" />Add Revision Notes
+            </Button>
           )}
           {phaseUrls.length > 0 && (
             <div className="space-y-1">
@@ -497,7 +517,8 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {reviewDialog?.reviewType === "approved_with_changes" ? "Approve with Changes" : "Disapprove with Changes"}
+              {reviewDialog?.reviewType === "add_revision_notes" ? "Add Revision Notes" :
+               reviewDialog?.reviewType === "approved_with_changes" ? "Approve with Changes" : "Disapprove with Changes"}
               {" — "}Phase {reviewDialog?.phaseNumber}
             </DialogTitle>
           </DialogHeader>
@@ -512,6 +533,12 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
                 <p>The developer can continue to the next phase while addressing these changes. A separate change timer will run.</p>
               </div>
             )}
+            {reviewDialog?.reviewType === "add_revision_notes" && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-200">
+                <p>Adding additional revision notes to the current in-progress revision. The developer will be notified.</p>
+              </div>
+            )}
+            {reviewDialog?.reviewType !== "add_revision_notes" && (
             <div className="space-y-2">
               <Label className="font-medium">Change Severity</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -529,6 +556,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
                 ))}
               </div>
             </div>
+            )}
             <div className="space-y-2">
               <Label>
                 Feedback <span className="text-destructive">*</span>
@@ -561,7 +589,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
                 });
               }}
             >
-              {submitReview.isPending ? "Submitting..." : "Submit Review"}
+              {submitReview.isPending ? "Submitting..." : reviewDialog?.reviewType === "add_revision_notes" ? "Send Revision Notes" : "Submit Review"}
             </Button>
           </div>
         </DialogContent>
