@@ -371,6 +371,75 @@ export type Database = {
           },
         ]
       }
+      phase_reviews: {
+        Row: {
+          change_completed_at: string | null
+          change_deadline: string | null
+          change_severity: string | null
+          created_at: string
+          id: string
+          phase_id: string
+          review_comment: string | null
+          review_file_names: string | null
+          review_file_paths: string | null
+          review_status: string
+          review_voice_path: string | null
+          reviewed_at: string
+          reviewed_by: string
+          round_number: number
+          task_id: string
+        }
+        Insert: {
+          change_completed_at?: string | null
+          change_deadline?: string | null
+          change_severity?: string | null
+          created_at?: string
+          id?: string
+          phase_id: string
+          review_comment?: string | null
+          review_file_names?: string | null
+          review_file_paths?: string | null
+          review_status: string
+          review_voice_path?: string | null
+          reviewed_at?: string
+          reviewed_by: string
+          round_number?: number
+          task_id: string
+        }
+        Update: {
+          change_completed_at?: string | null
+          change_deadline?: string | null
+          change_severity?: string | null
+          created_at?: string
+          id?: string
+          phase_id?: string
+          review_comment?: string | null
+          review_file_names?: string | null
+          review_file_paths?: string | null
+          review_status?: string
+          review_voice_path?: string | null
+          reviewed_at?: string
+          reviewed_by?: string
+          round_number?: number
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "phase_reviews_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "project_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "phase_reviews_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
