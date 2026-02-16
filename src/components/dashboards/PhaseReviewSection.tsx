@@ -463,7 +463,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
       <div className="border-t pt-3 mt-3 space-y-2">
         {/* Latest/active phase shown prominently */}
         {latestPhase && (
-          <Accordion type="single" collapsible defaultValue={latestPhase.id}>
+          <Accordion type="single" collapsible>
             {renderPhaseItem(latestPhase, true)}
           </Accordion>
         )}
