@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FilePreview } from "@/components/FilePreview";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
+import { DevPhaseReviewTimeline } from "@/components/dashboards/DevPhaseReviewTimeline";
 import {
   AlertTriangle, Clock, CheckCircle2, Play, Timer, Globe, Users,
   FileText, Search, MessageCircle, Download, AlertCircle, RotateCcw,
@@ -333,6 +334,27 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
     refetchInterval: 30000,
   });
 
+  // Fetch all phase reviews for timeline
+  const { data: allPhaseReviews } = useQuery({
+    queryKey: ["team-overview-phase-reviews", allTasks?.length],
+    queryFn: async () => {
+      if (!allTasks?.length) return [];
+      const taskIds = allTasks.map(t => t.id);
+      const chunks = [];
+      for (let i = 0; i < taskIds.length; i += 50) {
+        chunks.push(taskIds.slice(i, i + 50));
+      }
+      const results = await Promise.all(
+        chunks.map(chunk =>
+          supabase.from("phase_reviews").select("*").in("task_id", chunk).order("reviewed_at")
+        )
+      );
+      return results.flatMap(r => r.data || []);
+    },
+    enabled: !!allTasks?.length,
+    refetchInterval: 30000,
+  });
+
   // Fetch leave records for all developers
   const { data: allLeaves } = useQuery({
     queryKey: ["team-overview-leaves", developers?.length],
@@ -369,6 +391,50 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
     },
     enabled: !!viewDetailsTask?.id,
   });
+
+  // Build reviewer names map from PM profiles in tasks
+  const reviewerNames = useMemo(() => {
+    const names: Record<string, string> = {};
+    allTasks?.forEach(t => {
+      const pm = (t as any).profiles;
+      if (pm?.full_name && t.project_manager_id) {
+        names[t.project_manager_id] = pm.full_name;
+      }
+    });
+    return names;
+  }, [allTasks]);
+
+  // Handle mark phase complete (for DevPhaseReviewTimeline)
+  const handleMarkPhaseComplete = async (phaseId: string, reviewStatus: string) => {
+    const updateData: any = { change_completed_at: new Date().toISOString() };
+    if (reviewStatus === 'disapproved_with_changes') {
+      updateData.review_status = null;
+      updateData.change_severity = null;
+      updateData.change_deadline = null;
+      updateData.review_comment = null;
+      updateData.reviewed_at = null;
+      updateData.reviewed_by = null;
+      updateData.review_voice_path = null;
+      updateData.review_file_paths = null;
+      updateData.review_file_names = null;
+    }
+    await supabase.from("project_phases").update(updateData).eq("id", phaseId);
+    const { data: latestReview } = await supabase
+      .from("phase_reviews")
+      .select("id")
+      .eq("phase_id", phaseId)
+      .is("change_completed_at", null)
+      .order("round_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestReview) {
+      await supabase.from("phase_reviews").update({ change_completed_at: new Date().toISOString() }).eq("id", latestReview.id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["team-overview-phases"] });
+    queryClient.invalidateQueries({ queryKey: ["team-overview-phase-reviews"] });
+    toast({ title: "Phase changes marked as complete" });
+  };
 
   // Active tasks (not completed/approved/cancelled)
   const activeTasks = useMemo(() =>
@@ -1022,11 +1088,16 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                                 p.change_severity === 'minor' ? 2 : p.change_severity === 'average' ? 4 : p.change_severity === 'major' ? 9 : 18
                               } />
                             ))}
-                            {taskPhases.filter(p => p.review_comment && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && !p.change_completed_at).map(p => (
-                              <div key={`comment-${p.id}`} className={`p-2 rounded text-xs ${p.review_status === 'disapproved_with_changes' ? 'bg-destructive/10 border border-destructive/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
-                                <span className="font-medium">PM Comment (P{p.phase_number}):</span> {p.review_comment}
-                              </div>
-                            ))}
+                            {/* Phase Submissions Timeline */}
+                            {taskPhases.length > 0 && (
+                              <DevPhaseReviewTimeline
+                                phases={taskPhases}
+                                phaseReviews={allPhaseReviews?.filter(pr => pr.task_id === task.id) || []}
+                                taskId={task.id}
+                                onMarkPhaseComplete={handleMarkPhaseComplete}
+                                reviewerNames={reviewerNames}
+                              />
+                            )}
                           </div>
                         )}
 
@@ -1560,6 +1631,21 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                   })()}
                 </div>
               )}
+
+              {/* Phase Submissions Timeline in Details */}
+              {viewDetailsTask && (() => {
+                const detailPhases = allPhases?.filter(p => p.task_id === viewDetailsTask.id) || [];
+                const detailReviews = allPhaseReviews?.filter(pr => pr.task_id === viewDetailsTask.id) || [];
+                if (detailPhases.length > 0) {
+                  return (
+                    <div className="p-4 bg-muted/30 rounded-lg">
+                      <h3 className="font-semibold text-lg mb-3">Phase Submissions</h3>
+                      <DevPhaseReviewTimeline phases={detailPhases} phaseReviews={detailReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} />
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><Label className="text-muted-foreground">Title</Label><p className="font-medium">{viewDetailsTask?.title}</p></div>
