@@ -495,18 +495,21 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
     return calculateOverdueWorkingMinutes(new Date(), new Date(task.sla_deadline), cal, getDevLeaves(task.developer_id));
   };
 
-  // Priority-sorted active tasks
+  // Priority-sorted active tasks (search queries across ALL tasks including completed)
   const sortedActiveTasks = useMemo(() => {
-    const filtered = searchQuery.trim()
-      ? activeTasks.filter(t => {
-          const q = searchQuery.toLowerCase();
-          return t.title?.toLowerCase().includes(q) ||
-            t.task_number?.toString().includes(q) ||
-            t.business_name?.toLowerCase().includes(q) ||
-            `#${t.task_number}`.includes(q) ||
-            (t as any).developers?.name?.toLowerCase().includes(q);
-        })
-      : activeTasks;
+    const searchMatch = (t: any) => {
+      const q = searchQuery.toLowerCase();
+      return t.title?.toLowerCase().includes(q) ||
+        t.task_number?.toString().includes(q) ||
+        t.business_name?.toLowerCase().includes(q) ||
+        `#${t.task_number}`.includes(q) ||
+        (t as any).developers?.name?.toLowerCase().includes(q) ||
+        t.customer_name?.toLowerCase().includes(q) ||
+        t.description?.toLowerCase().includes(q);
+    };
+
+    const source = searchQuery.trim() ? (allTasks || []) : activeTasks;
+    const filtered = searchQuery.trim() ? source.filter(searchMatch) : source;
 
     return [...filtered].sort((a, b) => {
       const pa = getPriority(a);
@@ -515,7 +518,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       if (pa === 1) return getOverdueMinutes(b) - getOverdueMinutes(a);
       return 0;
     });
-  }, [activeTasks, searchQuery, developers, allLeaves]);
+  }, [activeTasks, allTasks, searchQuery, developers, allLeaves]);
 
   // Summary stats
   const stats = useMemo(() => {
