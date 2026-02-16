@@ -1252,12 +1252,12 @@ const DeveloperDashboard = () => {
                                 p.change_severity === 'minor' ? 2 : p.change_severity === 'average' ? 4 : p.change_severity === 'major' ? 9 : 18
                               } />
                             ))}
-                            {/* Phase Review Timeline */}
+                            {/* Phase Submissions Timeline */}
                             {(() => {
                               const taskPhases = projectPhases?.filter(p => p.task_id === task.id) || [];
                               const taskReviews = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
-                              if (taskPhases.some(p => p.review_status)) {
-                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} compact onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} />;
+                              if (taskPhases.length > 0) {
+                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} />;
                               }
                               return null;
                             })()}
@@ -1849,14 +1849,14 @@ const DeveloperDashboard = () => {
                 </div>
               )}
 
-              {/* Phase Review Timeline in Details */}
+              {/* Phase Submissions Timeline in Details */}
               {viewDetailsTask && (() => {
                 const taskPhases = projectPhases?.filter(p => p.task_id === viewDetailsTask.id) || [];
                 const taskReviews = phaseReviews?.filter(pr => pr.task_id === viewDetailsTask.id) || [];
-                if (taskPhases.some(p => p.review_status) || taskReviews.length > 0) {
+                if (taskPhases.length > 0) {
                   return (
                     <div className="p-4 bg-muted/30 rounded-lg">
-                      <h3 className="font-semibold text-lg mb-3">Phase Reviews</h3>
+                      <h3 className="font-semibold text-lg mb-3">Phase Submissions</h3>
                       <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} />
                     </div>
                   );
