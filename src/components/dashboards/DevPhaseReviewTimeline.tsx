@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { FilePreview } from "@/components/FilePreview";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { supabase } from "@/integrations/supabase/client";
@@ -190,15 +191,32 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete }:
       )}
 
       {isCurrent && phaseId && onMarkComplete && (
-        <Button 
-          size="sm" 
-          variant="outline"
-          className="w-full border-green-500 text-green-700 hover:bg-green-50 gap-1.5 mt-1"
-          onClick={() => onMarkComplete(phaseId, review.review_status)}
-        >
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          Mark Changes Complete (P{phaseNumber})
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button 
+              size="sm" 
+              variant="outline"
+              className="w-full border-green-500 text-green-700 hover:bg-green-50 gap-1.5 mt-1"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Mark Changes Complete (P{phaseNumber})
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Changes Complete</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to mark Phase {phaseNumber} changes as complete? This will notify the PM for re-review.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => onMarkComplete(phaseId, review.review_status)}>
+                Confirm
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );
