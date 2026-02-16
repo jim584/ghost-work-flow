@@ -1208,41 +1208,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                           </Button>
                         )}
 
-                        {/* Mark Changes Complete button */}
-                        {task.status === "in_progress" && taskPhases.some(p => 
-                          (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
-                          !p.change_completed_at
-                        ) && (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="border-amber-500 text-amber-700 hover:bg-amber-50"
-                            onClick={async () => {
-                              const phasesToComplete = taskPhases.filter(p => 
-                                (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
-                                !p.change_completed_at
-                              );
-                              for (const phase of phasesToComplete) {
-                                const updateData: any = { change_completed_at: new Date().toISOString() };
-                                if (phase.review_status === 'disapproved_with_changes') {
-                                  updateData.review_status = null;
-                                  updateData.change_severity = null;
-                                  updateData.change_deadline = null;
-                                  updateData.review_comment = null;
-                                  updateData.reviewed_at = null;
-                                  updateData.reviewed_by = null;
-                                }
-                                await supabase.from("project_phases").update(updateData).eq("id", phase.id);
-                              }
-                              queryClient.invalidateQueries({ queryKey: ["team-overview-tasks"] });
-                              queryClient.invalidateQueries({ queryKey: ["team-overview-phases"] });
-                              toast({ title: "Changes marked as complete" });
-                            }}
-                          >
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
-                            Mark Changes Complete
-                          </Button>
-                        )}
+                        {/* Mark Changes Complete button removed - now inline in review timeline cards */}
 
                         {/* Upload Revision button */}
                         {hasRevision && (
