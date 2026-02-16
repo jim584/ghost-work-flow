@@ -48,6 +48,7 @@ interface DevPhaseReviewTimelineProps {
   taskId: string;
   compact?: boolean;
   onMarkPhaseComplete?: (phaseId: string, reviewStatus: string) => void;
+  reviewerNames?: Record<string, string>;
 }
 
 // ─── Shared Sub-components ──────────────────────────────────────────
@@ -186,12 +187,13 @@ const DevActionCard = ({ type, phaseNumber, timestamp }: {
 
 // ─── PM Review Card ─────────────────────────────────────────────────
 
-const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete }: { 
-  review: { review_status: string; review_comment: string | null; review_voice_path: string | null; review_file_paths: string | null; review_file_names: string | null; change_severity: string | null; change_completed_at: string | null; reviewed_at: string | null; round_number?: number };
+const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, reviewerName }: { 
+  review: { review_status: string; review_comment: string | null; review_voice_path: string | null; review_file_paths: string | null; review_file_names: string | null; change_severity: string | null; change_completed_at: string | null; reviewed_at: string | null; round_number?: number; reviewed_by?: string };
   phaseNumber: number;
   isCurrent: boolean;
   phaseId?: string;
   onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
+  reviewerName?: string;
 }) => {
   const isDisapproved = review.review_status === "disapproved_with_changes";
   const isApprovedWithChanges = review.review_status === "approved_with_changes";
@@ -223,7 +225,7 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete }:
     <div className={`border rounded-md p-3 space-y-2 ${borderClass}`}>
       <div className="flex items-center justify-between flex-wrap gap-1">
         <div className="flex items-center gap-1.5">
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30">PM Review</Badge>
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30">PM Review{reviewerName ? ` · ${reviewerName}` : ""}</Badge>
           <span className="text-[10px] font-semibold text-muted-foreground">P{phaseNumber}{review.round_number ? ` · Round ${review.round_number}` : ""}</span>
           {statusBadge}
         </div>
@@ -292,7 +294,7 @@ interface TimelineItem {
 
 // ─── Main Component ─────────────────────────────────────────────────
 
-export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete }: DevPhaseReviewTimelineProps) => {
+export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {} }: DevPhaseReviewTimelineProps) => {
   const [expanded, setExpanded] = useState(!compact);
 
   // Build unified timeline
@@ -451,6 +453,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
                   isCurrent={item.isCurrent || false}
                   phaseId={item.phaseId}
                   onMarkComplete={onMarkPhaseComplete}
+                  reviewerName={item.review?.reviewed_by ? reviewerNames[item.review.reviewed_by] : undefined}
                 />
               )}
             </div>
