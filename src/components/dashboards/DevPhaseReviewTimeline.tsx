@@ -2,11 +2,13 @@ import { useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { FilePreview } from "@/components/FilePreview";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNow } from "date-fns";
-import { Download, Play, Pause, Mic, FileText, CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronUp, Upload, PlayCircle, RotateCcw } from "lucide-react";
+import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw } from "lucide-react";
 
 interface PhaseReview {
   id: string;
@@ -144,9 +146,160 @@ const TimeStamp = ({ date }: { date: string }) => (
   </span>
 );
 
-// ─── Developer Action Card ─────────────────────────────────────────
+// ─── Timeline event types ──────────────────────────────────────────
 
 type DevActionType = "phase_started" | "phase_completed" | "changes_done";
+
+interface TimelineEvent {
+  key: string;
+  timestamp: number;
+  type: "dev_action" | "pm_review";
+  actionType?: DevActionType;
+  phaseNumber: number;
+  phaseId: string;
+  dateStr: string;
+  review?: any;
+  isCurrent?: boolean;
+}
+
+// ─── Build timeline events for a single phase ──────────────────────
+
+const buildPhaseTimeline = (
+  phase: Phase,
+  phaseReviews: PhaseReview[],
+  onMarkComplete?: (phaseId: string, reviewStatus: string) => void,
+  reviewerNames?: Record<string, string>,
+): TimelineEvent[] => {
+  const items: TimelineEvent[] = [];
+
+  if (phase.started_at) {
+    items.push({
+      key: `start-${phase.id}`,
+      timestamp: new Date(phase.started_at).getTime(),
+      type: "dev_action",
+      actionType: "phase_started",
+      phaseNumber: phase.phase_number,
+      phaseId: phase.id,
+      dateStr: phase.started_at,
+    });
+  }
+
+  if (phase.completed_at) {
+    items.push({
+      key: `complete-${phase.id}`,
+      timestamp: new Date(phase.completed_at).getTime(),
+      type: "dev_action",
+      actionType: "phase_completed",
+      phaseNumber: phase.phase_number,
+      phaseId: phase.id,
+      dateStr: phase.completed_at,
+    });
+  }
+
+  const reviewsForPhase = phaseReviews.filter(pr => pr.phase_id === phase.id);
+
+  for (const pr of reviewsForPhase) {
+    items.push({
+      key: `pr-${pr.id}`,
+      timestamp: new Date(pr.reviewed_at).getTime(),
+      type: "pm_review",
+      phaseNumber: phase.phase_number,
+      phaseId: phase.id,
+      dateStr: pr.reviewed_at,
+      review: { ...pr, round_number: pr.round_number },
+      isCurrent: !pr.change_completed_at && (pr.review_status === "approved_with_changes" || pr.review_status === "disapproved_with_changes"),
+    });
+
+    if (pr.change_completed_at) {
+      items.push({
+        key: `changes-done-${pr.id}`,
+        timestamp: new Date(pr.change_completed_at).getTime(),
+        type: "dev_action",
+        actionType: "changes_done",
+        phaseNumber: phase.phase_number,
+        phaseId: phase.id,
+        dateStr: pr.change_completed_at,
+      });
+    }
+  }
+
+  // Phase-level review if no matching phase_reviews entries
+  if (reviewsForPhase.length === 0 && phase.review_status && phase.reviewed_at) {
+    items.push({
+      key: `phase-review-${phase.id}`,
+      timestamp: new Date(phase.reviewed_at).getTime(),
+      type: "pm_review",
+      phaseNumber: phase.phase_number,
+      phaseId: phase.id,
+      dateStr: phase.reviewed_at,
+      review: {
+        review_status: phase.review_status,
+        review_comment: phase.review_comment,
+        review_voice_path: phase.review_voice_path,
+        review_file_paths: phase.review_file_paths,
+        review_file_names: phase.review_file_names,
+        change_severity: phase.change_severity,
+        change_completed_at: phase.change_completed_at,
+        reviewed_at: phase.reviewed_at,
+      },
+      isCurrent: !phase.change_completed_at && (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes"),
+    });
+
+    if (phase.change_completed_at) {
+      items.push({
+        key: `changes-done-phase-${phase.id}`,
+        timestamp: new Date(phase.change_completed_at).getTime(),
+        type: "dev_action",
+        actionType: "changes_done",
+        phaseNumber: phase.phase_number,
+        phaseId: phase.id,
+        dateStr: phase.change_completed_at,
+      });
+    }
+  }
+
+  items.sort((a, b) => a.timestamp - b.timestamp);
+  return items;
+};
+
+// ─── Inline timeline rendering ──────────────────────────────────────
+
+const PhaseTimelineContent = ({ events, onMarkComplete, reviewerNames }: {
+  events: TimelineEvent[];
+  onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
+  reviewerNames?: Record<string, string>;
+}) => {
+  if (events.length === 0) {
+    return <p className="text-xs text-muted-foreground italic">No activity yet.</p>;
+  }
+
+  return (
+    <div className="relative space-y-1.5">
+      <div className="absolute left-3 top-2 bottom-2 w-px bg-border" />
+      {events.map((item) => (
+        <div key={item.key} className="relative pl-7">
+          <div className={`absolute left-[9px] top-3 w-1.5 h-1.5 rounded-full ${
+            item.type === "pm_review" ? "bg-amber-500" : "bg-primary"
+          }`} />
+          {item.type === "dev_action" ? (
+            <DevActionCard type={item.actionType!} phaseNumber={item.phaseNumber} timestamp={item.dateStr} />
+          ) : (
+            <ReviewCard
+              review={item.review}
+              phaseNumber={item.phaseNumber}
+              isCurrent={item.isCurrent || false}
+              phaseId={item.phaseId}
+              onMarkComplete={onMarkComplete}
+              reviewerName={item.review?.reviewed_by ? reviewerNames?.[item.review.reviewed_by] : undefined}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ─── Developer Action Card ─────────────────────────────────────────
 
 const DevActionCard = ({ type, phaseNumber, timestamp }: {
   type: DevActionType;
@@ -276,189 +429,102 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
   );
 };
 
-// ─── Unified Timeline Item ──────────────────────────────────────────
+// ─── Phase status badge for accordion header ────────────────────────
 
-interface TimelineItem {
-  key: string;
-  timestamp: number; // ms for sorting
-  type: "dev_action" | "pm_review";
-  // dev_action fields
-  actionType?: DevActionType;
-  phaseNumber: number;
-  phaseId: string;
-  dateStr: string;
-  // pm_review fields
-  review?: any;
-  isCurrent?: boolean;
-}
+const getPhaseStatusBadge = (phase: Phase) => {
+  if (!phase.review_status) {
+    return <Badge variant="outline" className="text-[10px] shrink-0">{phase.status}</Badge>;
+  }
+  if (phase.review_status === "approved") {
+    return <Badge className="bg-green-600 text-white text-[10px] gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />Approved</Badge>;
+  }
+  if (phase.review_status === "approved_with_changes") {
+    if (phase.change_completed_at) {
+      return <Badge className="bg-green-600 text-white text-[10px] gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />Changes Done</Badge>;
+    }
+    return <Badge className="bg-amber-500 text-white text-[10px] gap-0.5"><Clock className="h-2.5 w-2.5" />Revision In Progress</Badge>;
+  }
+  if (phase.review_status === "disapproved_with_changes") {
+    if (phase.change_completed_at) {
+      return <Badge className="bg-green-600 text-white text-[10px] gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />Changes Done</Badge>;
+    }
+    return <Badge variant="destructive" className="text-[10px] gap-0.5"><AlertTriangle className="h-2.5 w-2.5" />Changes Required</Badge>;
+  }
+  return <Badge variant="outline" className="text-[10px] shrink-0">{phase.status}</Badge>;
+};
 
 // ─── Main Component ─────────────────────────────────────────────────
 
 export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {} }: DevPhaseReviewTimelineProps) => {
-  const [expanded, setExpanded] = useState(!compact);
+  const sortedPhases = [...phases].sort((a, b) => a.phase_number - b.phase_number);
 
-  // Build unified timeline
-  const timelineItems: TimelineItem[] = [];
+  if (sortedPhases.length === 0) return null;
 
-  // 1. Add developer actions from phases
-  for (const phase of phases) {
-    if (phase.started_at) {
-      timelineItems.push({
-        key: `start-${phase.id}`,
-        timestamp: new Date(phase.started_at).getTime(),
-        type: "dev_action",
-        actionType: "phase_started",
-        phaseNumber: phase.phase_number,
-        phaseId: phase.id,
-        dateStr: phase.started_at,
-      });
+  // Determine the active/latest phase (same logic as PM dashboard)
+  const getActivePhaseId = () => {
+    for (const phase of [...sortedPhases].reverse()) {
+      if (phase.status === "in_progress") return phase.id;
+      if ((phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at) return phase.id;
     }
-    if (phase.completed_at) {
-      timelineItems.push({
-        key: `complete-${phase.id}`,
-        timestamp: new Date(phase.completed_at).getTime(),
-        type: "dev_action",
-        actionType: "phase_completed",
-        phaseNumber: phase.phase_number,
-        phaseId: phase.id,
-        dateStr: phase.completed_at,
-      });
-    }
-  }
+    return sortedPhases[sortedPhases.length - 1]?.id;
+  };
 
-  // 2. Add change_completed_at from phase_reviews
-  for (const pr of phaseReviews) {
-    if (pr.change_completed_at) {
-      const phase = phases.find(p => p.id === pr.phase_id);
-      if (phase) {
-        timelineItems.push({
-          key: `changes-done-${pr.id}`,
-          timestamp: new Date(pr.change_completed_at).getTime(),
-          type: "dev_action",
-          actionType: "changes_done",
-          phaseNumber: phase.phase_number,
-          phaseId: phase.id,
-          dateStr: pr.change_completed_at,
-        });
-      }
-    }
-  }
+  const activePhaseId = getActivePhaseId();
+  const activePhase = sortedPhases.find(p => p.id === activePhaseId);
+  const otherPhases = sortedPhases.filter(p => p.id !== activePhaseId);
 
-  // Also add change_completed_at from phases themselves (for phases without matching phase_reviews)
-  for (const phase of phases) {
-    if (phase.change_completed_at) {
-      const hasReviewWithChange = phaseReviews.some(pr => pr.phase_id === phase.id && pr.change_completed_at);
-      if (!hasReviewWithChange) {
-        timelineItems.push({
-          key: `changes-done-phase-${phase.id}`,
-          timestamp: new Date(phase.change_completed_at).getTime(),
-          type: "dev_action",
-          actionType: "changes_done",
-          phaseNumber: phase.phase_number,
-          phaseId: phase.id,
-          dateStr: phase.change_completed_at,
-        });
-      }
-    }
-  }
+  const renderPhaseAccordionItem = (phase: Phase) => {
+    const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
+    const events = buildPhaseTimeline(phase, phaseReviews, onMarkPhaseComplete, reviewerNames);
+    const reviewCount = events.filter(e => e.type === "pm_review").length;
 
-  // 3. Add PM reviews from phase_reviews table
-  for (const pr of phaseReviews) {
-    const phase = phases.find(p => p.id === pr.phase_id);
-    if (!phase) continue;
-    timelineItems.push({
-      key: `pr-${pr.id}`,
-      timestamp: new Date(pr.reviewed_at).getTime(),
-      type: "pm_review",
-      phaseNumber: phase.phase_number,
-      phaseId: phase.id,
-      dateStr: pr.reviewed_at,
-      review: { ...pr, round_number: pr.round_number },
-      isCurrent: !pr.change_completed_at && (pr.review_status === "approved_with_changes" || pr.review_status === "disapproved_with_changes"),
-    });
-  }
-
-  // 4. Add phase-level reviews without matching phase_reviews entries
-  for (const phase of phases) {
-    if (!phase.review_status || !phase.reviewed_at) continue;
-    const hasReviewRecord = phaseReviews.some(pr => pr.phase_id === phase.id);
-    if (!hasReviewRecord) {
-      timelineItems.push({
-        key: `phase-review-${phase.id}`,
-        timestamp: new Date(phase.reviewed_at).getTime(),
-        type: "pm_review",
-        phaseNumber: phase.phase_number,
-        phaseId: phase.id,
-        dateStr: phase.reviewed_at,
-        review: {
-          review_status: phase.review_status,
-          review_comment: phase.review_comment,
-          review_voice_path: phase.review_voice_path,
-          review_file_paths: phase.review_file_paths,
-          review_file_names: phase.review_file_names,
-          change_severity: phase.change_severity,
-          change_completed_at: phase.change_completed_at,
-          reviewed_at: phase.reviewed_at,
-        },
-        isCurrent: !phase.change_completed_at && (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes"),
-      });
-    }
-  }
-
-  // Sort chronologically
-  timelineItems.sort((a, b) => a.timestamp - b.timestamp);
-
-  if (timelineItems.length === 0) return null;
-
-  const totalEvents = timelineItems.length;
-  const reviewCount = timelineItems.filter(t => t.type === "pm_review").length;
+    return (
+      <AccordionItem key={phase.id} value={phase.id} className="border rounded-md mb-2 px-2">
+        <AccordionTrigger className="py-2 hover:no-underline">
+          <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+            <span className="text-xs font-medium truncate">{phaseLabel}</span>
+            {getPhaseStatusBadge(phase)}
+            {reviewCount > 0 && (
+              <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                {reviewCount} review{reviewCount !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        </AccordionTrigger>
+        <AccordionContent className="pb-3">
+          <PhaseTimelineContent
+            events={events}
+            onMarkComplete={onMarkPhaseComplete}
+            reviewerNames={reviewerNames}
+          />
+        </AccordionContent>
+      </AccordionItem>
+    );
+  };
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold flex items-center gap-1.5">
-          <FileText className="h-3.5 w-3.5" />
-          Phase Timeline ({totalEvents} events{reviewCount > 0 ? ` · ${reviewCount} reviews` : ""})
-        </span>
-        {compact && (
-          <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => setExpanded(!expanded)}>
-            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            {expanded ? "Collapse" : "Expand"}
-          </Button>
-        )}
-      </div>
+      {/* Active phase shown prominently */}
+      {activePhase && (
+        <Accordion type="single" collapsible defaultValue={activePhase.id}>
+          {renderPhaseAccordionItem(activePhase)}
+        </Accordion>
+      )}
 
-      {expanded && (
-        <div className="relative space-y-1.5">
-          {/* Vertical connector line */}
-          <div className="absolute left-3 top-2 bottom-2 w-px bg-border" />
-
-          {timelineItems.map((item) => (
-            <div key={item.key} className="relative pl-7">
-              {/* Timeline dot */}
-              <div className={`absolute left-[9px] top-3 w-1.5 h-1.5 rounded-full ${
-                item.type === "pm_review" ? "bg-amber-500" : "bg-primary"
-              }`} />
-
-              {item.type === "dev_action" ? (
-                <DevActionCard
-                  type={item.actionType!}
-                  phaseNumber={item.phaseNumber}
-                  timestamp={item.dateStr}
-                />
-              ) : (
-                <ReviewCard
-                  review={item.review}
-                  phaseNumber={item.phaseNumber}
-                  isCurrent={item.isCurrent || false}
-                  phaseId={item.phaseId}
-                  onMarkComplete={onMarkPhaseComplete}
-                  reviewerName={item.review?.reviewed_by ? reviewerNames[item.review.reviewed_by] : undefined}
-                />
-              )}
-            </div>
-          ))}
-        </div>
+      {/* Previous phases collapsed */}
+      {otherPhases.length > 0 && (
+        <Collapsible defaultOpen={false}>
+          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Previous Phases</h4>
+            <Badge variant="outline" className="text-[10px] ml-auto">{otherPhases.length} phase{otherPhases.length !== 1 ? "s" : ""}</Badge>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2">
+            <Accordion type="single" collapsible>
+              {otherPhases.map(phase => renderPhaseAccordionItem(phase))}
+            </Accordion>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   );
