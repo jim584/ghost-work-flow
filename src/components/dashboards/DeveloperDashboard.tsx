@@ -1537,7 +1537,7 @@ const DeveloperDashboard = () => {
         )}
       </main>
 
-      {/* Upload Dialog */}
+      {/* Submit Phase Dialog */}
       <Dialog open={!!selectedTask} onOpenChange={() => setSelectedTask(null)}>
         <DialogContent>
           <DialogHeader>

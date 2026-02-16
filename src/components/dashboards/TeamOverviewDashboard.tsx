@@ -1339,7 +1339,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
         </Card>
       </div>
 
-      {/* Upload Dialog */}
+      {/* Submit Phase Dialog */}
       <Dialog open={!!selectedTask} onOpenChange={() => { setSelectedTask(null); setFiles([]); setFilePreviews({}); setDeveloperComment(""); setHomepageUrls([]); setUrlInput(""); }}>
         <DialogContent>
           <DialogHeader>
