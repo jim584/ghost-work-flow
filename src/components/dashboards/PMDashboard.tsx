@@ -1718,45 +1718,6 @@ const PMDashboard = () => {
                         </div>
                       )}
 
-                      {/* Pending Phase Changes Alert for Website Orders */}
-                      {isWebsite && projectPhases && (() => {
-                        const taskPhasesForAlert = (projectPhases || []).filter((p: any) => p.task_id === task.id);
-                        const pendingChangePhases = taskPhasesForAlert.filter((p: any) => 
-                          (p.review_status === "approved_with_changes" || p.review_status === "disapproved_with_changes") &&
-                          !p.change_completed_at &&
-                          p.phase_number < (task.current_phase || 1)
-                        );
-                        if (pendingChangePhases.length === 0) return null;
-                        return (
-                          <div className="px-4 pb-1">
-                            {pendingChangePhases.map((p: any) => {
-                              const phaseLabel = p.phase_number === 1 ? "Phase 1 (Homepage)" : `Phase ${p.phase_number}`;
-                              const isOverdue = p.change_deadline && new Date(p.change_deadline) < new Date();
-                              return (
-                                <div key={p.id} className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md mb-1 ${
-                                  isOverdue 
-                                    ? "bg-destructive/10 border border-destructive/20 text-destructive" 
-                                    : "bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-300"
-                                }`}>
-                                  {isOverdue ? (
-                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                  ) : (
-                                    <Clock className="h-3.5 w-3.5 shrink-0" />
-                                  )}
-                                  <span className="font-medium">
-                                    {phaseLabel} — {isOverdue ? "Changes Overdue" : "Changes In Progress"}
-                                  </span>
-                                  {p.change_deadline && (
-                                    <span className="opacity-75 ml-auto">
-                                      {isOverdue ? "was due" : "due"} {formatDistanceToNow(new Date(p.change_deadline), { addSuffix: true })}
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
 
                       {/* Phase Review Section for Website Orders */}
                       {isWebsiteOrder(task) && projectPhases && (
