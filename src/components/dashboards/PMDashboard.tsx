@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 import { calculateOverdueWorkingMinutes, CalendarConfig, LeaveRecord } from "@/utils/workingHours";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,7 +31,21 @@ const PMDashboard = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
+  // Realtime subscription for phase_reviews and project_phases
+  useEffect(() => {
+    const channel = supabase
+      .channel('pm-phase-reviews-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_reviews' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_phases' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
