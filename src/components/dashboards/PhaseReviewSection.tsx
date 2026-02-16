@@ -393,7 +393,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
 
   return (
     <>
-      <Collapsible defaultOpen={false} className="border-t pt-3 mt-3">
+      <Collapsible defaultOpen={true} className="border-t pt-3 mt-3">
         <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Phase Reviews</h4>
