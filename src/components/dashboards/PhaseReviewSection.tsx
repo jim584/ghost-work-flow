@@ -362,29 +362,27 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     if (phase.review_status === "approved") {
       return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Approved</Badge>;
     }
-    if (phase.review_status === "approved_with_changes") {
+    if (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") {
       const severity = phase.change_severity ? `(${phase.change_severity})` : "";
       if (phase.change_completed_at) {
         return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Changes Done {severity}</Badge>;
       }
-      const timeAgo = phase.reviewed_at ? formatDistanceToNow(new Date(phase.reviewed_at), { addSuffix: true }) : "";
+      const isOverdue = phase.change_deadline && new Date(phase.change_deadline) < new Date();
+      const deadlineInfo = phase.change_deadline
+        ? `${isOverdue ? "was due" : "due"} ${formatDistanceToNow(new Date(phase.change_deadline), { addSuffix: true })}`
+        : "";
+      if (isOverdue) {
+        return (
+          <Badge variant="destructive" className="text-xs gap-1">
+            <AlertTriangle className="h-3 w-3" />
+            Changes Overdue {severity} {deadlineInfo && <span className="opacity-75">· {deadlineInfo}</span>}
+          </Badge>
+        );
+      }
       return (
         <Badge className="bg-amber-500 text-white text-xs gap-1">
           <Clock className="h-3 w-3" />
-          Revision In Progress {severity} {timeAgo && <span className="opacity-75">· {timeAgo}</span>}
-        </Badge>
-      );
-    }
-    if (phase.review_status === "disapproved_with_changes") {
-      const severity = phase.change_severity ? `(${phase.change_severity})` : "";
-      if (phase.change_completed_at) {
-        return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Changes Done {severity}</Badge>;
-      }
-      const timeAgo = phase.reviewed_at ? formatDistanceToNow(new Date(phase.reviewed_at), { addSuffix: true }) : "";
-      return (
-        <Badge variant="destructive" className="text-xs gap-1">
-          <AlertTriangle className="h-3 w-3" />
-          Revision In Progress {severity} {timeAgo && <span className="opacity-75">· {timeAgo}</span>}
+          Changes In Progress {severity} {deadlineInfo && <span className="opacity-75">· {deadlineInfo}</span>}
         </Badge>
       );
     }
