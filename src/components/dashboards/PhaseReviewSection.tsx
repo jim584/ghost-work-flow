@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, AlertTriangle, Clock, MessageSquare, Globe, ExternalLink } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Clock, MessageSquare, Globe, ExternalLink, ChevronDown, Play, Pause, Download, Volume2 } from "lucide-react";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { FilePreview } from "@/components/FilePreview";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +18,122 @@ const SEVERITY_OPTIONS = [
   { value: "major", label: "Major", hours: 9, description: "Significant rework (1 day)" },
   { value: "major_major", label: "Major Major", hours: 18, description: "Extensive rework (2 days)" },
 ] as const;
+
+const ReviewDetailsBlock = ({ phase }: { phase: any }) => {
+  const [playingVoice, setPlayingVoice] = useState(false);
+  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
+
+  const handlePlayVoice = async () => {
+    if (playingVoice && audioRef) {
+      audioRef.pause();
+      setPlayingVoice(false);
+      return;
+    }
+    try {
+      const { data, error } = await supabase.storage
+        .from("design-files")
+        .download(phase.review_voice_path);
+      if (error) throw error;
+      const url = URL.createObjectURL(data);
+      const audio = new Audio(url);
+      audio.onended = () => { setPlayingVoice(false); URL.revokeObjectURL(url); };
+      audio.play();
+      setAudioRef(audio);
+      setPlayingVoice(true);
+    } catch (e) {
+      console.error("Voice playback error:", e);
+    }
+  };
+
+  const handleDownloadFile = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("design-files")
+        .createSignedUrl(filePath, 3600);
+      if (error) throw error;
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank");
+      }
+    } catch (e) {
+      console.error("File download error:", e);
+    }
+  };
+
+  const reviewFiles = phase.review_file_paths
+    ? phase.review_file_paths.split("|||").map((p: string, i: number) => ({
+        path: p,
+        name: phase.review_file_names?.split("|||")[i] || `File ${i + 1}`,
+      }))
+    : [];
+
+  const isChangesReview = phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes";
+  const defaultOpen = isChangesReview && !phase.change_completed_at;
+
+  return (
+    <Collapsible defaultOpen={defaultOpen}>
+      <CollapsibleTrigger className="flex items-center gap-2 w-full text-xs py-1.5 px-2 rounded hover:bg-muted/40 transition-colors group">
+        <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        <span className="font-medium text-muted-foreground">PM Review</span>
+        {phase.reviewed_at && (
+          <span className="text-muted-foreground/70 ml-auto">{format(new Date(phase.reviewed_at), "MMM d, yyyy h:mm a")}</span>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className={`mt-1 p-3 rounded-md border space-y-2 ${
+          phase.review_status === "disapproved_with_changes"
+            ? "bg-destructive/5 border-destructive/20"
+            : isChangesReview
+              ? "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800"
+              : "bg-muted/30 border-border"
+        }`}>
+          {phase.change_severity && (
+            <Badge variant="outline" className="text-xs">
+              Severity: {SEVERITY_OPTIONS.find(s => s.value === phase.change_severity)?.label || phase.change_severity}
+              {" — "}
+              {SEVERITY_OPTIONS.find(s => s.value === phase.change_severity)?.hours || "?"}h
+            </Badge>
+          )}
+          {phase.review_comment && (
+            <p className="text-sm whitespace-pre-wrap">{phase.review_comment}</p>
+          )}
+          {phase.review_voice_path && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5"
+              onClick={handlePlayVoice}
+            >
+              {playingVoice ? <Pause className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+              {playingVoice ? "Pause Voice Note" : "Play Voice Note"}
+            </Button>
+          )}
+          {reviewFiles.length > 0 && (
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Attachments:</span>
+              <div className="flex flex-wrap gap-2">
+                {reviewFiles.map((f: { path: string; name: string }, i: number) => (
+                  <div key={i} className="flex items-center gap-2 p-1.5 bg-background rounded border text-xs">
+                    <FilePreview filePath={f.path} fileName={f.name} className="w-8 h-8" />
+                    <span className="truncate max-w-[120px]" title={f.name}>{f.name}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0"
+                      onClick={() => handleDownloadFile(f.path, f.name)}
+                    >
+                      <Download className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
 
 interface PhaseReviewSectionProps {
   task: any;
@@ -282,7 +400,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
                         </Button>
                       </>
                     )}
-                    {hasReview && phase.review_comment && (
+                    {hasReview && phase.review_comment && !phase.review_voice_path && !phase.review_file_paths && (
                       <div className="text-xs text-muted-foreground max-w-[200px] truncate" title={phase.review_comment}>
                         <MessageSquare className="h-3 w-3 inline mr-1" />
                         {phase.review_comment}
@@ -310,6 +428,10 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
                       ));
                     })}
                   </div>
+                )}
+                {/* PM Review Details Block */}
+                {hasReview && (phase.review_comment || phase.review_voice_path || phase.review_file_paths) && (
+                  <ReviewDetailsBlock phase={phase} />
                 )}
               </div>
             );
