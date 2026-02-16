@@ -43,6 +43,7 @@ interface DevPhaseReviewTimelineProps {
   phaseReviews: PhaseReview[];
   taskId: string;
   compact?: boolean;
+  onMarkPhaseComplete?: (phaseId: string, reviewStatus: string) => void;
 }
 
 const VoicePlayer = ({ voicePath }: { voicePath: string }) => {
@@ -129,10 +130,12 @@ const ReviewFileAttachments = ({ filePaths, fileNames }: { filePaths: string; fi
   );
 };
 
-const ReviewCard = ({ review, phaseNumber, isCurrent }: { 
+const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete }: { 
   review: { review_status: string; review_comment: string | null; review_voice_path: string | null; review_file_paths: string | null; review_file_names: string | null; change_severity: string | null; change_completed_at: string | null; reviewed_at: string | null; round_number?: number };
   phaseNumber: number;
   isCurrent: boolean;
+  phaseId?: string;
+  onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
 }) => {
   const isDisapproved = review.review_status === "disapproved_with_changes";
   const isApprovedWithChanges = review.review_status === "approved_with_changes";
@@ -185,17 +188,30 @@ const ReviewCard = ({ review, phaseNumber, isCurrent }: {
       {review.review_file_paths && review.review_file_names && (
         <ReviewFileAttachments filePaths={review.review_file_paths} fileNames={review.review_file_names} />
       )}
+
+      {isCurrent && phaseId && onMarkComplete && (
+        <Button 
+          size="sm" 
+          variant="outline"
+          className="w-full border-green-500 text-green-700 hover:bg-green-50 gap-1.5 mt-1"
+          onClick={() => onMarkComplete(phaseId, review.review_status)}
+        >
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Mark Changes Complete (P{phaseNumber})
+        </Button>
+      )}
     </div>
   );
 };
 
-export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false }: DevPhaseReviewTimelineProps) => {
+export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete }: DevPhaseReviewTimelineProps) => {
   const [expanded, setExpanded] = useState(!compact);
 
   // Build a timeline: combine phase_reviews records with latest phase-level review data
   const reviewItems: Array<{
     key: string;
     phaseNumber: number;
+    phaseId: string;
     review: any;
     isCurrent: boolean;
   }> = [];
@@ -207,6 +223,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
     reviewItems.push({
       key: `pr-${pr.id}`,
       phaseNumber: phase.phase_number,
+      phaseId: phase.id,
       review: { ...pr, round_number: pr.round_number },
       isCurrent: !pr.change_completed_at && (pr.review_status === "approved_with_changes" || pr.review_status === "disapproved_with_changes"),
     });
@@ -220,6 +237,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
       reviewItems.push({
         key: `phase-${phase.id}`,
         phaseNumber: phase.phase_number,
+        phaseId: phase.id,
         review: {
           review_status: phase.review_status,
           review_comment: phase.review_comment,
@@ -266,7 +284,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
         <div className="space-y-2">
           {/* Active reviews first */}
           {activeReviews.map(item => (
-            <ReviewCard key={item.key} review={item.review} phaseNumber={item.phaseNumber} isCurrent={true} />
+            <ReviewCard key={item.key} review={item.review} phaseNumber={item.phaseNumber} isCurrent={true} phaseId={item.phaseId} onMarkComplete={onMarkPhaseComplete} />
           ))}
 
           {/* Historical reviews */}
