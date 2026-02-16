@@ -1191,10 +1191,61 @@ const DeveloperDashboard = () => {
                                 p.change_severity === 'minor' ? 2 : p.change_severity === 'average' ? 4 : p.change_severity === 'major' ? 9 : 18
                               } />
                             ))}
-                            {/* Review comments */}
-                            {projectPhases?.filter(p => p.task_id === task.id && p.review_comment && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && !p.change_completed_at).map(p => (
-                              <div key={`comment-${p.id}`} className={`p-2 rounded text-xs ${p.review_status === 'disapproved_with_changes' ? 'bg-destructive/10 border border-destructive/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
-                                <span className="font-medium">PM Comment (P{p.phase_number}):</span> {p.review_comment}
+                            {/* Review comments, voice notes, and files */}
+                            {projectPhases?.filter(p => p.task_id === task.id && (p.review_comment || (p as any).review_voice_path || (p as any).review_file_paths) && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && !p.change_completed_at).map(p => (
+                              <div key={`comment-${p.id}`} className={`p-2 rounded text-xs space-y-1.5 ${p.review_status === 'disapproved_with_changes' ? 'bg-destructive/10 border border-destructive/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
+                                {p.review_comment && (
+                                  <div><span className="font-medium">PM Comment (P{p.phase_number}):</span> {p.review_comment}</div>
+                                )}
+                                {(p as any).review_voice_path && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-medium">🎤 Voice Note (P{p.phase_number}):</span>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-6 text-[10px] gap-1"
+                                      onClick={async () => {
+                                        const { data } = await supabase.storage.from("design-files").download((p as any).review_voice_path);
+                                        if (data) {
+                                          const url = URL.createObjectURL(data);
+                                          const audio = new Audio(url);
+                                          audio.play();
+                                        }
+                                      }}
+                                    >
+                                      ▶ Play
+                                    </Button>
+                                  </div>
+                                )}
+                                {(p as any).review_file_paths && (
+                                  <div>
+                                    <span className="font-medium">📎 Files (P{p.phase_number}):</span>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {((p as any).review_file_names as string).split("|||").map((name: string, i: number) => {
+                                        const paths = ((p as any).review_file_paths as string).split("|||");
+                                        return (
+                                          <Button
+                                            key={i}
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-6 text-[10px] gap-1"
+                                            onClick={async () => {
+                                              const { data } = await supabase.storage.from("design-files").download(paths[i]);
+                                              if (data) {
+                                                const url = URL.createObjectURL(data);
+                                                const a = document.createElement("a");
+                                                a.href = url; a.download = name; document.body.appendChild(a); a.click();
+                                                document.body.removeChild(a); URL.revokeObjectURL(url);
+                                              }
+                                            }}
+                                          >
+                                            📄 {name}
+                                          </Button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1332,6 +1383,9 @@ const DeveloperDashboard = () => {
                                   updateData.review_comment = null;
                                   updateData.reviewed_at = null;
                                   updateData.reviewed_by = null;
+                                  updateData.review_voice_path = null;
+                                  updateData.review_file_paths = null;
+                                  updateData.review_file_names = null;
                                 }
                                 await supabase.from("project_phases").update(updateData).eq("id", phase.id);
                               }
