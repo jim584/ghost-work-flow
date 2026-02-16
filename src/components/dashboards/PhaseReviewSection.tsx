@@ -391,121 +391,99 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     return taskPhases[taskPhases.length - 1]?.id;
   };
 
+  // Identify the latest/active phase to show prominently
+  const latestPhaseId = getDefaultAccordionValue();
+  const latestPhase = taskPhases.find(p => p.id === latestPhaseId);
+  const otherPhases = taskPhases.filter(p => p.id !== latestPhaseId);
+
+  const renderPhaseItem = (phase: any, defaultOpen: boolean) => {
+    const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
+    const canReview = isAssignedPM && !readOnly && (phase.status === "in_progress" || phase.status === "completed") && !phase.review_status;
+    const phaseUrls = submissions.length > 0 ? getPhaseSubmissions(phase.phase_number) : [];
+    const reviewsForPhase = phaseReviews.filter((r: any) => r.phase_id === phase.id);
+
+    return (
+      <AccordionItem key={phase.id} value={phase.id} className="border rounded-md mb-2 px-2">
+        <AccordionTrigger className="py-2 hover:no-underline">
+          <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+            <span className="text-xs font-medium truncate">{phaseLabel}</span>
+            <Badge variant="outline" className="text-xs shrink-0">{phase.status}</Badge>
+            {getReviewBadge(phase)}
+            {phase.change_completed_at && (
+              <Badge className="bg-green-100 text-green-700 text-xs">Changes Done</Badge>
+            )}
+            {reviewsForPhase.length > 0 && (
+              <span className="text-xs text-muted-foreground ml-auto shrink-0">
+                {reviewsForPhase.length} review{reviewsForPhase.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        </AccordionTrigger>
+        <AccordionContent className="pb-3 space-y-3">
+          {canReview && (
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="outline" className="h-7 text-xs bg-green-50 border-green-300 text-green-700 hover:bg-green-100" onClick={() => submitReview.mutate({ phaseId: phase.id, reviewStatus: "approved" })} disabled={submitReview.isPending}>
+                <CheckCircle2 className="h-3 w-3 mr-1" />Approve
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "approved_with_changes" })}>
+                <Clock className="h-3 w-3 mr-1" />Approve w/ Changes
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs bg-red-50 border-red-300 text-red-700 hover:bg-red-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "disapproved_with_changes" })}>
+                <AlertTriangle className="h-3 w-3 mr-1" />Disapprove
+              </Button>
+            </div>
+          )}
+          {phaseUrls.length > 0 && (
+            <div className="space-y-1">
+              {phaseUrls.map((sub: any) => {
+                const urls = parseUrls(sub.designer_comment || '');
+                return urls.map((u, i) => (
+                  <a key={`${sub.id}-${i}`} href={u.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                    <Globe className="h-3 w-3 shrink-0" /><span className="truncate">{u.label}: {u.url}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
+                  </a>
+                ));
+              })}
+            </div>
+          )}
+          {reviewsForPhase.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-xs font-medium text-muted-foreground">Review History</span>
+              {reviewsForPhase.map((review: any) => (
+                <ReviewHistoryItem key={review.id} review={review} />
+              ))}
+            </div>
+          )}
+        </AccordionContent>
+      </AccordionItem>
+    );
+  };
+
   return (
     <>
-      <Collapsible defaultOpen={true} className="border-t pt-3 mt-3">
-        <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Phase Reviews</h4>
-          <Badge variant="outline" className="text-xs ml-auto">{taskPhases.length} phase{taskPhases.length !== 1 ? "s" : ""}</Badge>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2">
-        <Accordion type="single" collapsible defaultValue={getDefaultAccordionValue()}>
-          {taskPhases.map(phase => {
-            const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
-            const canReview = isAssignedPM && !readOnly && (phase.status === "in_progress" || phase.status === "completed") && !phase.review_status;
-            const hasReview = !!phase.review_status;
-            const phaseUrls = submissions.length > 0 ? getPhaseSubmissions(phase.phase_number) : [];
-            const reviewsForPhase = phaseReviews.filter((r: any) => r.phase_id === phase.id);
+      <div className="border-t pt-3 mt-3 space-y-2">
+        {/* Latest/active phase shown prominently */}
+        {latestPhase && (
+          <Accordion type="single" collapsible defaultValue={latestPhase.id}>
+            {renderPhaseItem(latestPhase, true)}
+          </Accordion>
+        )}
 
-            return (
-              <AccordionItem key={phase.id} value={phase.id} className="border rounded-md mb-2 px-2">
-                <AccordionTrigger className="py-2 hover:no-underline">
-                  <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
-                    <span className="text-xs font-medium truncate">{phaseLabel}</span>
-                    <Badge variant="outline" className="text-xs shrink-0">{phase.status}</Badge>
-                    {getReviewBadge(phase)}
-                    {phase.change_completed_at && (
-                      <Badge className="bg-green-100 text-green-700 text-xs">Changes Done</Badge>
-                    )}
-                    {reviewsForPhase.length > 0 && (
-                      <span className="text-xs text-muted-foreground ml-auto shrink-0">
-                        {reviewsForPhase.length} review{reviewsForPhase.length !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-3 space-y-3">
-                  {/* Review action buttons */}
-                  {canReview && (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs bg-green-50 border-green-300 text-green-700 hover:bg-green-100"
-                        onClick={() => submitReview.mutate({
-                          phaseId: phase.id, reviewStatus: "approved",
-                        })}
-                        disabled={submitReview.isPending}
-                      >
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
-                        onClick={() => setReviewDialog({
-                          open: true, phaseId: phase.id, phaseNumber: phase.phase_number,
-                          reviewType: "approved_with_changes",
-                        })}
-                      >
-                        <Clock className="h-3 w-3 mr-1" />
-                        Approve w/ Changes
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
-                        onClick={() => setReviewDialog({
-                          open: true, phaseId: phase.id, phaseNumber: phase.phase_number,
-                          reviewType: "disapproved_with_changes",
-                        })}
-                      >
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        Disapprove
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Submitted URLs for this phase */}
-                  {phaseUrls.length > 0 && (
-                    <div className="space-y-1">
-                      {phaseUrls.map((sub: any) => {
-                        const urls = parseUrls(sub.designer_comment || '');
-                        return urls.map((u, i) => (
-                          <a
-                            key={`${sub.id}-${i}`}
-                            href={u.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-xs text-primary hover:underline"
-                          >
-                            <Globe className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{u.label}: {u.url}</span>
-                            <ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
-                          </a>
-                        ));
-                      })}
-                    </div>
-                  )}
-
-                  {/* Review History Timeline */}
-                  {reviewsForPhase.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="text-xs font-medium text-muted-foreground">Review History</span>
-                      {reviewsForPhase.map((review: any) => (
-                        <ReviewHistoryItem key={review.id} review={review} />
-                      ))}
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-            );
-          })}
-        </Accordion>
-        </CollapsibleContent>
-      </Collapsible>
+        {/* Other phases hidden in collapsible */}
+        {otherPhases.length > 0 && (
+          <Collapsible defaultOpen={false}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Other Phases</h4>
+              <Badge variant="outline" className="text-xs ml-auto">{otherPhases.length} phase{otherPhases.length !== 1 ? "s" : ""}</Badge>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <Accordion type="single" collapsible>
+                {otherPhases.map(phase => renderPhaseItem(phase, false))}
+              </Accordion>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+      </div>
 
       {/* Review Dialog */}
       <Dialog open={!!reviewDialog} onOpenChange={() => { setReviewDialog(null); setReviewComment(""); setChangeSeverity("minor"); setReviewVoiceBlob(null); setReviewFiles([]); }}>
