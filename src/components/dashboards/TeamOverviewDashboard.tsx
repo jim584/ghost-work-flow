@@ -1084,7 +1084,6 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                         {/* Phase Progress & SLA for in-progress tasks */}
                         {!isAssigned && task.current_phase && task.status !== "completed" && task.status !== "approved" && (
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
-                            <PhaseProgress currentPhase={task.current_phase} totalPhases={task.total_phases} phases={taskPhases} />
                             {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={cal} leaves={leaves} slaHours={9} />}
                             {taskPhases.filter(p => p.change_deadline && !p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')).map(p => (
                               <SlaCountdown key={p.id} deadline={p.change_deadline} label={`Changes (P${p.phase_number} - ${p.change_severity})`} calendar={cal} leaves={leaves} slaHours={
