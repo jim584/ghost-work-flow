@@ -1071,6 +1071,21 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
+                        {/* Pages & Points - always visible on every card */}
+                        {(() => {
+                          const completed = taskPhases.filter(p => p.status === "completed");
+                          const totalPts = completed.reduce((sum, p) => sum + (p.points || 3), 0);
+                          const totalPgs = completed.reduce((sum, p) => sum + (p.phase_number === 1 ? 1 : (p.pages_completed || 3)), 0);
+                          return (
+                            <div className="flex items-center gap-3 text-xs mt-1">
+                              <span className="text-muted-foreground">{completed.length} phase{completed.length !== 1 ? 's' : ''} completed</span>
+                              <span className="text-muted-foreground">•</span>
+                              <span className="text-muted-foreground">{totalPgs} page{totalPgs !== 1 ? 's' : ''} developed</span>
+                              <span className="text-muted-foreground">•</span>
+                              <span className="font-semibold text-primary">{totalPts} pts</span>
+                            </div>
+                          );
+                        })()}
 
                         {/* SLA & Ack Timers for assigned tasks */}
                         {isAssigned && (
