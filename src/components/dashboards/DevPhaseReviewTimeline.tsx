@@ -27,6 +27,7 @@ interface PhaseReview {
   change_severity: string | null;
   change_deadline: string | null;
   change_completed_at: string | null;
+  change_completed_by: string | null;
   round_number: number;
 }
 
@@ -45,6 +46,11 @@ interface Phase {
   change_deadline: string | null;
   change_completed_at: string | null;
   reviewed_at: string | null;
+  started_by: string | null;
+  completed_by: string | null;
+  submission_file_paths: string | null;
+  submission_file_names: string | null;
+  submission_comment: string | null;
 }
 
 interface DevPhaseReviewTimelineProps {
@@ -56,6 +62,7 @@ interface DevPhaseReviewTimelineProps {
   reviewerNames?: Record<string, string>;
   userId?: string;
   canReply?: boolean;
+  devNames?: Record<string, string>;
 }
 
 // ─── Shared Sub-components ──────────────────────────────────────────
@@ -165,6 +172,10 @@ interface TimelineEvent {
   dateStr: string;
   review?: any;
   isCurrent?: boolean;
+  devName?: string;
+  submissionFilePaths?: string | null;
+  submissionFileNames?: string | null;
+  submissionComment?: string | null;
 }
 
 // ─── Build timeline events for a single phase ──────────────────────
@@ -174,6 +185,7 @@ const buildPhaseTimeline = (
   phaseReviews: PhaseReview[],
   onMarkComplete?: (phaseId: string, reviewStatus: string) => void,
   reviewerNames?: Record<string, string>,
+  devNames?: Record<string, string>,
 ): TimelineEvent[] => {
   const items: TimelineEvent[] = [];
 
@@ -186,6 +198,7 @@ const buildPhaseTimeline = (
       phaseNumber: phase.phase_number,
       phaseId: phase.id,
       dateStr: phase.started_at,
+      devName: phase.started_by ? devNames?.[phase.started_by] : undefined,
     });
   }
 
@@ -198,6 +211,10 @@ const buildPhaseTimeline = (
       phaseNumber: phase.phase_number,
       phaseId: phase.id,
       dateStr: phase.completed_at,
+      devName: phase.completed_by ? devNames?.[phase.completed_by] : undefined,
+      submissionFilePaths: phase.submission_file_paths,
+      submissionFileNames: phase.submission_file_names,
+      submissionComment: phase.submission_comment,
     });
   }
 
@@ -224,6 +241,7 @@ const buildPhaseTimeline = (
         phaseNumber: phase.phase_number,
         phaseId: phase.id,
         dateStr: pr.change_completed_at,
+        devName: pr.change_completed_by ? devNames?.[pr.change_completed_by] : undefined,
       });
     }
   }
@@ -290,7 +308,15 @@ const PhaseTimelineContent = ({ events, onMarkComplete, reviewerNames, taskId, u
             item.type === "pm_review" ? "bg-amber-500" : "bg-primary"
           }`} />
           {item.type === "dev_action" ? (
-            <DevActionCard type={item.actionType!} phaseNumber={item.phaseNumber} timestamp={item.dateStr} />
+            <DevActionCard
+              type={item.actionType!}
+              phaseNumber={item.phaseNumber}
+              timestamp={item.dateStr}
+              devName={item.devName}
+              submissionFilePaths={item.submissionFilePaths}
+              submissionFileNames={item.submissionFileNames}
+              submissionComment={item.submissionComment}
+            />
           ) : (
             <ReviewCard
               review={item.review}
@@ -312,10 +338,14 @@ const PhaseTimelineContent = ({ events, onMarkComplete, reviewerNames, taskId, u
 
 // ─── Developer Action Card ─────────────────────────────────────────
 
-const DevActionCard = ({ type, phaseNumber, timestamp }: {
+const DevActionCard = ({ type, phaseNumber, timestamp, devName, submissionFilePaths, submissionFileNames, submissionComment }: {
   type: DevActionType;
   phaseNumber: number;
   timestamp: string;
+  devName?: string;
+  submissionFilePaths?: string | null;
+  submissionFileNames?: string | null;
+  submissionComment?: string | null;
 }) => {
   const config = {
     phase_started: {
@@ -335,16 +365,29 @@ const DevActionCard = ({ type, phaseNumber, timestamp }: {
     },
   }[type];
 
+  const hasFiles = submissionFilePaths && submissionFileNames;
+
   return (
-    <div className={`border rounded-md p-2.5 flex items-center justify-between ${config.border}`}>
-      <div className="flex items-center gap-2">
-        {config.icon}
-        <span className="text-[10px] font-semibold text-muted-foreground">P{phaseNumber}</span>
-        <Badge variant="secondary" className="text-[10px] gap-0.5">
-          {config.label}
-        </Badge>
+    <div className={`border rounded-md p-2.5 space-y-2 ${config.border}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {config.icon}
+          <span className="text-[10px] font-semibold text-muted-foreground">P{phaseNumber}</span>
+          <Badge variant="secondary" className="text-[10px] gap-0.5">
+            {config.label}
+          </Badge>
+          {devName && (
+            <span className="text-[10px] text-muted-foreground">by {devName}</span>
+          )}
+        </div>
+        <TimeStamp date={timestamp} />
       </div>
-      <TimeStamp date={timestamp} />
+      {submissionComment && (
+        <div className="text-xs text-foreground whitespace-pre-wrap border-t border-primary/10 pt-1.5">{submissionComment}</div>
+      )}
+      {hasFiles && (
+        <ReviewFileAttachments filePaths={submissionFilePaths} fileNames={submissionFileNames} />
+      )}
     </div>
   );
 };
@@ -481,7 +524,7 @@ const getPhaseStatusBadge = (phase: Phase) => {
 
 // ─── Compact Active Phase Card ──────────────────────────────────────
 
-const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerNames, taskId, userId, canReply }: {
+const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerNames, taskId, userId, canReply, devNames }: {
   phase: Phase;
   phaseReviews: PhaseReview[];
   onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
@@ -489,6 +532,7 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
   taskId: string;
   userId?: string;
   canReply?: boolean;
+  devNames?: Record<string, string>;
 }) => {
   const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
   const reviewsForPhase = phaseReviews
@@ -537,7 +581,7 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
         <AccordionContent className="pb-3 space-y-2.5">
           {/* Show full timeline for this phase */}
           <PhaseTimelineContent
-            events={buildPhaseTimeline(phase, phaseReviews, onMarkComplete, reviewerNames)}
+            events={buildPhaseTimeline(phase, phaseReviews, onMarkComplete, reviewerNames, devNames)}
             onMarkComplete={onMarkComplete}
             reviewerNames={reviewerNames}
             taskId={taskId}
@@ -552,7 +596,7 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
 
 // ─── Compact Previous Phase Row ─────────────────────────────────────
 
-const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, taskId, userId, canReply }: { 
+const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, taskId, userId, canReply, devNames }: { 
   phase: Phase; 
   phaseReviews: PhaseReview[];
   onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
@@ -560,9 +604,10 @@ const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, t
   taskId: string;
   userId?: string;
   canReply?: boolean;
+  devNames?: Record<string, string>;
 }) => {
   const phaseLabel = phase.phase_number === 1 ? "P1 — Homepage" : `P${phase.phase_number} — Inner Pages`;
-  const events = buildPhaseTimeline(phase, phaseReviews, onMarkComplete, reviewerNames);
+  const events = buildPhaseTimeline(phase, phaseReviews, onMarkComplete, reviewerNames, devNames);
   const reviewCount = events.filter(e => e.type === "pm_review").length;
 
   return (
@@ -596,7 +641,7 @@ const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, t
 
 // ─── Full Timeline Dialog Content ───────────────────────────────────
 
-const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply }: {
+const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames }: {
   sortedPhases: Phase[];
   phaseReviews: PhaseReview[];
   onMarkPhaseComplete?: (phaseId: string, reviewStatus: string) => void;
@@ -604,10 +649,11 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   taskId: string;
   userId?: string;
   canReply?: boolean;
+  devNames?: Record<string, string>;
 }) => {
   const renderPhaseAccordionItem = (phase: Phase) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
-    const events = buildPhaseTimeline(phase, phaseReviews, onMarkPhaseComplete, reviewerNames);
+    const events = buildPhaseTimeline(phase, phaseReviews, onMarkPhaseComplete, reviewerNames, devNames);
     const reviewCount = events.filter(e => e.type === "pm_review").length;
 
     return (
@@ -648,7 +694,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
 
 // ─── Main Component ─────────────────────────────────────────────────
 
-export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false }: DevPhaseReviewTimelineProps) => {
+export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false, devNames = {} }: DevPhaseReviewTimelineProps) => {
   const [showFullTimeline, setShowFullTimeline] = useState(false);
   const sortedPhases = [...phases].sort((a, b) => a.phase_number - b.phase_number);
 
@@ -679,6 +725,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
           taskId={taskId}
           userId={userId}
           canReply={canReply}
+          devNames={devNames}
         />
       )}
 
@@ -692,7 +739,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1.5 space-y-1">
             {otherPhases.map(phase => (
-              <CompactPhaseRow key={phase.id} phase={phase} phaseReviews={phaseReviews} onMarkComplete={onMarkPhaseComplete} reviewerNames={reviewerNames} taskId={taskId} userId={userId} canReply={canReply} />
+              <CompactPhaseRow key={phase.id} phase={phase} phaseReviews={phaseReviews} onMarkComplete={onMarkPhaseComplete} reviewerNames={reviewerNames} taskId={taskId} userId={userId} canReply={canReply} devNames={devNames} />
             ))}
           </CollapsibleContent>
         </Collapsible>
@@ -721,6 +768,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
             taskId={taskId}
             userId={userId}
             canReply={canReply}
+            devNames={devNames}
           />
         </DialogContent>
       </Dialog>

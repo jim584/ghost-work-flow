@@ -425,6 +425,7 @@ export type Database = {
       phase_reviews: {
         Row: {
           change_completed_at: string | null
+          change_completed_by: string | null
           change_deadline: string | null
           change_severity: string | null
           created_at: string
@@ -442,6 +443,7 @@ export type Database = {
         }
         Insert: {
           change_completed_at?: string | null
+          change_completed_by?: string | null
           change_deadline?: string | null
           change_severity?: string | null
           created_at?: string
@@ -459,6 +461,7 @@ export type Database = {
         }
         Update: {
           change_completed_at?: string | null
+          change_completed_by?: string | null
           change_deadline?: string | null
           change_severity?: string | null
           created_at?: string
@@ -524,6 +527,7 @@ export type Database = {
           change_deadline: string | null
           change_severity: string | null
           completed_at: string | null
+          completed_by: string | null
           created_at: string
           id: string
           pages_completed: number
@@ -539,7 +543,11 @@ export type Database = {
           sla_deadline: string | null
           sla_hours: number
           started_at: string | null
+          started_by: string | null
           status: string
+          submission_comment: string | null
+          submission_file_names: string | null
+          submission_file_paths: string | null
           task_id: string
         }
         Insert: {
@@ -547,6 +555,7 @@ export type Database = {
           change_deadline?: string | null
           change_severity?: string | null
           completed_at?: string | null
+          completed_by?: string | null
           created_at?: string
           id?: string
           pages_completed?: number
@@ -562,7 +571,11 @@ export type Database = {
           sla_deadline?: string | null
           sla_hours?: number
           started_at?: string | null
+          started_by?: string | null
           status?: string
+          submission_comment?: string | null
+          submission_file_names?: string | null
+          submission_file_paths?: string | null
           task_id: string
         }
         Update: {
@@ -570,6 +583,7 @@ export type Database = {
           change_deadline?: string | null
           change_severity?: string | null
           completed_at?: string | null
+          completed_by?: string | null
           created_at?: string
           id?: string
           pages_completed?: number
@@ -585,7 +599,11 @@ export type Database = {
           sla_deadline?: string | null
           sla_hours?: number
           started_at?: string | null
+          started_by?: string | null
           status?: string
+          submission_comment?: string | null
+          submission_file_names?: string | null
+          submission_file_paths?: string | null
           task_id?: string
         }
         Relationships: [
