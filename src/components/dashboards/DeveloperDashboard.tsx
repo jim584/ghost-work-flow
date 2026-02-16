@@ -1435,8 +1435,8 @@ const DeveloperDashboard = () => {
                         )}
                         {task.status === "in_progress" && (
                           <Button size="sm" onClick={() => setSelectedTask(task)}>
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload Phase {task.current_phase || 1}
+                            <Globe className="mr-2 h-4 w-4" />
+                            Submit Phase {task.current_phase || 1}
                           </Button>
                         )}
                         {/* Mark Changes Complete button removed - now inline in review timeline cards */}

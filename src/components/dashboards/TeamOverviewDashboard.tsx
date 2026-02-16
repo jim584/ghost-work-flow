@@ -1220,8 +1220,8 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                         {/* Upload Phase button for in-progress tasks */}
                         {task.status === "in_progress" && (
                           <Button size="sm" onClick={() => setSelectedTask(task)}>
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload Phase {task.current_phase || 1}
+                            <Globe className="mr-2 h-4 w-4" />
+                            Submit Phase {task.current_phase || 1}
                           </Button>
                         )}
 
