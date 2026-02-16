@@ -535,58 +535,15 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
           </div>
         </AccordionTrigger>
         <AccordionContent className="pb-3 space-y-2.5">
-          {/* Show latest review inline if revision is active */}
-          {hasActiveRevision && latestReview && (
-            <ReviewCard
-              review={latestReview}
-              phaseNumber={phase.phase_number}
-              isCurrent={true}
-              phaseId={phase.id}
-              onMarkComplete={onMarkComplete}
-              reviewerName={latestReview.reviewed_by ? reviewerNames?.[latestReview.reviewed_by] : undefined}
-              taskId={taskId}
-              userId={userId}
-              canReply={canReply}
-            />
-          )}
-
-          {/* Show phase-level review if no phase_reviews entries but revision active */}
-          {hasActiveRevision && !latestReview && phase.review_status && phase.reviewed_at && (
-            <ReviewCard
-              review={{
-                review_status: phase.review_status,
-                review_comment: phase.review_comment,
-                review_voice_path: phase.review_voice_path,
-                review_file_paths: phase.review_file_paths,
-                review_file_names: phase.review_file_names,
-                change_severity: phase.change_severity,
-                change_completed_at: phase.change_completed_at,
-                reviewed_at: phase.reviewed_at,
-              }}
-              phaseNumber={phase.phase_number}
-              isCurrent={true}
-              phaseId={phase.id}
-              onMarkComplete={onMarkComplete}
-              taskId={taskId}
-              userId={userId}
-              canReply={canReply}
-            />
-          )}
-
-          {/* If no active revision, show a brief status summary */}
-          {!hasActiveRevision && (
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-              {phase.completed_at && (
-                <span>Submitted {format(new Date(phase.completed_at), "MMM d, h:mm a")}</span>
-              )}
-              {!phase.completed_at && phase.started_at && (
-                <span>Started {format(new Date(phase.started_at), "MMM d, h:mm a")}</span>
-              )}
-              {reviewsForPhase.length > 0 && (
-                <span>· {reviewsForPhase.length} review{reviewsForPhase.length !== 1 ? "s" : ""}</span>
-              )}
-            </div>
-          )}
+          {/* Show full timeline for this phase */}
+          <PhaseTimelineContent
+            events={buildPhaseTimeline(phase, phaseReviews, onMarkComplete, reviewerNames)}
+            onMarkComplete={onMarkComplete}
+            reviewerNames={reviewerNames}
+            taskId={taskId}
+            userId={userId}
+            canReply={canReply}
+          />
         </AccordionContent>
       </AccordionItem>
     </Accordion>
