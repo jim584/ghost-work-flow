@@ -264,6 +264,9 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'design_submissions' }, () => {
         queryClient.invalidateQueries({ queryKey: ["team-overview-submissions"] });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_reviews' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["team-overview-phase-reviews"] });
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
