@@ -874,7 +874,7 @@ const PMDashboard = () => {
     if (hasPendingReview) categories.push('recently_delivered');
     else if (hasCompletedTask && groupSubmissions.length === 0) categories.push('recently_delivered');
     // For website orders, check if any phase has been submitted but not yet reviewed
-    const isWebsiteGroup = isWebsiteOrder(representativeTask);
+    const isWebsiteGroup = representativeTask?.post_type === "Website Design";
     if (isWebsiteGroup && !categories.includes('recently_delivered')) {
       const hasPhaseAwaitingReview = (projectPhases || []).some(
         (p: any) => activeTasks.some((t: any) => t.id === p.task_id) && p.completed_at && !p.reviewed_at
@@ -946,7 +946,7 @@ const PMDashboard = () => {
     // Check for pending work items first - these always show in priority
     if (hasPendingReview) return 'recently_delivered';
     // For website orders, check if any phase awaits review
-    if (isWebsiteOrder(task) && !hasPendingReview) {
+    if (task?.post_type === "Website Design" && !hasPendingReview) {
       const hasPhaseAwaitingReview = (projectPhases || []).some(
         (p: any) => p.task_id === task.id && p.completed_at && !p.reviewed_at
       );
