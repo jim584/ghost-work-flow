@@ -542,6 +542,9 @@ export type Database = {
           completed_at: string | null
           completed_by: string | null
           created_at: string
+          held_at: string | null
+          held_by: string | null
+          hold_reason: string | null
           id: string
           pages_completed: number
           phase_number: number
@@ -574,6 +577,9 @@ export type Database = {
           completed_at?: string | null
           completed_by?: string | null
           created_at?: string
+          held_at?: string | null
+          held_by?: string | null
+          hold_reason?: string | null
           id?: string
           pages_completed?: number
           phase_number: number
@@ -606,6 +612,9 @@ export type Database = {
           completed_at?: string | null
           completed_by?: string | null
           created_at?: string
+          held_at?: string | null
+          held_by?: string | null
+          hold_reason?: string | null
           id?: string
           pages_completed?: number
           phase_number?: number
