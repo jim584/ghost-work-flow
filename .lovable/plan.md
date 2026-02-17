@@ -1,75 +1,70 @@
 
 
-# Make "Delivered" Badge Phase-Aware for Website Orders
+# Replace "Approve" with "Launch Website" for Website Orders
 
 ## Problem
-
-When a developer submits a website phase (e.g., Phase 2 of 5), the PM dashboard shows a generic "Delivered - Awaiting Review" badge. This implies the entire order is complete, when in reality only one phase was delivered.
+For website orders, the current "Approve" button simply sets the task status to `approved`, which doesn't reflect the real-world workflow. After a developer marks a website as completed, the PM needs to send it for launch -- not just "approve" it. The developer also needs to be notified that it's time to launch.
 
 ## Solution
 
-For website orders, replace the generic badge with a phase-specific one like **"Phase 2 Delivered"** so the PM immediately knows which phase needs their review.
+Replace the generic "Approve" button with a **"Launch Website"** button specifically for completed website orders. This button will:
+1. Set the task status to `approved` (reusing the existing status since adding a new enum value is unnecessary complexity)
+2. Send an in-app notification to the developer assigned to the website, informing them that the website needs to be launched
+3. Show a distinct rocket icon and blue styling to differentiate it from a simple approval
+
+Non-website orders (logo, social media) keep the existing "Approve" button unchanged.
 
 ## Technical Details
 
 ### File: `src/components/dashboards/PMDashboard.tsx`
 
-**1. Update `getCategoryBadge()` (~line 1410)**
+**1. Update the button rendering (~line 1895)**
 
 Currently:
-```typescript
-if (category === 'recently_delivered') {
-  return <Badge className="bg-green-500 text-white">Delivered - Awaiting Review</Badge>;
-}
+```
+if task.status === "completed" && task.project_manager_id === user?.id
+  -> Show "Approve" button
 ```
 
-Change to check if it's a website order and, if so, find the latest submitted phase awaiting review:
-```typescript
-if (category === 'recently_delivered') {
-  if (isWebsite) {
-    const taskPhases = (projectPhases || [])
-      .filter((p: any) => p.task_id === task.id && p.completed_at && !p.reviewed_at)
-      .sort((a: any, b: any) => b.phase_number - a.phase_number);
-    const latestPhase = taskPhases[0];
-    if (latestPhase) {
-      return <Badge className="bg-green-500 text-white">
-        Phase {latestPhase.phase_number} Delivered
-      </Badge>;
-    }
-  }
-  return <Badge className="bg-green-500 text-white">Delivered - Awaiting Review</Badge>;
-}
+Change to:
+```
+if task.status === "completed" && task.project_manager_id === user?.id
+  -> If website order: Show "Launch Website" button (Rocket icon, blue styling)
+  -> If non-website order: Show "Approve" button (unchanged)
 ```
 
-This uses the existing `projectPhases` data (already fetched) to find phases that have been submitted (`completed_at` set) but not yet reviewed (`reviewed_at` is null). The highest phase number is shown.
+**2. Create a new mutation `launchWebsite`**
 
-**2. Update `getGroupCategories()` for website orders (~line 845)**
+This mutation will:
+- Update the task status to `approved` (same as current approve)
+- Look up the developer assigned to the task (via `task.developer_id` or team members)
+- Insert a notification into the `notifications` table for the developer with:
+  - `type`: `'new_task'` (reusing an existing allowed type since the constraint limits options)
+  - `title`: `'Website Ready for Launch'`
+  - `message`: `'[Task title] has been approved and is ready for launch'`
+  - `task_id`: the task ID
 
-Currently, website orders categorized as "recently_delivered" rely on `design_submissions` data. For website orders with no design submissions, the fallback `hasCompletedTask && groupSubmissions.length === 0` catches them when the task status is `completed`. But if the task is still `in_progress` (because only one phase was delivered, not the whole order), the categorization might miss it.
+**3. Notification type consideration**
 
-Add a website-specific check: if any phase for this task has `completed_at` but no `reviewed_at`, categorize it as `recently_delivered`:
-```typescript
-// For website orders, check phases for pending reviews
-const isWebsite = isWebsiteOrder(representativeTask);
-if (isWebsite) {
-  const hasPhaseAwaitingReview = (projectPhases || []).some(
-    (p: any) => activeTasks.some((t: any) => t.id === p.task_id) 
-      && p.completed_at && !p.reviewed_at
-  );
-  if (hasPhaseAwaitingReview) categories.push('recently_delivered');
-}
+The `notifications` table has a check constraint limiting types to: `new_task`, `revision_requested`, `task_delayed`, `file_uploaded`, `order_cancelled`, `late_acknowledgement`, `reassignment_requested`, `order_message`. 
+
+A new type `website_launch` would be more descriptive. This requires a database migration to add it to the constraint.
+
+### Database Migration
+
+Add `website_launch` to the `notifications_type_check` constraint:
+
+```sql
+ALTER TABLE notifications DROP CONSTRAINT notifications_type_check;
+ALTER TABLE notifications ADD CONSTRAINT notifications_type_check 
+  CHECK (type IN ('new_task', 'revision_requested', 'task_delayed', 'file_uploaded', 
+                  'order_cancelled', 'late_acknowledgement', 'reassignment_requested', 
+                  'order_message', 'website_launch'));
 ```
-
-**3. Similarly update `getTaskCategory()` (~line 921)**
-
-Add the same phase-aware check for individual task categorization used in single-team orders.
-
-### No database changes needed
-
-All required data (`projectPhases` with `completed_at`, `reviewed_at`, `phase_number`) is already fetched and available in the component.
 
 ### Result
 
-- **Website orders**: Badge says "Phase 2 Delivered" (specific phase number)
-- **Non-website orders** (social media, logo): Badge stays "Delivered - Awaiting Review" (unchanged)
+- **Website orders** (status = completed): Blue "Launch Website" button with Rocket icon. Clicking it sets status to `approved` and notifies the developer.
+- **Non-website orders** (status = completed): Green "Approve" button remains unchanged.
+- **Developer receives** an in-app notification (bell icon + sound) saying the website is ready for launch.
 
