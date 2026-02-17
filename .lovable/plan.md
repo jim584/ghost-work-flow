@@ -1,70 +1,80 @@
 
 
-# Replace "Approve" with "Launch Website" for Website Orders
+# Launch Website Modal Flow
 
-## Problem
-For website orders, the current "Approve" button simply sets the task status to `approved`, which doesn't reflect the real-world workflow. After a developer marks a website as completed, the PM needs to send it for launch -- not just "approve" it. The developer also needs to be notified that it's time to launch.
+## Overview
+Replace the current one-click "Launch Website" button with a modal that collects domain, access method, hosting provider details, and optional Plex hosting pricing before sending the website for launch and notifying the developer.
 
-## Solution
+## What Will Happen
 
-Replace the generic "Approve" button with a **"Launch Website"** button specifically for completed website orders. This button will:
-1. Set the task status to `approved` (reusing the existing status since adding a new enum value is unnecessary complexity)
-2. Send an in-app notification to the developer assigned to the website, informing them that the website needs to be launched
-3. Show a distinct rocket icon and blue styling to differentiate it from a simple approval
+When a PM clicks "Launch Website" on a completed website order, a modal dialog will appear with the following sections:
 
-Non-website orders (logo, social media) keep the existing "Approve" button unchanged.
+**1. Domain Name** (required text input)
+
+**2. Access Method** (dropdown with 3 options):
+- "Client will provide login credentials"
+- "Client will delegate access"  
+- "Client will change nameservers"
+
+**3. Conditional Credentials** (only shown when "Client will provide login credentials" is selected):
+- Hosting Username (text input)
+- Hosting Password (password input)
+
+**4. Hosting Provider** (dropdown, defaults to "Plex Hosting"):
+- Plex Hosting
+- Client Hosting
+
+**5. Conditional Plex Hosting Price** (only shown when "Plex Hosting" is selected):
+- Total Amount, Amount Paid, Amount Pending (same 3-field layout as the order form)
+
+On submit, the modal saves all launch details to the task, sets the status to `approved`, and sends a `website_launch` notification to the developer.
 
 ## Technical Details
 
-### File: `src/components/dashboards/PMDashboard.tsx`
-
-**1. Update the button rendering (~line 1895)**
-
-Currently:
-```
-if task.status === "completed" && task.project_manager_id === user?.id
-  -> Show "Approve" button
-```
-
-Change to:
-```
-if task.status === "completed" && task.project_manager_id === user?.id
-  -> If website order: Show "Launch Website" button (Rocket icon, blue styling)
-  -> If non-website order: Show "Approve" button (unchanged)
-```
-
-**2. Create a new mutation `launchWebsite`**
-
-This mutation will:
-- Update the task status to `approved` (same as current approve)
-- Look up the developer assigned to the task (via `task.developer_id` or team members)
-- Insert a notification into the `notifications` table for the developer with:
-  - `type`: `'new_task'` (reusing an existing allowed type since the constraint limits options)
-  - `title`: `'Website Ready for Launch'`
-  - `message`: `'[Task title] has been approved and is ready for launch'`
-  - `task_id`: the task ID
-
-**3. Notification type consideration**
-
-The `notifications` table has a check constraint limiting types to: `new_task`, `revision_requested`, `task_delayed`, `file_uploaded`, `order_cancelled`, `late_acknowledgement`, `reassignment_requested`, `order_message`. 
-
-A new type `website_launch` would be more descriptive. This requires a database migration to add it to the constraint.
-
 ### Database Migration
 
-Add `website_launch` to the `notifications_type_check` constraint:
+Add new columns to the `tasks` table for launch data:
 
 ```sql
-ALTER TABLE notifications DROP CONSTRAINT notifications_type_check;
-ALTER TABLE notifications ADD CONSTRAINT notifications_type_check 
-  CHECK (type IN ('new_task', 'revision_requested', 'task_delayed', 'file_uploaded', 
-                  'order_cancelled', 'late_acknowledgement', 'reassignment_requested', 
-                  'order_message', 'website_launch'));
+ALTER TABLE tasks
+  ADD COLUMN launch_domain TEXT,
+  ADD COLUMN launch_access_method TEXT,
+  ADD COLUMN launch_hosting_username TEXT,
+  ADD COLUMN launch_hosting_password TEXT,
+  ADD COLUMN launch_hosting_provider TEXT DEFAULT 'plex_hosting',
+  ADD COLUMN launch_hosting_total NUMERIC DEFAULT 0,
+  ADD COLUMN launch_hosting_paid NUMERIC DEFAULT 0,
+  ADD COLUMN launch_hosting_pending NUMERIC DEFAULT 0;
 ```
 
-### Result
+### File: `src/components/dashboards/PMDashboard.tsx`
 
-- **Website orders** (status = completed): Blue "Launch Website" button with Rocket icon. Clicking it sets status to `approved` and notifies the developer.
-- **Non-website orders** (status = completed): Green "Approve" button remains unchanged.
-- **Developer receives** an in-app notification (bell icon + sound) saying the website is ready for launch.
+**1. Add state for the launch modal:**
+- `launchDialog`: stores the task ID, title, and developer ID when the modal is open (null when closed)
+- Form state for all launch fields with defaults
 
+**2. Replace the direct `launchWebsite.mutate()` call on the button with opening the modal instead:**
+```
+onClick={() => setLaunchDialog({ taskId: task.id, taskTitle: task.title, developerId: task.developer_id })
+```
+
+**3. Update the `launchWebsite` mutation to include the new fields:**
+- Save all launch fields to the task alongside setting `status: 'approved'`
+- Keep the existing notification logic unchanged
+
+**4. Add the Dialog component at the bottom of the JSX:**
+- Modal with form fields as described above
+- Conditional rendering for credentials fields (when access method = "Client will provide login credentials")
+- Conditional rendering for Plex pricing fields (when hosting provider = "Plex Hosting")
+- Domain name is required; form validates before submission
+- "Launch Website" submit button with Rocket icon
+
+### Validation Rules
+- Domain name: required
+- Access method: required
+- Hosting provider: required (defaults to Plex Hosting)
+- Plex hosting total/paid/pending: only required when Plex Hosting is selected
+- Credentials: only shown when "Client will provide login credentials" is selected
+
+### UI Layout
+The modal will follow the existing dialog patterns in the codebase (using the `Dialog` component from `@/components/ui/dialog`). The pricing fields will use the same 3-column grid layout as the order creation form.
