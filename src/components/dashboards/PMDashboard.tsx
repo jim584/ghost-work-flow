@@ -873,6 +873,14 @@ const PMDashboard = () => {
     const hasCompletedTask = activeTasks.some((t: any) => t.status === 'completed');
     if (hasPendingReview) categories.push('recently_delivered');
     else if (hasCompletedTask && groupSubmissions.length === 0) categories.push('recently_delivered');
+    // For website orders, check if any phase has been submitted but not yet reviewed
+    const isWebsiteGroup = isWebsiteOrder(representativeTask);
+    if (isWebsiteGroup && !categories.includes('recently_delivered')) {
+      const hasPhaseAwaitingReview = (projectPhases || []).some(
+        (p: any) => activeTasks.some((t: any) => t.id === p.task_id) && p.completed_at && !p.reviewed_at
+      );
+      if (hasPhaseAwaitingReview) categories.push('recently_delivered');
+    }
     if (hasNeedsRevision) categories.push('needs_revision');
     if (isDelayed) categories.push('delayed');
     if (hasTeamsPendingDelivery) categories.push('pending_delivery');
@@ -937,6 +945,13 @@ const PMDashboard = () => {
     
     // Check for pending work items first - these always show in priority
     if (hasPendingReview) return 'recently_delivered';
+    // For website orders, check if any phase awaits review
+    if (isWebsiteOrder(task) && !hasPendingReview) {
+      const hasPhaseAwaitingReview = (projectPhases || []).some(
+        (p: any) => p.task_id === task.id && p.completed_at && !p.reviewed_at
+      );
+      if (hasPhaseAwaitingReview) return 'recently_delivered';
+    }
     if (hasNeedsRevision) return 'needs_revision';
     if (isDelayed) return 'delayed';
     
@@ -1409,6 +1424,15 @@ const PMDashboard = () => {
 
                 const getCategoryBadge = () => {
                   if (category === 'recently_delivered') {
+                    if (isWebsite) {
+                      const taskPhases = (projectPhases || [])
+                        .filter((p: any) => p.task_id === task.id && p.completed_at && !p.reviewed_at)
+                        .sort((a: any, b: any) => b.phase_number - a.phase_number);
+                      const latestPhase = taskPhases[0];
+                      if (latestPhase) {
+                        return <Badge className="bg-green-500 text-white">Phase {latestPhase.phase_number} Delivered</Badge>;
+                      }
+                    }
                     return <Badge className="bg-green-500 text-white">Delivered - Awaiting Review</Badge>;
                   }
                   if (category === 'delayed') {
