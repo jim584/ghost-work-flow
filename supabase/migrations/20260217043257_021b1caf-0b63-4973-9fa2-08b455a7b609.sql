@@ -1,0 +1,1 @@
+ALTER TABLE public.tasks ADD COLUMN launch_domain_provider TEXT;

@@ -852,6 +852,7 @@ export type Database = {
           late_acknowledgement: boolean
           launch_access_method: string | null
           launch_domain: string | null
+          launch_domain_provider: string | null
           launch_hosting_paid: number | null
           launch_hosting_password: string | null
           launch_hosting_pending: number | null
@@ -948,6 +949,7 @@ export type Database = {
           late_acknowledgement?: boolean
           launch_access_method?: string | null
           launch_domain?: string | null
+          launch_domain_provider?: string | null
           launch_hosting_paid?: number | null
           launch_hosting_password?: string | null
           launch_hosting_pending?: number | null
@@ -1044,6 +1046,7 @@ export type Database = {
           late_acknowledgement?: boolean
           launch_access_method?: string | null
           launch_domain?: string | null
+          launch_domain_provider?: string | null
           launch_hosting_paid?: number | null
           launch_hosting_password?: string | null
           launch_hosting_pending?: number | null

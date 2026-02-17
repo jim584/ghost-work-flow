@@ -118,6 +118,7 @@ const PMDashboard = () => {
   const [launchData, setLaunchData] = useState({
     domain: "",
     accessMethod: "",
+    domainProvider: "",
     hostingUsername: "",
     hostingPassword: "",
     hostingProvider: "plex_hosting",
@@ -665,8 +666,9 @@ const PMDashboard = () => {
           status: "approved" as any,
           launch_domain: launch.domain,
           launch_access_method: launch.accessMethod,
-          launch_hosting_username: launch.accessMethod === "credentials" ? launch.hostingUsername : null,
-          launch_hosting_password: launch.accessMethod === "credentials" ? launch.hostingPassword : null,
+           launch_hosting_username: launch.accessMethod === "credentials" ? launch.hostingUsername : null,
+           launch_hosting_password: launch.accessMethod === "credentials" ? launch.hostingPassword : null,
+           launch_domain_provider: launch.accessMethod === "credentials" ? launch.domainProvider : null,
           launch_hosting_provider: launch.hostingProvider,
           launch_hosting_total: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingTotal) || 0 : 0,
           launch_hosting_paid: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPaid) || 0 : 0,
@@ -699,7 +701,7 @@ const PMDashboard = () => {
       toast({ title: "Website sent for launch" });
       setLaunchDialog(null);
       setLaunchData({
-        domain: "", accessMethod: "", hostingUsername: "", hostingPassword: "",
+        domain: "", accessMethod: "", domainProvider: "", hostingUsername: "", hostingPassword: "",
         hostingProvider: "plex_hosting", hostingTotal: "", hostingPaid: "", hostingPending: "",
       });
     },
@@ -3182,7 +3184,7 @@ const PMDashboard = () => {
         if (!open) {
           setLaunchDialog(null);
           setLaunchData({
-            domain: "", accessMethod: "", hostingUsername: "", hostingPassword: "",
+            domain: "", accessMethod: "", domainProvider: "", hostingUsername: "", hostingPassword: "",
             hostingProvider: "plex_hosting", hostingTotal: "", hostingPaid: "", hostingPending: "",
           });
         }
@@ -3222,25 +3224,36 @@ const PMDashboard = () => {
             </div>
 
             {launchData.accessMethod === "credentials" && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="launch-username">Domain Username</Label>
+                  <Label htmlFor="launch-domain-provider">Domain Provider</Label>
                   <Input
-                    id="launch-username"
-                    value={launchData.hostingUsername}
-                    onChange={(e) => setLaunchData(d => ({ ...d, hostingUsername: e.target.value }))}
-                    placeholder="Username"
+                    id="launch-domain-provider"
+                    value={launchData.domainProvider}
+                    onChange={(e) => setLaunchData(d => ({ ...d, domainProvider: e.target.value }))}
+                    placeholder="e.g. GoDaddy, Namecheap"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="launch-password">Domain Password</Label>
-                  <Input
-                    id="launch-password"
-                    type="password"
-                    value={launchData.hostingPassword}
-                    onChange={(e) => setLaunchData(d => ({ ...d, hostingPassword: e.target.value }))}
-                    placeholder="Password"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="launch-username">Domain Username</Label>
+                    <Input
+                      id="launch-username"
+                      value={launchData.hostingUsername}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingUsername: e.target.value }))}
+                      placeholder="Username"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="launch-password">Domain Password</Label>
+                    <Input
+                      id="launch-password"
+                      type="password"
+                      value={launchData.hostingPassword}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingPassword: e.target.value }))}
+                      placeholder="Password"
+                    />
+                  </div>
                 </div>
               </div>
             )}
