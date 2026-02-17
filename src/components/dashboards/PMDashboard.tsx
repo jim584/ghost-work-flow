@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle, RotateCcw, AlertTriangle, PauseCircle, PlayCircle } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle, RotateCcw, AlertTriangle, PauseCircle, PlayCircle, Rocket } from "lucide-react";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 
 import { useProjectManagers } from "@/hooks/useProjectManagers";
@@ -639,6 +639,40 @@ const PMDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       toast({ title: "Task status updated" });
+    },
+  });
+
+  const launchWebsite = useMutation({
+    mutationFn: async ({ taskId, taskTitle, developerId }: { taskId: string; taskTitle: string; developerId: string | null }) => {
+      // Update task status to approved
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: "approved" as any })
+        .eq("id", taskId);
+      if (error) throw error;
+
+      // Find the developer's user_id to send notification
+      if (developerId) {
+        const { data: developer } = await supabase
+          .from("developers")
+          .select("user_id")
+          .eq("id", developerId)
+          .single();
+
+        if (developer?.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: developer.user_id,
+            type: "website_launch",
+            title: "Website Ready for Launch",
+            message: `${taskTitle} has been approved and is ready for launch`,
+            task_id: taskId,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Website sent for launch" });
     },
   });
 
@@ -1893,16 +1927,29 @@ const PMDashboard = () => {
                           )}
                         </Button>
                         {task.status === "completed" && task.project_manager_id === user?.id && (
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 hover-scale"
-                            onClick={() =>
-                              updateTaskStatus.mutate({ taskId: task.id, status: "approved" })
-                            }
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                            Approve
-                          </Button>
+                          isWebsite ? (
+                            <Button
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 hover-scale"
+                              onClick={() =>
+                                launchWebsite.mutate({ taskId: task.id, taskTitle: task.title, developerId: task.developer_id })
+                              }
+                            >
+                              <Rocket className="h-3.5 w-3.5 mr-1.5" />
+                              Launch Website
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 hover-scale"
+                              onClick={() =>
+                                updateTaskStatus.mutate({ taskId: task.id, status: "approved" })
+                              }
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                              Approve
+                            </Button>
+                          )
                         )}
                         {task.status === "pending" && !(task as any).accepted_by_pm && task.created_by !== user?.id && task.project_manager_id === user?.id && (
                           <>
