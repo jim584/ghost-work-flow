@@ -349,6 +349,8 @@ const DesignerDashboard = () => {
         return "bg-success text-success-foreground";
       case "cancelled":
         return "bg-destructive text-destructive-foreground";
+      case "on_hold":
+        return "bg-amber-500/10 text-amber-700 dark:text-amber-400";
       default:
         return "bg-muted text-muted-foreground";
     }

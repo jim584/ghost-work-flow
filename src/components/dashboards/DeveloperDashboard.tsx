@@ -1011,6 +1011,7 @@ const DeveloperDashboard = () => {
       case "in_progress": return "bg-warning text-warning-foreground";
       case "completed": return "bg-primary text-primary-foreground";
       case "approved": return "bg-success text-success-foreground";
+      case "on_hold": return "bg-amber-500/10 text-amber-700 dark:text-amber-400";
       default: return "bg-muted text-muted-foreground";
     }
   };
@@ -1019,6 +1020,7 @@ const DeveloperDashboard = () => {
     if (status === "assigned") return "Awaiting Acknowledgement";
     if (status === "in_progress") return `Phase ${task?.current_phase || 1} in Progress`;
     if (status === "completed") return "Website Complete";
+    if (status === "on_hold") return "On Hold";
     return status.replace("_", " ");
   };
 
