@@ -3213,6 +3213,7 @@ const PMDashboard = () => {
                   <SelectValue placeholder="Select access method" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="not_required">Not required</SelectItem>
                   <SelectItem value="credentials">Client will provide domain login credentials</SelectItem>
                   <SelectItem value="delegate">Client will delegate access</SelectItem>
                   <SelectItem value="nameservers">Client will change nameservers</SelectItem>
