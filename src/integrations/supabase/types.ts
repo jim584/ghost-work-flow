@@ -842,6 +842,9 @@ export type Database = {
           file_formats_needed: string | null
           fonts: string | null
           headline_main_text: string | null
+          held_at: string | null
+          held_by: string | null
+          hold_reason: string | null
           id: string
           industry: string | null
           is_deleted: boolean
@@ -927,6 +930,9 @@ export type Database = {
           file_formats_needed?: string | null
           fonts?: string | null
           headline_main_text?: string | null
+          held_at?: string | null
+          held_by?: string | null
+          hold_reason?: string | null
           id?: string
           industry?: string | null
           is_deleted?: boolean
@@ -1012,6 +1018,9 @@ export type Database = {
           file_formats_needed?: string | null
           fonts?: string | null
           headline_main_text?: string | null
+          held_at?: string | null
+          held_by?: string | null
+          hold_reason?: string | null
           id?: string
           industry?: string | null
           is_deleted?: boolean
@@ -1240,6 +1249,7 @@ export type Database = {
         | "approved"
         | "cancelled"
         | "assigned"
+        | "on_hold"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1382,6 +1392,7 @@ export const Constants = {
         "approved",
         "cancelled",
         "assigned",
+        "on_hold",
       ],
     },
   },
