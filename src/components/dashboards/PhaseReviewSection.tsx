@@ -550,7 +550,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
                 <MessageSquare className="h-3 w-3 mr-1" />Add Notes
               </Button>
               {canPutOnHold && (
-                <Button size="sm" variant="outline" className="h-7 text-xs bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300" onClick={() => setHoldDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number })}>
+                <Button size="sm" variant="outline" className="h-7 text-xs bg-slate-50 border-slate-300 text-slate-700 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300" onClick={() => setHoldDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number })}>
                   <Clock className="h-3 w-3 mr-1" />Put on Hold
                 </Button>
               )}
