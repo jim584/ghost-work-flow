@@ -441,8 +441,9 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
 
   const renderPhaseItem = (phase: any, defaultOpen: boolean) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
-    const canReview = isAssignedPM && !readOnly && (phase.status === "in_progress" || phase.status === "completed");
     const phaseUrls = submissions.length > 0 ? getPhaseSubmissions(phase.phase_number) : [];
+    const hasBeenSubmitted = phase.completed_at || phaseUrls.length > 0;
+    const canReview = isAssignedPM && !readOnly && hasBeenSubmitted && (phase.status === "in_progress" || phase.status === "completed");
     const reviewsForPhase = phaseReviews.filter((r: any) => r.phase_id === phase.id);
 
     // Check if there's an active revision in progress (review exists with no change_completed_at)
