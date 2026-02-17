@@ -114,6 +114,17 @@ const PMDashboard = () => {
   const [holdOrderDialog, setHoldOrderDialog] = useState<{ open: boolean; taskId: string }>({ open: false, taskId: "" });
   const [holdOrderReason, setHoldOrderReason] = useState("");
   const [chatTask, setChatTask] = useState<any>(null);
+  const [launchDialog, setLaunchDialog] = useState<{ taskId: string; taskTitle: string; developerId: string | null } | null>(null);
+  const [launchData, setLaunchData] = useState({
+    domain: "",
+    accessMethod: "",
+    hostingUsername: "",
+    hostingPassword: "",
+    hostingProvider: "plex_hosting",
+    hostingTotal: "",
+    hostingPaid: "",
+    hostingPending: "",
+  });
 
   const { data: projectManagers = [] } = useProjectManagers();
 
@@ -643,11 +654,24 @@ const PMDashboard = () => {
   });
 
   const launchWebsite = useMutation({
-    mutationFn: async ({ taskId, taskTitle, developerId }: { taskId: string; taskTitle: string; developerId: string | null }) => {
-      // Update task status to approved
+    mutationFn: async ({ taskId, taskTitle, developerId, launch }: { 
+      taskId: string; taskTitle: string; developerId: string | null;
+      launch: typeof launchData;
+    }) => {
+      // Update task with launch details and set status to approved
       const { error } = await supabase
         .from("tasks")
-        .update({ status: "approved" as any })
+        .update({ 
+          status: "approved" as any,
+          launch_domain: launch.domain,
+          launch_access_method: launch.accessMethod,
+          launch_hosting_username: launch.accessMethod === "credentials" ? launch.hostingUsername : null,
+          launch_hosting_password: launch.accessMethod === "credentials" ? launch.hostingPassword : null,
+          launch_hosting_provider: launch.hostingProvider,
+          launch_hosting_total: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingTotal) || 0 : 0,
+          launch_hosting_paid: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPaid) || 0 : 0,
+          launch_hosting_pending: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPending) || 0 : 0,
+        } as any)
         .eq("id", taskId);
       if (error) throw error;
 
@@ -673,6 +697,11 @@ const PMDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       toast({ title: "Website sent for launch" });
+      setLaunchDialog(null);
+      setLaunchData({
+        domain: "", accessMethod: "", hostingUsername: "", hostingPassword: "",
+        hostingProvider: "plex_hosting", hostingTotal: "", hostingPaid: "", hostingPending: "",
+      });
     },
   });
 
@@ -1932,7 +1961,7 @@ const PMDashboard = () => {
                               size="sm"
                               className="bg-blue-600 hover:bg-blue-700 hover-scale"
                               onClick={() =>
-                                launchWebsite.mutate({ taskId: task.id, taskTitle: task.title, developerId: task.developer_id })
+                                setLaunchDialog({ taskId: task.id, taskTitle: task.title, developerId: task.developer_id })
                               }
                             >
                               <Rocket className="h-3.5 w-3.5 mr-1.5" />
@@ -3144,6 +3173,144 @@ const PMDashboard = () => {
             >
               <PauseCircle className="h-4 w-4 mr-2" />
               Put on Hold
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Launch Website Dialog */}
+      <Dialog open={!!launchDialog} onOpenChange={(open) => {
+        if (!open) {
+          setLaunchDialog(null);
+          setLaunchData({
+            domain: "", accessMethod: "", hostingUsername: "", hostingPassword: "",
+            hostingProvider: "plex_hosting", hostingTotal: "", hostingPaid: "", hostingPending: "",
+          });
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Rocket className="h-5 w-5 text-blue-600" />
+              Launch Website
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">{launchDialog?.taskTitle}</p>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="launch-domain">Domain Name *</Label>
+              <Input
+                id="launch-domain"
+                value={launchData.domain}
+                onChange={(e) => setLaunchData(d => ({ ...d, domain: e.target.value }))}
+                placeholder="www.exampleclient.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Access Method *</Label>
+              <Select value={launchData.accessMethod} onValueChange={(v) => setLaunchData(d => ({ ...d, accessMethod: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select access method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="credentials">Client will provide login credentials</SelectItem>
+                  <SelectItem value="delegate">Client will delegate access</SelectItem>
+                  <SelectItem value="nameservers">Client will change nameservers</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {launchData.accessMethod === "credentials" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="launch-username">Hosting Username</Label>
+                  <Input
+                    id="launch-username"
+                    value={launchData.hostingUsername}
+                    onChange={(e) => setLaunchData(d => ({ ...d, hostingUsername: e.target.value }))}
+                    placeholder="Username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="launch-password">Hosting Password</Label>
+                  <Input
+                    id="launch-password"
+                    type="password"
+                    value={launchData.hostingPassword}
+                    onChange={(e) => setLaunchData(d => ({ ...d, hostingPassword: e.target.value }))}
+                    placeholder="Password"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Hosting Provider *</Label>
+              <Select value={launchData.hostingProvider} onValueChange={(v) => setLaunchData(d => ({ ...d, hostingProvider: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="plex_hosting">Plex Hosting</SelectItem>
+                  <SelectItem value="client_hosting">Client Hosting</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {launchData.hostingProvider === "plex_hosting" && (
+              <div className="space-y-2">
+                <Label>Plex Hosting Price</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Total</Label>
+                    <Input
+                      type="number"
+                      value={launchData.hostingTotal}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingTotal: e.target.value }))}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Paid</Label>
+                    <Input
+                      type="number"
+                      value={launchData.hostingPaid}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingPaid: e.target.value }))}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Pending</Label>
+                    <Input
+                      type="number"
+                      value={launchData.hostingPending}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingPending: e.target.value }))}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() => {
+                if (!launchDialog) return;
+                if (!launchData.domain.trim() || !launchData.accessMethod) {
+                  toast({ variant: "destructive", title: "Please fill in all required fields" });
+                  return;
+                }
+                launchWebsite.mutate({
+                  taskId: launchDialog.taskId,
+                  taskTitle: launchDialog.taskTitle,
+                  developerId: launchDialog.developerId,
+                  launch: launchData,
+                });
+              }}
+              disabled={launchWebsite.isPending}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              <Rocket className="h-4 w-4 mr-2" />
+              {launchWebsite.isPending ? "Launching..." : "Launch Website"}
             </Button>
           </div>
         </DialogContent>

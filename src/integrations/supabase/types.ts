@@ -850,6 +850,14 @@ export type Database = {
           is_deleted: boolean
           is_upsell: boolean
           late_acknowledgement: boolean
+          launch_access_method: string | null
+          launch_domain: string | null
+          launch_hosting_paid: number | null
+          launch_hosting_password: string | null
+          launch_hosting_pending: number | null
+          launch_hosting_provider: string | null
+          launch_hosting_total: number | null
+          launch_hosting_username: string | null
           logo_style: string | null
           logo_type: string | null
           logo_url: string | null
@@ -938,6 +946,14 @@ export type Database = {
           is_deleted?: boolean
           is_upsell?: boolean
           late_acknowledgement?: boolean
+          launch_access_method?: string | null
+          launch_domain?: string | null
+          launch_hosting_paid?: number | null
+          launch_hosting_password?: string | null
+          launch_hosting_pending?: number | null
+          launch_hosting_provider?: string | null
+          launch_hosting_total?: number | null
+          launch_hosting_username?: string | null
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null
@@ -1026,6 +1042,14 @@ export type Database = {
           is_deleted?: boolean
           is_upsell?: boolean
           late_acknowledgement?: boolean
+          launch_access_method?: string | null
+          launch_domain?: string | null
+          launch_hosting_paid?: number | null
+          launch_hosting_password?: string | null
+          launch_hosting_pending?: number | null
+          launch_hosting_provider?: string | null
+          launch_hosting_total?: number | null
+          launch_hosting_username?: string | null
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null
