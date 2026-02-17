@@ -1425,6 +1425,9 @@ const PMDashboard = () => {
                 const getCategoryBadge = () => {
                   if (category === 'recently_delivered') {
                     if (isWebsite) {
+                      if (task.status === 'completed') {
+                        return <Badge className="bg-green-500 text-white">Website Completed - Awaiting Final Review</Badge>;
+                      }
                       const taskPhases = (projectPhases || [])
                         .filter((p: any) => p.task_id === task.id && p.completed_at && !p.reviewed_at)
                         .sort((a: any, b: any) => b.phase_number - a.phase_number);
