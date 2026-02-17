@@ -1,66 +1,34 @@
 
 
-# Display PM Review Feedback in Phase Review Section
+# Fix: Hide Review Buttons for Unsubmitted Phases
 
 ## Problem
-After a PM submits a phase review with comments, voice notes, or file attachments, they cannot see or review what they submitted. The Phase Reviews section only shows a tiny truncated comment snippet. Voice notes and files are completely invisible to the PM.
+Phase 7 shows "Approve", "Approve with Changes", and "Disapprove" buttons even though the developer hasn't submitted any work for it yet. The current condition only checks `phase.status === "in_progress"`, which is true as soon as the phase is created.
 
-The Developer Dashboard already displays all of this (comment, voice playback, file downloads), but the PM's own view in `PhaseReviewSection.tsx` does not.
+## Root Cause
+Line 444 in `PhaseReviewSection.tsx`:
+```
+const canReview = isAssignedPM && !readOnly && (phase.status === "in_progress" || phase.status === "completed");
+```
+This doesn't verify that the phase has any submission (URL/files) to actually review.
 
 ## Solution
-Add a collapsible "PM Review" block under each reviewed phase that shows:
-- Full text comment
-- Reviewed timestamp and severity badge
-- Voice note with a play button (downloads and plays via signed URL)
-- Attached files with preview thumbnails and download buttons
-- Styled consistently with the existing PM Review blocks used elsewhere in the app (orange-themed for "with changes")
+Add a check that the phase has been submitted before showing review buttons. A phase is considered submitted when it has a `completed_at` timestamp (meaning the developer clicked "Submit Phase X") OR has submissions in the submissions array for that phase number.
 
-## What Changes
+## Technical Details
 
-### PhaseReviewSection.tsx
-After the review status badge row (line ~290), add a detailed review block for phases that have been reviewed. This block will:
+### File: `src/components/dashboards/PhaseReviewSection.tsx`
 
-1. **Full Comment Display** -- Show the complete `review_comment` text (not truncated)
-2. **Timestamp** -- Show `reviewed_at` formatted as a readable date
-3. **Severity Badge** -- Show the change severity level
-4. **Voice Note Playback** -- If `review_voice_path` exists, render a play button that creates a signed URL and plays the audio
-5. **File Attachments** -- If `review_file_paths` exists, parse the delimiter-separated paths/names and render:
-   - Image thumbnails (using the existing `FilePreview` component) for image files
-   - File icon + name for non-image files
-   - Download button for each file (via signed URL)
-6. **Collapsible** -- Use a Collapsible component so it doesn't overwhelm the compact phase list; default open for phases with active change requests
-
-### No New Files Needed
-All changes are within `PhaseReviewSection.tsx`, reusing existing components:
-- `FilePreview` for image thumbnails
-- `Collapsible` / `CollapsibleTrigger` / `CollapsibleContent` from the UI library
-- `supabase.storage.from("design-files").createSignedUrl()` for secure access
-- `format()` from date-fns for timestamps
-
-### Technical Details
-
-**Replace the truncated comment display (lines 285-290) with an expandable review details block:**
+Update the `canReview` condition on line 444 to:
 
 ```
-{hasReview && (review_comment || review_voice_path || review_file_paths)} -->
-  Collapsible block:
-    - Header: "PM Review" + reviewed_at timestamp + severity badge
-    - Content:
-      - Full comment text
-      - Voice note: Play/Download button
-      - Files: FilePreview thumbnails + download links
+const hasBeenSubmitted = phase.completed_at || phaseUrls.length > 0;
+const canReview = isAssignedPM && !readOnly && hasBeenSubmitted && (phase.status === "in_progress" || phase.status === "completed");
 ```
 
-**Voice playback pattern** (same as DeveloperDashboard):
-- Download blob via `supabase.storage.from("design-files").download(path)`
-- Create object URL and play with `new Audio(url)`
-
-**File download pattern**:
-- Create signed URL via `supabase.storage.from("design-files").createSignedUrl(path, 3600)`
-- Open in new tab for download
-
-**Imports to add**:
-- `Collapsible, CollapsibleTrigger, CollapsibleContent` from UI
-- `FilePreview` component
-- `Download, Play, ChevronDown` icons from lucide-react
+This ensures:
+- A phase must have been submitted (has `completed_at` or has submission URLs) before review buttons appear
+- Phase 7, which is `in_progress` but never submitted, will NOT show review buttons
+- Phase 6, which was submitted and then reviewed, continues to work correctly
+- No other files need changes
 
