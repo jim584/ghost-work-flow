@@ -1497,7 +1497,8 @@ const PMDashboard = () => {
                             );
                           })()}
                           {/* Cancel button for single-team orders - show for pending/in_progress, not completed/approved/cancelled */}
-                          {!group.isMultiTeam && (task.status === "pending" || task.status === "in_progress") && task.project_manager_id === user?.id && (
+                          {/* For website orders, hide cancel once any phase has been submitted */}
+                          {!group.isMultiTeam && (task.status === "pending" || task.status === "in_progress") && task.project_manager_id === user?.id && !(isWebsite && (projectPhases || []).some((p: any) => p.task_id === task.id && p.completed_at)) && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -1644,7 +1645,9 @@ const PMDashboard = () => {
                                     statusText = "Cancelled";
                                   }
                                   
-                                  const canCancel = (t.status === 'pending' || t.status === 'in_progress') && t.status !== 'completed' && t.status !== 'approved' && t.status !== 'cancelled';
+                                  const isWebsiteTask = isWebsiteOrder(t);
+                                  const hasSubmittedPhase = isWebsiteTask && (projectPhases || []).some((p: any) => p.task_id === t.id && p.completed_at);
+                                  const canCancel = (t.status === 'pending' || t.status === 'in_progress') && t.status !== 'completed' && t.status !== 'approved' && t.status !== 'cancelled' && !hasSubmittedPhase;
                                   
                                   return (
                                     <div key={t.id} className="flex items-center justify-between text-xs">
@@ -1800,7 +1803,8 @@ const PMDashboard = () => {
                         )}
                         {/* Cancel button - show before delivery (no submissions) and not already cancelled */}
                         {/* Cancel button in expanded view - for non-multi-team, show for pending/in_progress */}
-                        {!group.isMultiTeam && (task.status === "pending" || task.status === "in_progress") && task.project_manager_id === user?.id && (
+                        {/* For website orders, hide cancel once any phase has been submitted */}
+                        {!group.isMultiTeam && (task.status === "pending" || task.status === "in_progress") && task.project_manager_id === user?.id && !(isWebsite && (projectPhases || []).some((p: any) => p.task_id === task.id && p.completed_at)) && (
                           <Button
                             size="sm"
                             variant="outline"
