@@ -3223,7 +3223,7 @@ const PMDashboard = () => {
             {launchData.accessMethod === "credentials" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="launch-username">Hosting Username</Label>
+                  <Label htmlFor="launch-username">Domain Username</Label>
                   <Input
                     id="launch-username"
                     value={launchData.hostingUsername}
@@ -3232,7 +3232,7 @@ const PMDashboard = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="launch-password">Hosting Password</Label>
+                  <Label htmlFor="launch-password">Domain Password</Label>
                   <Input
                     id="launch-password"
                     type="password"
