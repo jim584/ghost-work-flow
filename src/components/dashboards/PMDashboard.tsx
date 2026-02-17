@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle, RotateCcw, AlertTriangle } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle, RotateCcw, AlertTriangle, PauseCircle, PlayCircle } from "lucide-react";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 
 import { useProjectManagers } from "@/hooks/useProjectManagers";
@@ -111,6 +111,8 @@ const PMDashboard = () => {
   const [selectedNewPmId, setSelectedNewPmId] = useState("");
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; taskId: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [holdOrderDialog, setHoldOrderDialog] = useState<{ open: boolean; taskId: string }>({ open: false, taskId: "" });
+  const [holdOrderReason, setHoldOrderReason] = useState("");
   const [chatTask, setChatTask] = useState<any>(null);
 
   const { data: projectManagers = [] } = useProjectManagers();
@@ -742,6 +744,54 @@ const PMDashboard = () => {
     },
   });
 
+  const holdOrder = useMutation({
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          status: "on_hold" as any, 
+          hold_reason: reason,
+          held_at: new Date().toISOString(),
+          held_by: user!.id,
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["all-tasks-search"] });
+      toast({ title: "Order put on hold" });
+      setHoldOrderDialog({ open: false, taskId: "" });
+      setHoldOrderReason("");
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const resumeOrder = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          status: "in_progress" as any, 
+          hold_reason: null,
+          held_at: null,
+          held_by: null,
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["all-tasks-search"] });
+      toast({ title: "Order resumed" });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -835,9 +885,11 @@ const PMDashboard = () => {
     const hasAnyPending = activeTasks.some((t: any) => t.status === 'pending' || t.status === 'assigned');
     const hasAnyInProgress = activeTasks.some((t: any) => t.status === 'in_progress');
     const hasAnyCancelled = group.allTasks.some((t: any) => t.status === 'cancelled');
+    const hasAnyOnHold = activeTasks.some((t: any) => t.status === 'on_hold');
     if (hasAnyPending) categories.push('pending');
     if (hasAnyInProgress) categories.push('in_progress');
     if (hasAnyCancelled) categories.push('cancelled');
+    if (hasAnyOnHold) categories.push('on_hold');
     
     if (categories.length === 0) {
       if (allApproved) categories.push('other');
@@ -897,6 +949,7 @@ const PMDashboard = () => {
     
     if (task.status === 'pending' || task.status === 'assigned') return 'pending';
     if (task.status === 'in_progress') return 'in_progress';
+    if (task.status === 'on_hold') return 'on_hold';
     return 'other';
   };
 
@@ -926,6 +979,8 @@ const PMDashboard = () => {
         return "bg-success text-success-foreground";
       case "cancelled":
         return "bg-destructive text-destructive-foreground";
+      case "on_hold":
+        return "bg-amber-500 text-white";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -976,7 +1031,7 @@ const PMDashboard = () => {
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
       const categories = getGroupCategories(group, submissions || []);
-      return categories.some(c => ['recently_delivered', 'delayed', 'delayed_ack', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(c));
+      return categories.some(c => ['recently_delivered', 'delayed', 'delayed_ack', 'pending', 'in_progress', 'needs_revision', 'pending_delivery', 'on_hold'].includes(c));
     }
     // Handle all category filters using getGroupCategories for multi-team support
     const categories = getGroupCategories(group, submissions || []);
@@ -1472,6 +1527,12 @@ const PMDashboard = () => {
                               {getCategoryBadge()}
                               {getDelayedBadge()}
                               {getAckOverdueBadge()}
+                              {task.status === 'on_hold' && (
+                                <Badge className="bg-amber-500 text-white">
+                                  <PauseCircle className="h-3 w-3 mr-1" />
+                                  On Hold
+                                </Badge>
+                              )}
                             </div>
                             <h3 className="font-semibold text-lg mt-1 truncate">{task.title}</h3>
                           </div>
@@ -1506,6 +1567,30 @@ const PMDashboard = () => {
                               onClick={() => setCancelDialog({ open: true, taskId: task.id })}
                             >
                               <XCircle className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                          {/* Hold button for single-team orders */}
+                          {!group.isMultiTeam && (task.status === "pending" || task.status === "in_progress") && task.project_manager_id === user?.id && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 hover:bg-amber-500/10"
+                              title="Put on Hold"
+                              onClick={() => setHoldOrderDialog({ open: true, taskId: task.id })}
+                            >
+                              <PauseCircle className="h-4 w-4 text-amber-500" />
+                            </Button>
+                          )}
+                          {/* Resume button for on_hold orders */}
+                          {!group.isMultiTeam && task.status === "on_hold" && task.project_manager_id === user?.id && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 hover:bg-green-500/10"
+                              title="Resume Order"
+                              onClick={() => resumeOrder.mutate(task.id)}
+                            >
+                              <PlayCircle className="h-4 w-4 text-green-500" />
                             </Button>
                           )}
                         </div>
@@ -1643,6 +1728,10 @@ const PMDashboard = () => {
                                     statusIcon = "✕";
                                     statusColor = "text-destructive";
                                     statusText = "Cancelled";
+                                  } else if (t.status === 'on_hold') {
+                                    statusIcon = "⏸";
+                                    statusColor = "text-amber-500";
+                                    statusText = "On Hold";
                                   }
                                   
                                   const isWebsiteTask = isWebsiteOrder(t);
@@ -1662,6 +1751,24 @@ const PMDashboard = () => {
                                             onClick={(e) => { e.stopPropagation(); setCancelDialog({ open: true, taskId: t.id }); }}
                                           >
                                             <XCircle className="h-3 w-3 text-destructive" />
+                                          </button>
+                                        )}
+                                        {(t.status === 'pending' || t.status === 'in_progress') && task.project_manager_id === user?.id && (
+                                          <button
+                                            className="ml-0.5 p-0.5 rounded hover:bg-amber-500/10"
+                                            title="Put on Hold"
+                                            onClick={(e) => { e.stopPropagation(); setHoldOrderDialog({ open: true, taskId: t.id }); }}
+                                          >
+                                            <PauseCircle className="h-3 w-3 text-amber-500" />
+                                          </button>
+                                        )}
+                                        {t.status === 'on_hold' && task.project_manager_id === user?.id && (
+                                          <button
+                                            className="ml-0.5 p-0.5 rounded hover:bg-green-500/10"
+                                            title="Resume"
+                                            onClick={(e) => { e.stopPropagation(); resumeOrder.mutate(t.id); }}
+                                          >
+                                            <PlayCircle className="h-3 w-3 text-green-500" />
                                           </button>
                                         )}
                                       </span>
@@ -1818,10 +1925,40 @@ const PMDashboard = () => {
                             Cancel Order
                           </Button>
                         )}
+                        {/* Put on Hold button in expanded view */}
+                        {!group.isMultiTeam && (task.status === "pending" || task.status === "in_progress") && task.project_manager_id === user?.id && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-amber-500/50 text-amber-600 hover:bg-amber-500/10 hover-scale"
+                            onClick={() => setHoldOrderDialog({ open: true, taskId: task.id })}
+                          >
+                            <PauseCircle className="h-3.5 w-3.5 mr-1.5" />
+                            Put on Hold
+                          </Button>
+                        )}
+                        {/* Resume button in expanded view */}
+                        {!group.isMultiTeam && task.status === "on_hold" && task.project_manager_id === user?.id && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-green-500/50 text-green-600 hover:bg-green-500/10 hover-scale"
+                            onClick={() => resumeOrder.mutate(task.id)}
+                          >
+                            <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
+                            Resume
+                          </Button>
+                        )}
                         {/* Show cancellation/deletion reason for cancelled orders */}
                         {task.status === "cancelled" && (task as any).cancellation_reason && (
                           <p className="text-xs text-muted-foreground italic">
                             Reason: {(task as any).cancellation_reason}
+                          </p>
+                        )}
+                        {/* Show hold reason for on_hold orders */}
+                        {task.status === "on_hold" && (task as any).hold_reason && (
+                          <p className="text-xs text-amber-600 italic">
+                            Hold Reason: {(task as any).hold_reason}
                           </p>
                         )}
                       </div>
@@ -2894,6 +3031,45 @@ const PMDashboard = () => {
               className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Cancel Order
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Hold Order Dialog */}
+      <Dialog open={holdOrderDialog.open} onOpenChange={(open) => {
+        if (!open) {
+          setHoldOrderDialog({ open: false, taskId: "" });
+          setHoldOrderReason("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Put Order on Hold</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This will pause the entire order. All active phases will be effectively frozen.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="hold-reason">Hold Reason *</Label>
+              <Textarea
+                id="hold-reason"
+                value={holdOrderReason}
+                onChange={(e) => setHoldOrderReason(e.target.value)}
+                placeholder="Explain why this order is being put on hold (e.g., customer unavailable, waiting for information)..."
+                rows={4}
+              />
+            </div>
+            <Button
+              onClick={() => holdOrder.mutate({ 
+                taskId: holdOrderDialog.taskId, 
+                reason: holdOrderReason,
+              })}
+              disabled={!holdOrderReason.trim()}
+              className="w-full bg-amber-500 text-white hover:bg-amber-600"
+            >
+              <PauseCircle className="h-4 w-4 mr-2" />
+              Put on Hold
             </Button>
           </div>
         </DialogContent>
