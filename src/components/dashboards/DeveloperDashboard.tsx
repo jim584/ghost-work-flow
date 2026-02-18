@@ -1115,7 +1115,23 @@ const DeveloperDashboard = () => {
         `#${task.task_number}`.includes(query);
     }
     if (statusFilter === "active") {
-      return task.status === "assigned" || task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id) || (task.status === "approved" && !(task as any).launch_website_live_at);
+      if (task.status === "assigned" || task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id)) return true;
+      if (task.status === "approved" && !(task as any).launch_website_live_at) {
+        // Hide from active when waiting on client/PM
+        const ns = (task as any).launch_nameserver_status;
+        const dns = (task as any).launch_dns_status;
+        const del = (task as any).launch_delegate_status;
+        const hDel = (task as any).launch_hosting_delegate_status;
+        const sl = (task as any).launch_self_launch_status;
+        const waitingStates = ["nameservers_provided", "nameservers_forwarded", "dns_provided", "dns_forwarded"];
+        if (ns && waitingStates.includes(ns)) return false;
+        if (dns && waitingStates.includes(dns)) return false;
+        if (del && ["pending", "forwarded"].includes(del)) return false;
+        if (hDel && ["pending", "forwarded"].includes(hDel)) return false;
+        if (sl && sl === "link_provided") return false;
+        return true;
+      }
+      return false;
     }
     if (statusFilter === "delayed") return isTaskDelayed(task);
     if (!statusFilter) return true;
