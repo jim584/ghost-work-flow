@@ -1655,6 +1655,30 @@ const DeveloperDashboard = () => {
                           </div>
                         )}
 
+                        {/* Domain Credentials Section */}
+                        {(task as any).launch_access_method === "credentials" && ((task as any).launch_domain_username || (task as any).launch_domain_password) && (
+                          <div className="mt-3 p-3 border rounded-md bg-muted/30 space-y-1">
+                            <p className="text-sm font-medium">🔑 Domain Login Credentials</p>
+                            {(task as any).launch_domain_provider && (
+                              <p className="text-xs text-muted-foreground">Provider: <span className="font-medium text-foreground">{(task as any).launch_domain_provider}</span></p>
+                            )}
+                            <p className="text-xs text-muted-foreground">Username: <span className="font-mono text-foreground">{(task as any).launch_domain_username}</span></p>
+                            <p className="text-xs text-muted-foreground">Password: <span className="font-mono text-foreground">{(task as any).launch_domain_password}</span></p>
+                          </div>
+                        )}
+
+                        {/* Hosting Credentials Section */}
+                        {(task as any).launch_hosting_access_method === "hosting_credentials" && ((task as any).launch_hosting_username || (task as any).launch_hosting_password) && (
+                          <div className="mt-3 p-3 border rounded-md bg-muted/30 space-y-1">
+                            <p className="text-sm font-medium">🖥️ Hosting Login Credentials</p>
+                            {(task as any).launch_hosting_provider_name && (
+                              <p className="text-xs text-muted-foreground">Provider: <span className="font-medium text-foreground">{(task as any).launch_hosting_provider_name}</span></p>
+                            )}
+                            <p className="text-xs text-muted-foreground">Username: <span className="font-mono text-foreground">{(task as any).launch_hosting_username}</span></p>
+                            <p className="text-xs text-muted-foreground">Password: <span className="font-mono text-foreground">{(task as any).launch_hosting_password}</span></p>
+                          </div>
+                        )}
+
                         {/* Hosting Delegate Access Status Badges */}
                         {(task as any).launch_hosting_access_method === "hosting_delegate" && (task as any).launch_hosting_delegate_status === "pending_delegation" && (
                           <div className="mt-3 p-2 border rounded-md bg-muted/30">
