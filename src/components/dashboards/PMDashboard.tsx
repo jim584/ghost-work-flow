@@ -1334,6 +1334,10 @@ const PMDashboard = () => {
     if (allApproved) return 'other';
     
     // Task status-based completion only applies if explicitly set
+    // Website orders marked live but not yet verified should stay in priority
+    if (task.status === 'approved' && task.launch_website_live_at && !task.upsell_verified_at) {
+      return 'pending_delivery';
+    }
     if (task.status === 'completed' || task.status === 'approved') return 'other';
     
     if (task.status === 'pending' || task.status === 'assigned') return 'pending';
