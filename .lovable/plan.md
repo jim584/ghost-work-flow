@@ -1,86 +1,129 @@
 
 
-# Delegate Access Workflow
+# Client Hosting Access Method Workflow
 
 ## Overview
 
-When a PM selects "Client will delegate access" during website launch, a multi-step workflow will guide the PM through communicating delegate access instructions to the client, then confirming access was granted before the developer can proceed.
+When the PM selects "Client Hosting" as the hosting provider in the Launch Website modal, a new set of hosting-specific access method options will appear. These options determine how the developer gets access to the client's hosting account (or whether the client self-launches).
 
-## Workflow Steps
+## Current vs. New Modal Flow
+
+Currently, the "Hosting Provider" field only toggles between showing Plex billing fields or nothing. The new flow adds a second layer of options when "Client Hosting" is selected.
 
 ```text
-PM submits launch form (delegate selected)
+Launch Website Modal
+  |
+  +-- Domain Name (text)
+  +-- Access Method (domain-level: credentials, delegate, nameservers, DNS, not required)
+  +-- Hosting Provider: [Plex Hosting | Client Hosting]
         |
-        v
-Task status -> "approved"
-launch_delegate_status = "pending_delegation"
-Auto-display: "Client must delegate access to Charley@plexLogo.com"
-Developer gets notification: "Verify delegate access for [domain]"
+        +-- If Plex Hosting: billing fields (Total/Paid/Pending) -- unchanged
         |
-        v
-PM calls client, explains delegation to Charley@plexLogo.com
-PM clicks "Access Forwarded to Client"
-launch_delegate_status -> "forwarded_to_client"
-        |
-        v
-Client confirms delegation done
-PM clicks "Access Granted"
-launch_delegate_status -> "access_granted"
-Developer gets notification: "Delegate access granted for [domain], proceed with launch"
-        |
-        v
-Developer proceeds with normal launch flow
+        +-- If Client Hosting (NEW):
+              +-- Hosting Provider Name (text, e.g. "GoDaddy")
+              +-- Hosting Access Method:
+                    |
+                    +-- A) Delegate Access
+                    |     -> Shows fixed email: Charley@plexlogo.com
+                    |     -> Same delegate workflow as domain (pending -> forwarded -> granted)
+                    |
+                    +-- B) Hosting Login Credentials
+                    |     -> Username + Password fields
+                    |
+                    +-- C) Client Will Launch Himself (Self-Launch)
+                          -> Developer provides WeTransfer link
+                          -> PM communicates link to client
+                          -> PM marks "Self-Launch Completed"
 ```
 
 ## What Changes
 
 ### 1. Database Migration
 
-Add a new column to the `tasks` table:
-- `launch_delegate_status` (text, nullable) -- tracks: pending_delegation, forwarded_to_client, access_granted
+Add new columns to the `tasks` table:
 
-Add new notification types to the constraint:
-- `delegate_request` -- sent to developer when PM initiates delegate flow
-- `delegate_confirmed` -- sent to developer when PM confirms access granted
+- `launch_hosting_access_method` (text, nullable) -- values: "hosting_delegate", "hosting_credentials", "self_launch"
+- `launch_hosting_provider_name` (text, nullable) -- free text name of client's hosting provider (e.g. "GoDaddy")
+- `launch_hosting_delegate_status` (text, nullable) -- tracks: pending_delegation, forwarded_to_client, access_granted (mirrors domain delegate flow)
+- `launch_self_launch_status` (text, nullable) -- tracks: pending_link, link_provided, self_launch_completed
+- `launch_wetransfer_link` (text, nullable) -- the WeTransfer download link provided by developer
 
-### 2. PM Dashboard (PMDashboard.tsx)
+Add new notification types to the `notifications_type_check` constraint:
+- `hosting_delegate_request` -- sent to developer when PM initiates hosting delegate flow
+- `hosting_delegate_confirmed` -- sent to developer when hosting delegate access is confirmed
+- `self_launch_link_request` -- sent to developer to generate WeTransfer link
+- `self_launch_completed` -- sent to developer when PM marks self-launch as done
 
-**Launch form (when accessMethod = "delegate"):**
-- Show a read-only info box: "The client will need to provide delegate access to Charley@plexLogo.com" with the email pre-filled and non-editable
+### 2. Launch Modal UI (PMDashboard.tsx and AdminDashboard.tsx)
 
-**Launch submission:**
-- Sets `launch_delegate_status = "pending_delegation"`
-- Sends `delegate_request` notification to the developer
+**New state fields in `launchData`:**
+- `hostingAccessMethod` -- "hosting_delegate" | "hosting_credentials" | "self_launch"
+- `hostingProviderName` -- text input for provider name
+- `hostingCredUsername` -- username for hosting account
+- `hostingCredPassword` -- password for hosting account
 
-**Task card display (for delegate-flow tasks):**
-- `pending_delegation`: Show delegate email info + "Access Forwarded to Client" button
-- `forwarded_to_client`: Show "Access Granted" button (PM clicks after client confirms)
-- `access_granted`: Show green confirmation badge
+**When "Client Hosting" is selected:**
+1. Show "Hosting Provider Name" text input
+2. Show "Hosting Access Method" select with 3 options:
+   - "Client will give delegate access"
+   - "Client will provide hosting login credentials"
+   - "Client will launch himself (Self-Launch)"
 
-### 3. Admin Dashboard (AdminDashboard.tsx)
+**Conditional fields per hosting access method:**
+- **Delegate Access**: Read-only info box with Charley@plexlogo.com (identical to domain delegate)
+- **Hosting Credentials**: Username + Password inputs
+- **Self-Launch**: Info text explaining the WeTransfer process
 
-Mirror the same delegate status section and action buttons (Forward to Client, Access Granted) as in the PM Dashboard.
+### 3. Launch Mutation Logic
 
-### 4. Developer Dashboard (DeveloperDashboard.tsx)
+Update the `launchWebsite` mutation in both PM and Admin dashboards to:
+- Save `launch_hosting_access_method`, `launch_hosting_provider_name`
+- For hosting credentials: save to `launch_hosting_username` and `launch_hosting_password`
+- For hosting delegate: set `launch_hosting_delegate_status = "pending_delegation"` and notify developer
+- For self-launch: set `launch_self_launch_status = "pending_link"` and notify developer to generate WeTransfer link
 
-Show status badges for delegate-flow tasks:
-- `pending_delegation`: "Awaiting delegate access from client..."
-- `forwarded_to_client`: "PM has contacted client about delegation"
-- `access_granted`: "Delegate access confirmed -- proceed with launch"
+### 4. Task Card Status Sections (PM + Admin Dashboards)
 
-No input form needed (unlike nameserver/DNS flows) since the email is fixed.
+**Hosting Delegate Flow** (mirrors domain delegate):
+- `pending_delegation`: Show delegate email + "Access Forwarded to Client" button
+- `forwarded_to_client`: Show "Access Granted" button
+- `access_granted`: Green confirmation badge
 
-### 5. Notification Bell (NotificationBell.tsx)
+**Self-Launch Flow:**
+- `pending_link`: Badge "Awaiting WeTransfer link from developer"
+- `link_provided`: Show the WeTransfer link + "Self-Launch Completed" button
+- `self_launch_completed`: Green "Self-Launch Completed" badge
 
-Add icons for the 2 new notification types:
-- `delegate_request` -> key/shield icon
-- `delegate_confirmed` -> checkmark icon
+Add corresponding mutations: `forwardHostingDelegate`, `confirmHostingDelegate`, `markSelfLaunchCompleted`
 
-### 6. Files Modified
+### 5. Developer Dashboard (DeveloperDashboard.tsx)
 
-1. New database migration -- add `launch_delegate_status` column + update notification constraint
-2. `PMDashboard.tsx` -- delegate info box in modal, launch logic, status section with action buttons
-3. `AdminDashboard.tsx` -- matching delegate status section and action buttons
-4. `DeveloperDashboard.tsx` -- status badges for delegate flow
-5. `NotificationBell.tsx` -- icons for `delegate_request` and `delegate_confirmed`
+**Hosting Delegate status badges:**
+- `pending_delegation`: "Awaiting hosting delegate access from client..."
+- `forwarded_to_client`: "PM has contacted client about hosting delegation"
+- `access_granted`: "Hosting delegate access confirmed -- proceed"
+
+**Self-Launch section:**
+- `pending_link`: Show input field for developer to paste WeTransfer link + "Submit Link" button
+- `link_provided`: "WeTransfer link sent to PM -- awaiting client self-launch"
+- `self_launch_completed`: "Client has self-launched. Verify the website is live."
+
+Add mutation for developer to submit the WeTransfer link (updates `launch_wetransfer_link` and `launch_self_launch_status = "link_provided"`).
+
+### 6. Notification Bell (NotificationBell.tsx)
+
+Add icons for the 4 new notification types:
+- `hosting_delegate_request` -- key icon
+- `hosting_delegate_confirmed` -- check icon
+- `self_launch_link_request` -- link/download icon
+- `self_launch_completed` -- check-circle icon
+
+### 7. Files Modified
+
+1. **New migration** -- add 5 columns to tasks + update notification constraint with 4 new types
+2. **PMDashboard.tsx** -- launch modal UI for client hosting options, new status sections on task cards, new mutations
+3. **AdminDashboard.tsx** -- mirror all PM changes
+4. **DeveloperDashboard.tsx** -- hosting delegate badges, self-launch WeTransfer link input, status badges
+5. **NotificationBell.tsx** -- icons for 4 new notification types
+6. **types.ts** -- auto-updated after migration
 
