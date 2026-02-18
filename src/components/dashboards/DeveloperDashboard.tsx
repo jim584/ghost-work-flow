@@ -365,6 +365,7 @@ const DeveloperDashboard = () => {
   const [homepageUrls, setHomepageUrls] = useState<string[]>([]);
   const [urlInput, setUrlInput] = useState("");
   const [chatTask, setChatTask] = useState<any>(null);
+  const [nameserverInputs, setNameserverInputs] = useState<{[taskId: string]: {ns1: string; ns2: string; ns3: string; ns4: string}}>({});
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -963,6 +964,36 @@ const DeveloperDashboard = () => {
     },
   });
 
+  const submitNameservers = useMutation({
+    mutationFn: async ({ taskId, ns1, ns2, ns3, ns4, pmId, domain }: { 
+      taskId: string; ns1: string; ns2: string; ns3: string; ns4: string; pmId: string; domain: string;
+    }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({
+          launch_nameserver_status: "nameservers_provided",
+          launch_nameserver_1: ns1,
+          launch_nameserver_2: ns2 || null,
+          launch_nameserver_3: ns3 || null,
+          launch_nameserver_4: ns4 || null,
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+
+      await supabase.from("notifications").insert({
+        user_id: pmId,
+        type: "nameserver_ready",
+        title: "Nameservers Ready",
+        message: `Nameservers for ${domain} are ready. Please forward to client.`,
+        task_id: taskId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+      toast({ title: "Nameservers submitted" });
+    },
+  });
+
   const tasksNeedingRevision = tasks?.filter((t) => {
     const taskSubmissions = submissions?.filter(s => s.task_id === t.id) || [];
     return taskSubmissions.some(s => s.revision_status === "needs_revision");
@@ -1401,6 +1432,97 @@ const DeveloperDashboard = () => {
                                 </div>
                               );
                             })}
+                          </div>
+                        )}
+
+                        {/* Nameserver Provisioning Section */}
+                        {(task as any).launch_access_method === "nameservers" && (task as any).launch_nameserver_status === "pending_nameservers" && (
+                          <div className="mt-3 p-3 border rounded-md bg-muted/30 space-y-3">
+                            <p className="text-sm font-medium">🖥️ Provide Nameservers for {(task as any).launch_domain || 'this domain'}</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs">Primary NS *</Label>
+                                <Input
+                                  placeholder="ns1.example.com"
+                                  value={nameserverInputs[task.id]?.ns1 || ''}
+                                  onChange={(e) => setNameserverInputs(prev => ({
+                                    ...prev,
+                                    [task.id]: { ...prev[task.id], ns1: e.target.value, ns2: prev[task.id]?.ns2 || '', ns3: prev[task.id]?.ns3 || '', ns4: prev[task.id]?.ns4 || '' }
+                                  }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Secondary NS</Label>
+                                <Input
+                                  placeholder="ns2.example.com"
+                                  value={nameserverInputs[task.id]?.ns2 || ''}
+                                  onChange={(e) => setNameserverInputs(prev => ({
+                                    ...prev,
+                                    [task.id]: { ...prev[task.id], ns1: prev[task.id]?.ns1 || '', ns2: e.target.value, ns3: prev[task.id]?.ns3 || '', ns4: prev[task.id]?.ns4 || '' }
+                                  }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">NS3 (optional)</Label>
+                                <Input
+                                  placeholder="ns3.example.com"
+                                  value={nameserverInputs[task.id]?.ns3 || ''}
+                                  onChange={(e) => setNameserverInputs(prev => ({
+                                    ...prev,
+                                    [task.id]: { ...prev[task.id], ns1: prev[task.id]?.ns1 || '', ns2: prev[task.id]?.ns2 || '', ns3: e.target.value, ns4: prev[task.id]?.ns4 || '' }
+                                  }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">NS4 (optional)</Label>
+                                <Input
+                                  placeholder="ns4.example.com"
+                                  value={nameserverInputs[task.id]?.ns4 || ''}
+                                  onChange={(e) => setNameserverInputs(prev => ({
+                                    ...prev,
+                                    [task.id]: { ...prev[task.id], ns1: prev[task.id]?.ns1 || '', ns2: prev[task.id]?.ns2 || '', ns3: prev[task.id]?.ns3 || '', ns4: e.target.value }
+                                  }))}
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const ns = nameserverInputs[task.id];
+                                if (!ns?.ns1?.trim()) {
+                                  toast({ variant: "destructive", title: "Primary nameserver is required" });
+                                  return;
+                                }
+                                submitNameservers.mutate({
+                                  taskId: task.id,
+                                  ns1: ns.ns1.trim(),
+                                  ns2: ns.ns2?.trim() || '',
+                                  ns3: ns.ns3?.trim() || '',
+                                  ns4: ns.ns4?.trim() || '',
+                                  pmId: task.project_manager_id,
+                                  domain: (task as any).launch_domain || '',
+                                });
+                              }}
+                              disabled={submitNameservers.isPending}
+                            >
+                              Submit Nameservers
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Nameserver Confirmed Badge */}
+                        {(task as any).launch_access_method === "nameservers" && (task as any).launch_nameserver_status === "nameservers_confirmed" && (
+                          <div className="mt-3 p-2 border rounded-md bg-green-500/10">
+                            <Badge className="bg-green-600 text-white">
+                              🚀 Nameservers Confirmed — Proceed with Launch
+                            </Badge>
+                          </div>
+                        )}
+
+                        {/* Nameservers Provided - waiting for PM */}
+                        {(task as any).launch_access_method === "nameservers" && ((task as any).launch_nameserver_status === "nameservers_provided" || (task as any).launch_nameserver_status === "forwarded_to_client") && (
+                          <div className="mt-3 p-2 border rounded-md bg-muted/30">
+                            <p className="text-xs text-muted-foreground">Nameservers submitted — waiting for client confirmation</p>
                           </div>
                         )}
                       </div>

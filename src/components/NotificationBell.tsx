@@ -317,6 +317,12 @@ export function NotificationBell({ userId }: { userId: string }) {
         return '📤';
       case 'order_cancelled':
         return '❌';
+      case 'nameserver_request':
+        return '🖥️';
+      case 'nameserver_ready':
+        return '✅';
+      case 'nameserver_confirmed':
+        return '🚀';
       default:
         return '📢';
     }

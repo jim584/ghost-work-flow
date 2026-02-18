@@ -659,6 +659,8 @@ const PMDashboard = () => {
       taskId: string; taskTitle: string; developerId: string | null;
       launch: typeof launchData;
     }) => {
+      const isNameserverFlow = launch.accessMethod === "nameservers";
+      
       // Update task with launch details and set status to approved
       const { error } = await supabase
         .from("tasks")
@@ -673,6 +675,7 @@ const PMDashboard = () => {
           launch_hosting_total: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingTotal) || 0 : 0,
           launch_hosting_paid: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPaid) || 0 : 0,
           launch_hosting_pending: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPending) || 0 : 0,
+          ...(isNameserverFlow ? { launch_nameserver_status: "pending_nameservers" } : {}),
         } as any)
         .eq("id", taskId);
       if (error) throw error;
@@ -686,13 +689,23 @@ const PMDashboard = () => {
           .single();
 
         if (developer?.user_id) {
-          await supabase.from("notifications").insert({
-            user_id: developer.user_id,
-            type: "website_launch",
-            title: "Website Ready for Launch",
-            message: `${taskTitle} has been approved and is ready for launch`,
-            task_id: taskId,
-          });
+          if (isNameserverFlow) {
+            await supabase.from("notifications").insert({
+              user_id: developer.user_id,
+              type: "nameserver_request",
+              title: "Provide Nameservers",
+              message: `Please provide nameservers for domain: ${launch.domain}`,
+              task_id: taskId,
+            });
+          } else {
+            await supabase.from("notifications").insert({
+              user_id: developer.user_id,
+              type: "website_launch",
+              title: "Website Ready for Launch",
+              message: `${taskTitle} has been approved and is ready for launch`,
+              task_id: taskId,
+            });
+          }
         }
       }
     },
@@ -704,6 +717,52 @@ const PMDashboard = () => {
         domain: "", accessMethod: "", domainProvider: "", hostingUsername: "", hostingPassword: "",
         hostingProvider: "plex_hosting", hostingTotal: "", hostingPaid: "", hostingPending: "",
       });
+    },
+  });
+
+  const forwardNameservers = useMutation({
+    mutationFn: async ({ taskId }: { taskId: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ launch_nameserver_status: "forwarded_to_client" } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Nameservers forwarded to client" });
+    },
+  });
+
+  const confirmNameservers = useMutation({
+    mutationFn: async ({ taskId, developerId, domain }: { taskId: string; developerId: string | null; domain: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ launch_nameserver_status: "nameservers_confirmed" } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+
+      if (developerId) {
+        const { data: developer } = await supabase
+          .from("developers")
+          .select("user_id")
+          .eq("id", developerId)
+          .single();
+
+        if (developer?.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: developer.user_id,
+            type: "nameserver_confirmed",
+            title: "Nameservers Confirmed",
+            message: `Client has updated nameservers for ${domain}. Proceed with launch.`,
+            task_id: taskId,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Nameservers confirmed — developer notified" });
     },
   });
 
@@ -1932,6 +1991,61 @@ const PMDashboard = () => {
                             queryKeysToInvalidate={[["pm-tasks"], ["pm-project-phases"], ["design-submissions"]]}
                             submissions={groupSubmissions.filter((s: any) => s.file_name === 'comment-only')}
                           />
+                        </div>
+                      )}
+                      {/* Nameserver Status Section */}
+                      {(task as any).launch_access_method === "nameservers" && (task as any).launch_nameserver_status && (
+                        <div className="px-4 py-3 border-t">
+                          {(task as any).launch_nameserver_status === "pending_nameservers" && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Clock className="h-4 w-4" />
+                              <span>Awaiting nameservers from developer...</span>
+                            </div>
+                          )}
+                          {(task as any).launch_nameserver_status === "nameservers_provided" && (
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium">Nameservers Ready</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {[(task as any).launch_nameserver_1, (task as any).launch_nameserver_2, (task as any).launch_nameserver_3, (task as any).launch_nameserver_4]
+                                  .filter(Boolean)
+                                  .map((ns: string, i: number) => (
+                                    <div key={i} className="text-xs bg-muted/50 rounded px-2 py-1.5 font-mono">{ns}</div>
+                                  ))}
+                              </div>
+                              <Button
+                                size="sm"
+                                className="mt-2"
+                                onClick={() => forwardNameservers.mutate({ taskId: task.id })}
+                                disabled={forwardNameservers.isPending}
+                              >
+                                Forward to Client
+                              </Button>
+                            </div>
+                          )}
+                          {(task as any).launch_nameserver_status === "forwarded_to_client" && (
+                            <div className="space-y-2">
+                              <p className="text-sm text-muted-foreground">Nameservers forwarded to client. Click below once client confirms update.</p>
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => confirmNameservers.mutate({ 
+                                  taskId: task.id, 
+                                  developerId: task.developer_id,
+                                  domain: (task as any).launch_domain || ''
+                                })}
+                                disabled={confirmNameservers.isPending}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                Nameservers Confirmed
+                              </Button>
+                            </div>
+                          )}
+                          {(task as any).launch_nameserver_status === "nameservers_confirmed" && (
+                            <Badge className="bg-green-600 text-white">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Nameservers Confirmed — Awaiting Launch
+                            </Badge>
+                          )}
                         </div>
                       )}
                     </div>
