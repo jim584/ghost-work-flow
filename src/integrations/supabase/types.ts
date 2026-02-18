@@ -857,7 +857,9 @@ export type Database = {
           launch_dns_mx_record: string | null
           launch_dns_status: string | null
           launch_domain: string | null
+          launch_domain_password: string | null
           launch_domain_provider: string | null
+          launch_domain_username: string | null
           launch_hosting_access_method: string | null
           launch_hosting_delegate_status: string | null
           launch_hosting_paid: number | null
@@ -969,7 +971,9 @@ export type Database = {
           launch_dns_mx_record?: string | null
           launch_dns_status?: string | null
           launch_domain?: string | null
+          launch_domain_password?: string | null
           launch_domain_provider?: string | null
+          launch_domain_username?: string | null
           launch_hosting_access_method?: string | null
           launch_hosting_delegate_status?: string | null
           launch_hosting_paid?: number | null
@@ -1081,7 +1085,9 @@ export type Database = {
           launch_dns_mx_record?: string | null
           launch_dns_status?: string | null
           launch_domain?: string | null
+          launch_domain_password?: string | null
           launch_domain_provider?: string | null
+          launch_domain_username?: string | null
           launch_hosting_access_method?: string | null
           launch_hosting_delegate_status?: string | null
           launch_hosting_paid?: number | null
