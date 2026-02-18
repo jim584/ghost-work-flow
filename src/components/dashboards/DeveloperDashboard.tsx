@@ -1634,6 +1634,25 @@ const DeveloperDashboard = () => {
                             <p className="text-xs text-muted-foreground">DNS records submitted — waiting for client confirmation</p>
                           </div>
                         )}
+
+                        {/* Delegate Access Status Badges */}
+                        {(task as any).launch_access_method === "delegate" && (task as any).launch_delegate_status === "pending_delegation" && (
+                          <div className="mt-3 p-2 border rounded-md bg-muted/30">
+                            <p className="text-xs text-muted-foreground">⏳ Awaiting delegate access from client to Charley@plexLogo.com...</p>
+                          </div>
+                        )}
+                        {(task as any).launch_access_method === "delegate" && (task as any).launch_delegate_status === "forwarded_to_client" && (
+                          <div className="mt-3 p-2 border rounded-md bg-muted/30">
+                            <p className="text-xs text-muted-foreground">📞 PM has contacted client about delegation</p>
+                          </div>
+                        )}
+                        {(task as any).launch_access_method === "delegate" && (task as any).launch_delegate_status === "access_granted" && (
+                          <div className="mt-3 p-2 border rounded-md bg-green-500/10">
+                            <Badge className="bg-green-600 text-white">
+                              🚀 Delegate Access Confirmed — Proceed with Launch
+                            </Badge>
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-2 ml-4">
                         <Badge className={hasRevision ? "bg-destructive text-destructive-foreground" : getStatusColor(task.status)}>
