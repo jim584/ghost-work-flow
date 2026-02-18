@@ -341,10 +341,6 @@ export function NotificationBell({ userId }: { userId: string }) {
         return '🔗';
       case 'self_launch_completed':
         return '✅';
-      case 'upsell_pending':
-        return '💼';
-      case 'upsell_completed':
-        return '✅';
       case 'website_marked_live':
         return '🚀';
       default:
