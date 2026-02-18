@@ -125,6 +125,10 @@ const PMDashboard = () => {
     hostingTotal: "",
     hostingPaid: "",
     hostingPending: "",
+    hostingAccessMethod: "",
+    hostingProviderName: "",
+    hostingCredUsername: "",
+    hostingCredPassword: "",
   });
 
   const { data: projectManagers = [] } = useProjectManagers();
@@ -662,6 +666,8 @@ const PMDashboard = () => {
       const isNameserverFlow = launch.accessMethod === "nameservers";
       const isDnsFlow = launch.accessMethod === "dns_records";
       const isDelegateFlow = launch.accessMethod === "delegate";
+      const isHostingDelegate = launch.hostingProvider === "client_hosting" && launch.hostingAccessMethod === "hosting_delegate";
+      const isSelfLaunch = launch.hostingProvider === "client_hosting" && launch.hostingAccessMethod === "self_launch";
       
       // Update task with launch details and set status to approved
       const { error } = await supabase
@@ -670,8 +676,8 @@ const PMDashboard = () => {
           status: "approved" as any,
           launch_domain: launch.domain,
           launch_access_method: launch.accessMethod,
-           launch_hosting_username: launch.accessMethod === "credentials" ? launch.hostingUsername : null,
-           launch_hosting_password: launch.accessMethod === "credentials" ? launch.hostingPassword : null,
+           launch_hosting_username: launch.accessMethod === "credentials" ? launch.hostingUsername : (launch.hostingAccessMethod === "hosting_credentials" ? launch.hostingCredUsername : null),
+           launch_hosting_password: launch.accessMethod === "credentials" ? launch.hostingPassword : (launch.hostingAccessMethod === "hosting_credentials" ? launch.hostingCredPassword : null),
            launch_domain_provider: launch.accessMethod === "credentials" ? launch.domainProvider : null,
           launch_hosting_provider: launch.hostingProvider,
           launch_hosting_total: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingTotal) || 0 : 0,
@@ -680,6 +686,12 @@ const PMDashboard = () => {
           ...(isNameserverFlow ? { launch_nameserver_status: "pending_nameservers" } : {}),
           ...(isDnsFlow ? { launch_dns_status: "pending_dns" } : {}),
           ...(isDelegateFlow ? { launch_delegate_status: "pending_delegation" } : {}),
+          ...(launch.hostingProvider === "client_hosting" ? { 
+            launch_hosting_access_method: launch.hostingAccessMethod,
+            launch_hosting_provider_name: launch.hostingProviderName,
+          } : {}),
+          ...(isHostingDelegate ? { launch_hosting_delegate_status: "pending_delegation" } : {}),
+          ...(isSelfLaunch ? { launch_self_launch_status: "pending_link" } : {}),
         } as any)
         .eq("id", taskId);
       if (error) throw error;
@@ -717,7 +729,29 @@ const PMDashboard = () => {
               message: `Verify delegate access for domain: ${launch.domain}. Client will delegate access to Charley@plexLogo.com`,
               task_id: taskId,
             });
-          } else {
+          }
+          
+          // Hosting-level notifications
+          if (isHostingDelegate) {
+            await supabase.from("notifications").insert({
+              user_id: developer.user_id,
+              type: "hosting_delegate_request",
+              title: "Hosting Delegate Access Pending",
+              message: `Client will delegate hosting access (${launch.hostingProviderName || 'hosting'}) to Charley@plexLogo.com for ${launch.domain}`,
+              task_id: taskId,
+            });
+          } else if (isSelfLaunch) {
+            await supabase.from("notifications").insert({
+              user_id: developer.user_id,
+              type: "self_launch_link_request",
+              title: "Generate WeTransfer Link",
+              message: `Client will self-launch ${launch.domain}. Please generate a WeTransfer download link for the website files.`,
+              task_id: taskId,
+            });
+          }
+          
+          // General launch notification (only if no special domain flow)
+          if (!isNameserverFlow && !isDnsFlow && !isDelegateFlow) {
             await supabase.from("notifications").insert({
               user_id: developer.user_id,
               type: "website_launch",
@@ -736,6 +770,7 @@ const PMDashboard = () => {
       setLaunchData({
         domain: "", accessMethod: "", domainProvider: "", hostingUsername: "", hostingPassword: "",
         hostingProvider: "plex_hosting", hostingTotal: "", hostingPaid: "", hostingPending: "",
+        hostingAccessMethod: "", hostingProviderName: "", hostingCredUsername: "", hostingCredPassword: "",
       });
     },
   });
@@ -844,6 +879,86 @@ const PMDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       toast({ title: "Delegate access confirmed — developer notified" });
+    },
+  });
+
+  // Hosting delegate access workflow mutations
+  const forwardHostingDelegate = useMutation({
+    mutationFn: async ({ taskId }: { taskId: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ launch_hosting_delegate_status: "forwarded_to_client" } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Hosting delegate instructions forwarded to client" });
+    },
+  });
+
+  const confirmHostingDelegate = useMutation({
+    mutationFn: async ({ taskId, developerId, domain }: { taskId: string; developerId: string | null; domain: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ launch_hosting_delegate_status: "access_granted" } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+
+      if (developerId) {
+        const { data: developer } = await supabase
+          .from("developers")
+          .select("user_id")
+          .eq("id", developerId)
+          .single();
+
+        if (developer?.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: developer.user_id,
+            type: "hosting_delegate_confirmed",
+            title: "Hosting Delegate Access Granted",
+            message: `Client has granted hosting delegate access for ${domain}. Proceed with launch.`,
+            task_id: taskId,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Hosting delegate access confirmed — developer notified" });
+    },
+  });
+
+  // Self-launch workflow mutation
+  const markSelfLaunchCompleted = useMutation({
+    mutationFn: async ({ taskId, developerId, domain }: { taskId: string; developerId: string | null; domain: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ launch_self_launch_status: "self_launch_completed" } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+
+      if (developerId) {
+        const { data: developer } = await supabase
+          .from("developers")
+          .select("user_id")
+          .eq("id", developerId)
+          .single();
+
+        if (developer?.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: developer.user_id,
+            type: "self_launch_completed",
+            title: "Self-Launch Completed",
+            message: `Client has self-launched ${domain}. Please verify the website is live.`,
+            task_id: taskId,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Self-launch marked as completed — developer notified to verify" });
     },
   });
 
@@ -2270,6 +2385,89 @@ const PMDashboard = () => {
                           )}
                         </div>
                       )}
+                      {/* Hosting Delegate Access Status Section */}
+                      {(task as any).launch_hosting_access_method === "hosting_delegate" && (task as any).launch_hosting_delegate_status && (
+                        <div className="px-4 py-3 border-t">
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Hosting Delegate Access ({(task as any).launch_hosting_provider_name || 'Client Hosting'})</p>
+                          {(task as any).launch_hosting_delegate_status === "pending_delegation" && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Mail className="h-4 w-4 text-blue-500" />
+                                <span>Client must delegate hosting access to <strong className="font-mono">Charley@plexLogo.com</strong></span>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => forwardHostingDelegate.mutate({ taskId: task.id })}
+                                disabled={forwardHostingDelegate.isPending}
+                              >
+                                Access Forwarded to Client
+                              </Button>
+                            </div>
+                          )}
+                          {(task as any).launch_hosting_delegate_status === "forwarded_to_client" && (
+                            <div className="space-y-2">
+                              <p className="text-sm text-muted-foreground">Hosting delegation instructions sent to client. Click below once client confirms access granted.</p>
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => confirmHostingDelegate.mutate({ 
+                                  taskId: task.id, 
+                                  developerId: task.developer_id,
+                                  domain: (task as any).launch_domain || ''
+                                })}
+                                disabled={confirmHostingDelegate.isPending}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                Access Granted
+                              </Button>
+                            </div>
+                          )}
+                          {(task as any).launch_hosting_delegate_status === "access_granted" && (
+                            <Badge className="bg-green-600 text-white">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Hosting Delegate Access Granted
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      {/* Self-Launch Status Section */}
+                      {(task as any).launch_hosting_access_method === "self_launch" && (task as any).launch_self_launch_status && (
+                        <div className="px-4 py-3 border-t">
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Self-Launch ({(task as any).launch_hosting_provider_name || 'Client Hosting'})</p>
+                          {(task as any).launch_self_launch_status === "pending_link" && (
+                            <Badge variant="outline">⏳ Awaiting WeTransfer link from developer</Badge>
+                          )}
+                          {(task as any).launch_self_launch_status === "link_provided" && (
+                            <div className="space-y-2">
+                              <div className="text-sm">
+                                <span className="text-muted-foreground">WeTransfer Link: </span>
+                                <a href={(task as any).launch_wetransfer_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all">
+                                  {(task as any).launch_wetransfer_link}
+                                </a>
+                              </div>
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => markSelfLaunchCompleted.mutate({ 
+                                  taskId: task.id, 
+                                  developerId: task.developer_id,
+                                  domain: (task as any).launch_domain || ''
+                                })}
+                                disabled={markSelfLaunchCompleted.isPending}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                Self-Launch Completed
+                              </Button>
+                            </div>
+                          )}
+                          {(task as any).launch_self_launch_status === "self_launch_completed" && (
+                            <Badge className="bg-green-600 text-white">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Self-Launch Completed
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Card Footer */}
@@ -3522,6 +3720,7 @@ const PMDashboard = () => {
           setLaunchData({
             domain: "", accessMethod: "", domainProvider: "", hostingUsername: "", hostingPassword: "",
             hostingProvider: "plex_hosting", hostingTotal: "", hostingPaid: "", hostingPending: "",
+            hostingAccessMethod: "", hostingProviderName: "", hostingCredUsername: "", hostingCredPassword: "",
           });
         }
       }}>
@@ -3655,6 +3854,78 @@ const PMDashboard = () => {
                     />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {launchData.hostingProvider === "client_hosting" && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Hosting Provider Name</Label>
+                  <Input
+                    value={launchData.hostingProviderName}
+                    onChange={(e) => setLaunchData(d => ({ ...d, hostingProviderName: e.target.value }))}
+                    placeholder="e.g. GoDaddy, Bluehost, etc."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hosting Access Method *</Label>
+                  <Select value={launchData.hostingAccessMethod} onValueChange={(v) => setLaunchData(d => ({ ...d, hostingAccessMethod: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select hosting access method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hosting_delegate">Client will give delegate access</SelectItem>
+                      <SelectItem value="hosting_credentials">Client will provide hosting login credentials</SelectItem>
+                      <SelectItem value="self_launch">Client will launch himself (Self-Launch)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {launchData.hostingAccessMethod === "hosting_delegate" && (
+                  <div className="p-3 rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">📧 Hosting Delegate Access</p>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      The client will need to provide delegate access to the hosting account:
+                    </p>
+                    <div className="mt-2 px-3 py-2 bg-white dark:bg-background rounded border font-mono text-sm">
+                      Charley@plexLogo.com
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Call the client and explain how to delegate hosting access.
+                    </p>
+                  </div>
+                )}
+
+                {launchData.hostingAccessMethod === "hosting_credentials" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Hosting Username</Label>
+                      <Input
+                        value={launchData.hostingCredUsername}
+                        onChange={(e) => setLaunchData(d => ({ ...d, hostingCredUsername: e.target.value }))}
+                        placeholder="Username"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Hosting Password</Label>
+                      <Input
+                        type="password"
+                        value={launchData.hostingCredPassword}
+                        onChange={(e) => setLaunchData(d => ({ ...d, hostingCredPassword: e.target.value }))}
+                        placeholder="Password"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {launchData.hostingAccessMethod === "self_launch" && (
+                  <div className="p-3 rounded-md border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">📦 Self-Launch Process</p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      The developer will generate a WeTransfer download link for the website files. You will communicate this link to the client, who will perform the launch themselves.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

@@ -333,6 +333,14 @@ export function NotificationBell({ userId }: { userId: string }) {
         return '🔑';
       case 'delegate_confirmed':
         return '✅';
+      case 'hosting_delegate_request':
+        return '🔑';
+      case 'hosting_delegate_confirmed':
+        return '✅';
+      case 'self_launch_link_request':
+        return '🔗';
+      case 'self_launch_completed':
+        return '✅';
       default:
         return '📢';
     }

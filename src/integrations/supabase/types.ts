@@ -858,10 +858,13 @@ export type Database = {
           launch_dns_status: string | null
           launch_domain: string | null
           launch_domain_provider: string | null
+          launch_hosting_access_method: string | null
+          launch_hosting_delegate_status: string | null
           launch_hosting_paid: number | null
           launch_hosting_password: string | null
           launch_hosting_pending: number | null
           launch_hosting_provider: string | null
+          launch_hosting_provider_name: string | null
           launch_hosting_total: number | null
           launch_hosting_username: string | null
           launch_nameserver_1: string | null
@@ -869,6 +872,8 @@ export type Database = {
           launch_nameserver_3: string | null
           launch_nameserver_4: string | null
           launch_nameserver_status: string | null
+          launch_self_launch_status: string | null
+          launch_wetransfer_link: string | null
           logo_style: string | null
           logo_type: string | null
           logo_url: string | null
@@ -965,10 +970,13 @@ export type Database = {
           launch_dns_status?: string | null
           launch_domain?: string | null
           launch_domain_provider?: string | null
+          launch_hosting_access_method?: string | null
+          launch_hosting_delegate_status?: string | null
           launch_hosting_paid?: number | null
           launch_hosting_password?: string | null
           launch_hosting_pending?: number | null
           launch_hosting_provider?: string | null
+          launch_hosting_provider_name?: string | null
           launch_hosting_total?: number | null
           launch_hosting_username?: string | null
           launch_nameserver_1?: string | null
@@ -976,6 +984,8 @@ export type Database = {
           launch_nameserver_3?: string | null
           launch_nameserver_4?: string | null
           launch_nameserver_status?: string | null
+          launch_self_launch_status?: string | null
+          launch_wetransfer_link?: string | null
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null
@@ -1072,10 +1082,13 @@ export type Database = {
           launch_dns_status?: string | null
           launch_domain?: string | null
           launch_domain_provider?: string | null
+          launch_hosting_access_method?: string | null
+          launch_hosting_delegate_status?: string | null
           launch_hosting_paid?: number | null
           launch_hosting_password?: string | null
           launch_hosting_pending?: number | null
           launch_hosting_provider?: string | null
+          launch_hosting_provider_name?: string | null
           launch_hosting_total?: number | null
           launch_hosting_username?: string | null
           launch_nameserver_1?: string | null
@@ -1083,6 +1096,8 @@ export type Database = {
           launch_nameserver_3?: string | null
           launch_nameserver_4?: string | null
           launch_nameserver_status?: string | null
+          launch_self_launch_status?: string | null
+          launch_wetransfer_link?: string | null
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null
