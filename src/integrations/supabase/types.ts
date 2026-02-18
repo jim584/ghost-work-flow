@@ -915,6 +915,11 @@ export type Database = {
           total_phases: number | null
           transferred_by: string | null
           updated_at: string | null
+          upsell_completed_at: string | null
+          upsell_notes: string | null
+          upsell_status: string | null
+          upsell_verified_at: string | null
+          upsell_verified_by: string | null
           usage_type: string | null
           video_keywords: string | null
           website_deadline_type: string | null
@@ -1031,6 +1036,11 @@ export type Database = {
           total_phases?: number | null
           transferred_by?: string | null
           updated_at?: string | null
+          upsell_completed_at?: string | null
+          upsell_notes?: string | null
+          upsell_status?: string | null
+          upsell_verified_at?: string | null
+          upsell_verified_by?: string | null
           usage_type?: string | null
           video_keywords?: string | null
           website_deadline_type?: string | null
@@ -1147,6 +1157,11 @@ export type Database = {
           total_phases?: number | null
           transferred_by?: string | null
           updated_at?: string | null
+          upsell_completed_at?: string | null
+          upsell_notes?: string | null
+          upsell_status?: string | null
+          upsell_verified_at?: string | null
+          upsell_verified_by?: string | null
           usage_type?: string | null
           video_keywords?: string | null
           website_deadline_type?: string | null

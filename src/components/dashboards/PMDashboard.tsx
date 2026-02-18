@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle, RotateCcw, AlertTriangle, PauseCircle, PlayCircle, Rocket } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle, RotateCcw, AlertTriangle, PauseCircle, PlayCircle, Rocket, ArrowUpRight } from "lucide-react";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 
 import { useProjectManagers } from "@/hooks/useProjectManagers";
@@ -996,8 +996,44 @@ const PMDashboard = () => {
     },
   });
 
-  
+  // Verify & Forward to Upsell mutation
+  const verifyAndForwardToUpsell = useMutation({
+    mutationFn: async ({ taskId }: { taskId: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          upsell_status: "pending_upsell",
+          upsell_verified_at: new Date().toISOString(),
+          upsell_verified_by: user!.id,
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Website verified — forwarded to upsell queue" });
+    },
+  });
 
+  // Mark Upsell Complete mutation
+  const markUpsellComplete = useMutation({
+    mutationFn: async ({ taskId }: { taskId: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          upsell_status: "upsell_completed",
+          upsell_completed_at: new Date().toISOString(),
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Upsell follow-up completed" });
+    },
+  });
+
+  
   const reassignTask = useMutation({
     mutationFn: async ({ taskId, newPmId, reason }: { taskId: string; newPmId: string; reason: string }) => {
       const { error } = await supabase
@@ -1222,6 +1258,11 @@ const PMDashboard = () => {
     const isDelayed = isDeadlineDelayed || isRevisionDelayed;
 
     const categories: string[] = [];
+    
+    // Check for upsell_pending status
+    const hasUpsellPending = activeTasks.some((t: any) => (t as any).upsell_status === 'pending_upsell');
+    if (hasUpsellPending) categories.push('upsell_pending');
+    
     // Use submission data if available, otherwise fall back to task status
     // This handles closedByMe orders where the user isn't the assigned PM and can't see submissions
     const hasCompletedTask = activeTasks.some((t: any) => t.status === 'completed');
@@ -1277,6 +1318,7 @@ const PMDashboard = () => {
     needs_revision: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('needs_revision')).length,
     pending_delivery: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending_delivery')).length,
     cancelled: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('cancelled')).length,
+    upsell_pending: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('upsell_pending')).length,
     total: groupedOrders.length,
   };
 
@@ -1325,13 +1367,14 @@ const PMDashboard = () => {
   const getCategoryPriority = (category: string) => {
     const priorities: Record<string, number> = {
       recently_delivered: 1,
-      pending_delivery: 2,  // Partial deliveries show high - PM needs to track remaining teams
+      pending_delivery: 2,
       delayed: 3,
       delayed_ack: 4,
-      pending: 5,
-      in_progress: 6,
-      needs_revision: 7,
-      other: 8,
+      upsell_pending: 5,
+      pending: 6,
+      in_progress: 7,
+      needs_revision: 8,
+      other: 9,
     };
     return priorities[category] || 99;
   };
@@ -1400,7 +1443,7 @@ const PMDashboard = () => {
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
       const categories = getGroupCategories(group, submissions || []);
-      return categories.some(c => ['recently_delivered', 'delayed', 'delayed_ack', 'pending', 'in_progress', 'needs_revision', 'pending_delivery', 'on_hold'].includes(c));
+      return categories.some(c => ['recently_delivered', 'delayed', 'delayed_ack', 'pending', 'in_progress', 'needs_revision', 'pending_delivery', 'on_hold', 'upsell_pending'].includes(c));
     }
     // Handle all category filters using getGroupCategories for multi-team support
     const categories = getGroupCategories(group, submissions || []);
@@ -1546,7 +1589,7 @@ const PMDashboard = () => {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-7 mb-8">
+        <div className="grid gap-4 md:grid-cols-8 mb-8">
           <Card 
             className={`border-l-4 border-l-green-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'recently_delivered' ? 'ring-2 ring-green-500' : ''}`}
             onClick={() => setStatusFilter('recently_delivered')}
@@ -1642,6 +1685,20 @@ const PMDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold">{stats.delayed_ack}</div>
               <p className="text-xs text-muted-foreground">Late acknowledgement</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={`border-l-4 border-l-purple-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'upsell_pending' ? 'ring-2 ring-purple-500' : ''}`}
+            onClick={() => setStatusFilter('upsell_pending')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Upsell Queue</CardTitle>
+              <ArrowUpRight className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.upsell_pending}</div>
+              <p className="text-xs text-muted-foreground">Pending upsell</p>
             </CardContent>
           </Card>
         </div>
@@ -2492,13 +2549,53 @@ const PMDashboard = () => {
                           )}
                         </div>
                       )}
-                      {/* Website Marked Live Badge */}
+                      {/* Website Marked Live Badge + Upsell Actions */}
                       {(task as any).launch_website_live_at && (
-                        <div className="px-4 py-3 border-t">
+                        <div className="px-4 py-3 border-t space-y-2">
                           <Badge className="bg-green-600 text-white">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             🚀 Website Marked Live — {format(new Date((task as any).launch_website_live_at), 'MMM d, yyyy HH:mm')}
                           </Badge>
+                          {/* Verify & Forward to Upsell - only show if no upsell status yet */}
+                          {!(task as any).upsell_status && (
+                            <div>
+                              <Button
+                                size="sm"
+                                className="bg-purple-600 hover:bg-purple-700 text-white"
+                                onClick={() => verifyAndForwardToUpsell.mutate({ taskId: task.id })}
+                                disabled={verifyAndForwardToUpsell.isPending}
+                              >
+                                <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
+                                Verify & Forward to Upsell
+                              </Button>
+                            </div>
+                          )}
+                          {/* Upsell Pending Badge + Complete button */}
+                          {(task as any).upsell_status === 'pending_upsell' && (
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-purple-600 text-white">
+                                <ArrowUpRight className="h-3 w-3 mr-1" />
+                                Pending Upsell Follow-up
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-purple-500 text-purple-600 hover:bg-purple-50"
+                                onClick={() => markUpsellComplete.mutate({ taskId: task.id })}
+                                disabled={markUpsellComplete.isPending}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                Mark Upsell Complete
+                              </Button>
+                            </div>
+                          )}
+                          {/* Upsell Completed Badge */}
+                          {(task as any).upsell_status === 'upsell_completed' && (
+                            <Badge className="bg-green-700 text-white">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              ✅ Upsell Completed {(task as any).upsell_completed_at ? `— ${format(new Date((task as any).upsell_completed_at), 'MMM d, yyyy')}` : ''}
+                            </Badge>
+                          )}
                         </div>
                       )}
                     </div>
