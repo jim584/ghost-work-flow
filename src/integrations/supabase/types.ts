@@ -851,6 +851,10 @@ export type Database = {
           is_upsell: boolean
           late_acknowledgement: boolean
           launch_access_method: string | null
+          launch_dns_a_record: string | null
+          launch_dns_cname: string | null
+          launch_dns_mx_record: string | null
+          launch_dns_status: string | null
           launch_domain: string | null
           launch_domain_provider: string | null
           launch_hosting_paid: number | null
@@ -953,6 +957,10 @@ export type Database = {
           is_upsell?: boolean
           late_acknowledgement?: boolean
           launch_access_method?: string | null
+          launch_dns_a_record?: string | null
+          launch_dns_cname?: string | null
+          launch_dns_mx_record?: string | null
+          launch_dns_status?: string | null
           launch_domain?: string | null
           launch_domain_provider?: string | null
           launch_hosting_paid?: number | null
@@ -1055,6 +1063,10 @@ export type Database = {
           is_upsell?: boolean
           late_acknowledgement?: boolean
           launch_access_method?: string | null
+          launch_dns_a_record?: string | null
+          launch_dns_cname?: string | null
+          launch_dns_mx_record?: string | null
+          launch_dns_status?: string | null
           launch_domain?: string | null
           launch_domain_provider?: string | null
           launch_hosting_paid?: number | null
