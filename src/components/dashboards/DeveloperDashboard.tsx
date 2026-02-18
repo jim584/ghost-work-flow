@@ -367,6 +367,7 @@ const DeveloperDashboard = () => {
   const [chatTask, setChatTask] = useState<any>(null);
   const [nameserverInputs, setNameserverInputs] = useState<{[taskId: string]: {ns1: string; ns2: string; ns3: string; ns4: string}}>({});
   const [dnsInputs, setDnsInputs] = useState<{[taskId: string]: {aRecord: string; cname: string; mx: string}}>({});
+  const [wetransferInputs, setWetransferInputs] = useState<{[taskId: string]: string}>({});
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -1650,6 +1651,92 @@ const DeveloperDashboard = () => {
                           <div className="mt-3 p-2 border rounded-md bg-green-500/10">
                             <Badge className="bg-green-600 text-white">
                               🚀 Delegate Access Confirmed — Proceed with Launch
+                            </Badge>
+                          </div>
+                        )}
+
+                        {/* Hosting Delegate Access Status Badges */}
+                        {(task as any).launch_hosting_access_method === "hosting_delegate" && (task as any).launch_hosting_delegate_status === "pending_delegation" && (
+                          <div className="mt-3 p-2 border rounded-md bg-muted/30">
+                            <p className="text-xs text-muted-foreground">⏳ Awaiting hosting delegate access from client ({(task as any).launch_hosting_provider_name || 'hosting'})...</p>
+                          </div>
+                        )}
+                        {(task as any).launch_hosting_access_method === "hosting_delegate" && (task as any).launch_hosting_delegate_status === "forwarded_to_client" && (
+                          <div className="mt-3 p-2 border rounded-md bg-muted/30">
+                            <p className="text-xs text-muted-foreground">📞 PM has contacted client about hosting delegation</p>
+                          </div>
+                        )}
+                        {(task as any).launch_hosting_access_method === "hosting_delegate" && (task as any).launch_hosting_delegate_status === "access_granted" && (
+                          <div className="mt-3 p-2 border rounded-md bg-green-500/10">
+                            <Badge className="bg-green-600 text-white">
+                              🚀 Hosting Delegate Access Confirmed — Proceed with Launch
+                            </Badge>
+                          </div>
+                        )}
+
+                        {/* Self-Launch WeTransfer Link Section */}
+                        {(task as any).launch_hosting_access_method === "self_launch" && (task as any).launch_self_launch_status === "pending_link" && (
+                          <div className="mt-3 p-3 border rounded-md bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 space-y-2">
+                            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">📦 Generate WeTransfer Link</p>
+                            <p className="text-xs text-muted-foreground">
+                              Client will self-launch. Please generate a WeTransfer download link for the website files and paste it below.
+                            </p>
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="https://we.tl/..."
+                                value={wetransferInputs[task.id] || ''}
+                                onChange={(e) => setWetransferInputs(prev => ({ ...prev, [task.id]: e.target.value }))}
+                                className="flex-1"
+                              />
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  const link = wetransferInputs[task.id]?.trim();
+                                  if (!link) {
+                                    toast({ variant: "destructive", title: "Please enter a WeTransfer link" });
+                                    return;
+                                  }
+                                  if (!link) {
+                                    toast({ variant: "destructive", title: "Please enter a WeTransfer link" });
+                                    return;
+                                  }
+                                  const { error } = await supabase
+                                    .from("tasks")
+                                    .update({
+                                      launch_wetransfer_link: link,
+                                      launch_self_launch_status: "link_provided",
+                                    } as any)
+                                    .eq("id", task.id);
+                                  if (error) {
+                                    toast({ variant: "destructive", title: "Error", description: error.message });
+                                    return;
+                                  }
+                                  // Notify PM
+                                  await supabase.from("notifications").insert({
+                                    user_id: task.project_manager_id,
+                                    type: "self_launch_link_request",
+                                    title: "WeTransfer Link Ready",
+                                    message: `WeTransfer link for ${(task as any).launch_domain || task.title} is ready. Please share with the client.`,
+                                    task_id: task.id,
+                                  });
+                                  queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+                                  toast({ title: "WeTransfer link submitted — PM notified" });
+                                }}
+                              >
+                                Submit Link
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        {(task as any).launch_hosting_access_method === "self_launch" && (task as any).launch_self_launch_status === "link_provided" && (
+                          <div className="mt-3 p-2 border rounded-md bg-muted/30">
+                            <p className="text-xs text-muted-foreground">📤 WeTransfer link sent to PM — awaiting client self-launch</p>
+                          </div>
+                        )}
+                        {(task as any).launch_hosting_access_method === "self_launch" && (task as any).launch_self_launch_status === "self_launch_completed" && (
+                          <div className="mt-3 p-2 border rounded-md bg-green-500/10">
+                            <Badge className="bg-green-600 text-white">
+                              ✅ Client has self-launched. Verify the website is live.
                             </Badge>
                           </div>
                         )}
