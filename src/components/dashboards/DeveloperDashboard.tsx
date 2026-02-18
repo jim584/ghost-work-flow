@@ -1118,8 +1118,11 @@ const DeveloperDashboard = () => {
         `#${task.task_number}`.includes(query);
     }
     if (statusFilter === "active") {
+      // Exclude tasks that are already live (website launched) — no more developer action needed
+      if (task.status === "approved" && (task as any).launch_website_live_at) return false;
+      
       if (task.status === "assigned" || task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id)) return true;
-      if (task.status === "approved" && !(task as any).launch_website_live_at) {
+      if (task.status === "approved") {
         // Hide from active when waiting on client/PM
         const ns = (task as any).launch_nameserver_status;
         const dns = (task as any).launch_dns_status;
