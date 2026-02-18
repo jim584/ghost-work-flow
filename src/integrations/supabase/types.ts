@@ -859,6 +859,11 @@ export type Database = {
           launch_hosting_provider: string | null
           launch_hosting_total: number | null
           launch_hosting_username: string | null
+          launch_nameserver_1: string | null
+          launch_nameserver_2: string | null
+          launch_nameserver_3: string | null
+          launch_nameserver_4: string | null
+          launch_nameserver_status: string | null
           logo_style: string | null
           logo_type: string | null
           logo_url: string | null
@@ -956,6 +961,11 @@ export type Database = {
           launch_hosting_provider?: string | null
           launch_hosting_total?: number | null
           launch_hosting_username?: string | null
+          launch_nameserver_1?: string | null
+          launch_nameserver_2?: string | null
+          launch_nameserver_3?: string | null
+          launch_nameserver_4?: string | null
+          launch_nameserver_status?: string | null
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null
@@ -1053,6 +1063,11 @@ export type Database = {
           launch_hosting_provider?: string | null
           launch_hosting_total?: number | null
           launch_hosting_username?: string | null
+          launch_nameserver_1?: string | null
+          launch_nameserver_2?: string | null
+          launch_nameserver_3?: string | null
+          launch_nameserver_4?: string | null
+          launch_nameserver_status?: string | null
           logo_style?: string | null
           logo_type?: string | null
           logo_url?: string | null
