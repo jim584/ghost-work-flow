@@ -1,33 +1,32 @@
 
 
-# DNS Records Provisioning Workflow
+# Delegate Access Workflow
 
 ## Overview
 
-Add a workflow for the "Client will update DNS records" access method, mirroring the existing nameserver provisioning flow. When a PM selects this option during website launch, the developer will provide DNS record values (A record, CNAME, MX records) that the PM forwards to the client.
+When a PM selects "Client will delegate access" during website launch, a multi-step workflow will guide the PM through communicating delegate access instructions to the client, then confirming access was granted before the developer can proceed.
 
-## Workflow
+## Workflow Steps
 
 ```text
-PM submits launch form (dns_records selected)
+PM submits launch form (delegate selected)
         |
         v
-Task status -> "approved", launch_dns_status = "pending_dns"
-Developer gets notification: "Provide DNS records for [domain]"
+Task status -> "approved"
+launch_delegate_status = "pending_delegation"
+Auto-display: "Client must delegate access to Charley@plexLogo.com"
+Developer gets notification: "Verify delegate access for [domain]"
         |
         v
-Developer enters A Record, CNAME, MX Record and submits
-launch_dns_status -> "dns_provided"
-PM gets notification: "DNS records for [domain] are ready"
+PM calls client, explains delegation to Charley@plexLogo.com
+PM clicks "Access Forwarded to Client"
+launch_delegate_status -> "forwarded_to_client"
         |
         v
-PM reviews DNS records (read-only) and clicks "Forward to Client"
-launch_dns_status -> "dns_forwarded_to_client"
-        |
-        v
-PM clicks "DNS Records Confirmed" after client updates
-launch_dns_status -> "dns_confirmed"
-Developer gets notification: "DNS records updated, proceed with launch"
+Client confirms delegation done
+PM clicks "Access Granted"
+launch_delegate_status -> "access_granted"
+Developer gets notification: "Delegate access granted for [domain], proceed with launch"
         |
         v
 Developer proceeds with normal launch flow
@@ -37,55 +36,51 @@ Developer proceeds with normal launch flow
 
 ### 1. Database Migration
 
-Add new columns to the `tasks` table:
-- `launch_dns_status` (text, nullable) -- tracks workflow stage
-- `launch_dns_a_record` (text, nullable) -- A record / IP address
-- `launch_dns_cname` (text, nullable) -- CNAME record
-- `launch_dns_mx_record` (text, nullable) -- MX record
+Add a new column to the `tasks` table:
+- `launch_delegate_status` (text, nullable) -- tracks: pending_delegation, forwarded_to_client, access_granted
 
 Add new notification types to the constraint:
-- `dns_request` -- sent to developer when PM initiates DNS flow
-- `dns_ready` -- sent to PM when developer provides DNS records
-- `dns_confirmed` -- sent to developer when PM confirms client updated DNS
+- `delegate_request` -- sent to developer when PM initiates delegate flow
+- `delegate_confirmed` -- sent to developer when PM confirms access granted
 
-### 2. PM Dashboard Changes (PMDashboard.tsx)
+### 2. PM Dashboard (PMDashboard.tsx)
 
-**Launch form submission (when accessMethod = "dns_records"):**
-- Sets `launch_dns_status = "pending_dns"` on the task
-- Sends a `dns_request` notification to the developer
+**Launch form (when accessMethod = "delegate"):**
+- Show a read-only info box: "The client will need to provide delegate access to Charley@plexLogo.com" with the email pre-filled and non-editable
 
-**Task card display (for DNS-flow tasks):**
-- `pending_dns`: Show "Awaiting DNS records from developer..."
-- `dns_provided`: Show A record, CNAME, MX values read-only with "Forward to Client" button
-- `dns_forwarded_to_client`: Show "DNS Records Confirmed" button
-- `dns_confirmed`: Show confirmation badge
+**Launch submission:**
+- Sets `launch_delegate_status = "pending_delegation"`
+- Sends `delegate_request` notification to the developer
 
-**New mutations:** `forwardDnsRecords` and `confirmDnsRecords` (parallel to nameserver mutations)
+**Task card display (for delegate-flow tasks):**
+- `pending_delegation`: Show delegate email info + "Access Forwarded to Client" button
+- `forwarded_to_client`: Show "Access Granted" button (PM clicks after client confirms)
+- `access_granted`: Show green confirmation badge
 
-### 3. Developer Dashboard Changes (DeveloperDashboard.tsx)
+### 3. Admin Dashboard (AdminDashboard.tsx)
 
-**For tasks with `launch_access_method = "dns_records"` and `launch_dns_status = "pending_dns"`:**
-- Show 3 input fields: A Record (IP Address), CNAME Record, MX Record -- A Record is required, others optional
-- "Submit DNS Records" button
+Mirror the same delegate status section and action buttons (Forward to Client, Access Granted) as in the PM Dashboard.
 
-**After submission:**
-- Updates `launch_dns_a_record`, `launch_dns_cname`, `launch_dns_mx_record`
-- Sets `launch_dns_status = "dns_provided"`
-- Sends `dns_ready` notification to PM
+### 4. Developer Dashboard (DeveloperDashboard.tsx)
 
-**Status badges for `dns_provided`/`dns_forwarded_to_client`/`dns_confirmed`**
+Show status badges for delegate-flow tasks:
+- `pending_delegation`: "Awaiting delegate access from client..."
+- `forwarded_to_client`: "PM has contacted client about delegation"
+- `access_granted`: "Delegate access confirmed -- proceed with launch"
 
-### 4. Notification Bell (NotificationBell.tsx)
+No input form needed (unlike nameserver/DNS flows) since the email is fixed.
 
-Add icons for new notification types:
-- `dns_request` -> globe icon
-- `dns_ready` -> checkmark
-- `dns_confirmed` -> rocket
+### 5. Notification Bell (NotificationBell.tsx)
 
-### 5. Files Modified
+Add icons for the 2 new notification types:
+- `delegate_request` -> key/shield icon
+- `delegate_confirmed` -> checkmark icon
 
-1. **Database migration** -- new columns + updated notification constraint
-2. **PMDashboard.tsx** -- launch logic, mutations, task card display
-3. **DeveloperDashboard.tsx** -- DNS input form, submit mutation, status display
-4. **NotificationBell.tsx** -- icons for 3 new notification types
+### 6. Files Modified
+
+1. New database migration -- add `launch_delegate_status` column + update notification constraint
+2. `PMDashboard.tsx` -- delegate info box in modal, launch logic, status section with action buttons
+3. `AdminDashboard.tsx` -- matching delegate status section and action buttons
+4. `DeveloperDashboard.tsx` -- status badges for delegate flow
+5. `NotificationBell.tsx` -- icons for `delegate_request` and `delegate_confirmed`
 
