@@ -1085,12 +1085,12 @@ const DeveloperDashboard = () => {
     if (status === "on_hold") return "On Hold";
     if (status === "approved" && task) {
       if (task.launch_website_live_at) return "Website Live";
-      if (task.launch_nameserver_status && task.launch_nameserver_status !== "confirmed") {
-        const nsLabels: Record<string, string> = { pending: "Nameserver Pending", provided: "Nameservers Provided", forwarded: "Nameservers Forwarded" };
+      if (task.launch_nameserver_status && task.launch_nameserver_status !== "nameservers_confirmed") {
+        const nsLabels: Record<string, string> = { pending_nameservers: "Nameserver Pending", nameservers_provided: "Nameservers Provided", nameservers_forwarded: "Nameservers Forwarded" };
         return nsLabels[task.launch_nameserver_status] || "Nameserver Pending";
       }
-      if (task.launch_dns_status && task.launch_dns_status !== "confirmed") {
-        const dnsLabels: Record<string, string> = { pending: "DNS Pending", provided: "DNS Provided", forwarded: "DNS Forwarded" };
+      if (task.launch_dns_status && task.launch_dns_status !== "dns_confirmed") {
+        const dnsLabels: Record<string, string> = { pending_dns: "DNS Pending", dns_provided: "DNS Provided", dns_forwarded: "DNS Forwarded" };
         return dnsLabels[task.launch_dns_status] || "DNS Pending";
       }
       if (task.launch_delegate_status && task.launch_delegate_status !== "confirmed") return "Delegate Pending";
