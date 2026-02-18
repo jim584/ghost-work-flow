@@ -1100,7 +1100,7 @@ const DeveloperDashboard = () => {
         `#${task.task_number}`.includes(query);
     }
     if (statusFilter === "active") {
-      return task.status === "assigned" || task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id);
+      return task.status === "assigned" || task.status === "pending" || task.status === "in_progress" || tasksNeedingRevision.some(t => t.id === task.id) || (task.status === "approved" && !(task as any).launch_website_live_at);
     }
     if (statusFilter === "delayed") return isTaskDelayed(task);
     if (!statusFilter) return true;
