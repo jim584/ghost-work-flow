@@ -1072,7 +1072,7 @@ const DeveloperDashboard = () => {
       case "pending": return "bg-muted text-muted-foreground";
       case "in_progress": return "bg-warning text-warning-foreground";
       case "completed": return "bg-primary text-primary-foreground";
-      case "approved": return "bg-success text-success-foreground";
+      case "approved": return "bg-orange-500/10 text-orange-700 dark:text-orange-400";
       case "on_hold": return "bg-amber-500/10 text-amber-700 dark:text-amber-400";
       default: return "bg-muted text-muted-foreground";
     }
@@ -1083,6 +1083,21 @@ const DeveloperDashboard = () => {
     if (status === "in_progress") return `Phase ${task?.current_phase || 1} in Progress`;
     if (status === "completed") return "Website Complete";
     if (status === "on_hold") return "On Hold";
+    if (status === "approved" && task) {
+      if (task.launch_website_live_at) return "Website Live";
+      if (task.launch_nameserver_status && task.launch_nameserver_status !== "confirmed") {
+        const nsLabels: Record<string, string> = { pending: "Nameserver Pending", provided: "Nameservers Provided", forwarded: "Nameservers Forwarded" };
+        return nsLabels[task.launch_nameserver_status] || "Nameserver Pending";
+      }
+      if (task.launch_dns_status && task.launch_dns_status !== "confirmed") {
+        const dnsLabels: Record<string, string> = { pending: "DNS Pending", provided: "DNS Provided", forwarded: "DNS Forwarded" };
+        return dnsLabels[task.launch_dns_status] || "DNS Pending";
+      }
+      if (task.launch_delegate_status && task.launch_delegate_status !== "confirmed") return "Delegate Pending";
+      if (task.launch_self_launch_status && task.launch_self_launch_status !== "confirmed") return "Self-Launch Pending";
+      if (task.launch_hosting_delegate_status && task.launch_hosting_delegate_status !== "confirmed") return "Hosting Delegate Pending";
+      return "Launch Pending";
+    }
     return status.replace("_", " ");
   };
 
