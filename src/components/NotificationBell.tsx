@@ -323,6 +323,12 @@ export function NotificationBell({ userId }: { userId: string }) {
         return '✅';
       case 'nameserver_confirmed':
         return '🚀';
+      case 'dns_request':
+        return '🌐';
+      case 'dns_ready':
+        return '✅';
+      case 'dns_confirmed':
+        return '🚀';
       default:
         return '📢';
     }

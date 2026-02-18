@@ -660,6 +660,7 @@ const PMDashboard = () => {
       launch: typeof launchData;
     }) => {
       const isNameserverFlow = launch.accessMethod === "nameservers";
+      const isDnsFlow = launch.accessMethod === "dns_records";
       
       // Update task with launch details and set status to approved
       const { error } = await supabase
@@ -676,6 +677,7 @@ const PMDashboard = () => {
           launch_hosting_paid: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPaid) || 0 : 0,
           launch_hosting_pending: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPending) || 0 : 0,
           ...(isNameserverFlow ? { launch_nameserver_status: "pending_nameservers" } : {}),
+          ...(isDnsFlow ? { launch_dns_status: "pending_dns" } : {}),
         } as any)
         .eq("id", taskId);
       if (error) throw error;
@@ -695,6 +697,14 @@ const PMDashboard = () => {
               type: "nameserver_request",
               title: "Provide Nameservers",
               message: `Please provide nameservers for domain: ${launch.domain}`,
+              task_id: taskId,
+            });
+          } else if (isDnsFlow) {
+            await supabase.from("notifications").insert({
+              user_id: developer.user_id,
+              type: "dns_request",
+              title: "Provide DNS Records",
+              message: `Please provide DNS records for domain: ${launch.domain}`,
               task_id: taskId,
             });
           } else {
@@ -763,6 +773,52 @@ const PMDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       toast({ title: "Nameservers confirmed — developer notified" });
+    },
+  });
+
+  const forwardDnsRecords = useMutation({
+    mutationFn: async ({ taskId }: { taskId: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ launch_dns_status: "dns_forwarded_to_client" } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "DNS records forwarded to client" });
+    },
+  });
+
+  const confirmDnsRecords = useMutation({
+    mutationFn: async ({ taskId, developerId, domain }: { taskId: string; developerId: string | null; domain: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ launch_dns_status: "dns_confirmed" } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+
+      if (developerId) {
+        const { data: developer } = await supabase
+          .from("developers")
+          .select("user_id")
+          .eq("id", developerId)
+          .single();
+
+        if (developer?.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: developer.user_id,
+            type: "dns_confirmed",
+            title: "DNS Records Confirmed",
+            message: `Client has updated DNS records for ${domain}. Proceed with launch.`,
+            task_id: taskId,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "DNS records confirmed — developer notified" });
     },
   });
 
@@ -2044,6 +2100,71 @@ const PMDashboard = () => {
                             <Badge className="bg-green-600 text-white">
                               <CheckCircle2 className="h-3 w-3 mr-1" />
                               Nameservers Confirmed — Awaiting Launch
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      {/* DNS Records Status Section */}
+                      {(task as any).launch_access_method === "dns_records" && (task as any).launch_dns_status && (
+                        <div className="px-4 py-3 border-t">
+                          {(task as any).launch_dns_status === "pending_dns" && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Clock className="h-4 w-4" />
+                              <span>Awaiting DNS records from developer...</span>
+                            </div>
+                          )}
+                          {(task as any).launch_dns_status === "dns_provided" && (
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium">DNS Records Ready</p>
+                              <div className="space-y-1">
+                                {(task as any).launch_dns_a_record && (
+                                  <div className="text-xs bg-muted/50 rounded px-2 py-1.5 font-mono">
+                                    <span className="text-muted-foreground">A Record:</span> {(task as any).launch_dns_a_record}
+                                  </div>
+                                )}
+                                {(task as any).launch_dns_cname && (
+                                  <div className="text-xs bg-muted/50 rounded px-2 py-1.5 font-mono">
+                                    <span className="text-muted-foreground">CNAME:</span> {(task as any).launch_dns_cname}
+                                  </div>
+                                )}
+                                {(task as any).launch_dns_mx_record && (
+                                  <div className="text-xs bg-muted/50 rounded px-2 py-1.5 font-mono">
+                                    <span className="text-muted-foreground">MX:</span> {(task as any).launch_dns_mx_record}
+                                  </div>
+                                )}
+                              </div>
+                              <Button
+                                size="sm"
+                                className="mt-2"
+                                onClick={() => forwardDnsRecords.mutate({ taskId: task.id })}
+                                disabled={forwardDnsRecords.isPending}
+                              >
+                                Forward to Client
+                              </Button>
+                            </div>
+                          )}
+                          {(task as any).launch_dns_status === "dns_forwarded_to_client" && (
+                            <div className="space-y-2">
+                              <p className="text-sm text-muted-foreground">DNS records forwarded to client. Click below once client confirms update.</p>
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => confirmDnsRecords.mutate({ 
+                                  taskId: task.id, 
+                                  developerId: task.developer_id,
+                                  domain: (task as any).launch_domain || ''
+                                })}
+                                disabled={confirmDnsRecords.isPending}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                DNS Records Confirmed
+                              </Button>
+                            </div>
+                          )}
+                          {(task as any).launch_dns_status === "dns_confirmed" && (
+                            <Badge className="bg-green-600 text-white">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              DNS Records Confirmed — Awaiting Launch
                             </Badge>
                           )}
                         </div>

@@ -366,6 +366,7 @@ const DeveloperDashboard = () => {
   const [urlInput, setUrlInput] = useState("");
   const [chatTask, setChatTask] = useState<any>(null);
   const [nameserverInputs, setNameserverInputs] = useState<{[taskId: string]: {ns1: string; ns2: string; ns3: string; ns4: string}}>({});
+  const [dnsInputs, setDnsInputs] = useState<{[taskId: string]: {aRecord: string; cname: string; mx: string}}>({});
 
   // Fetch user's team IDs for notifications
   useEffect(() => {
@@ -994,6 +995,35 @@ const DeveloperDashboard = () => {
     },
   });
 
+  const submitDnsRecords = useMutation({
+    mutationFn: async ({ taskId, aRecord, cname, mx, pmId, domain }: { 
+      taskId: string; aRecord: string; cname: string; mx: string; pmId: string; domain: string;
+    }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({
+          launch_dns_status: "dns_provided",
+          launch_dns_a_record: aRecord,
+          launch_dns_cname: cname || null,
+          launch_dns_mx_record: mx || null,
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+
+      await supabase.from("notifications").insert({
+        user_id: pmId,
+        type: "dns_ready",
+        title: "DNS Records Ready",
+        message: `DNS records for ${domain} are ready. Please forward to client.`,
+        task_id: taskId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+      toast({ title: "DNS records submitted" });
+    },
+  });
+
   const tasksNeedingRevision = tasks?.filter((t) => {
     const taskSubmissions = submissions?.filter(s => s.task_id === t.id) || [];
     return taskSubmissions.some(s => s.revision_status === "needs_revision");
@@ -1523,6 +1553,85 @@ const DeveloperDashboard = () => {
                         {(task as any).launch_access_method === "nameservers" && ((task as any).launch_nameserver_status === "nameservers_provided" || (task as any).launch_nameserver_status === "forwarded_to_client") && (
                           <div className="mt-3 p-2 border rounded-md bg-muted/30">
                             <p className="text-xs text-muted-foreground">Nameservers submitted — waiting for client confirmation</p>
+                          </div>
+                        )}
+
+                        {/* DNS Records Provisioning Section */}
+                        {(task as any).launch_access_method === "dns_records" && (task as any).launch_dns_status === "pending_dns" && (
+                          <div className="mt-3 p-3 border rounded-md bg-muted/30 space-y-3">
+                            <p className="text-sm font-medium">🌐 Provide DNS Records for {(task as any).launch_domain || 'this domain'}</p>
+                            <div className="space-y-2">
+                              <div>
+                                <Label className="text-xs">A Record (IP Address) *</Label>
+                                <Input
+                                  placeholder="e.g. 192.168.1.1"
+                                  value={dnsInputs[task.id]?.aRecord || ''}
+                                  onChange={(e) => setDnsInputs(prev => ({
+                                    ...prev,
+                                    [task.id]: { ...prev[task.id], aRecord: e.target.value, cname: prev[task.id]?.cname || '', mx: prev[task.id]?.mx || '' }
+                                  }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">CNAME Record (optional)</Label>
+                                <Input
+                                  placeholder="e.g. www.example.com"
+                                  value={dnsInputs[task.id]?.cname || ''}
+                                  onChange={(e) => setDnsInputs(prev => ({
+                                    ...prev,
+                                    [task.id]: { ...prev[task.id], aRecord: prev[task.id]?.aRecord || '', cname: e.target.value, mx: prev[task.id]?.mx || '' }
+                                  }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">MX Record (optional)</Label>
+                                <Input
+                                  placeholder="e.g. mail.example.com"
+                                  value={dnsInputs[task.id]?.mx || ''}
+                                  onChange={(e) => setDnsInputs(prev => ({
+                                    ...prev,
+                                    [task.id]: { ...prev[task.id], aRecord: prev[task.id]?.aRecord || '', cname: prev[task.id]?.cname || '', mx: e.target.value }
+                                  }))}
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const dns = dnsInputs[task.id];
+                                if (!dns?.aRecord?.trim()) {
+                                  toast({ variant: "destructive", title: "A Record is required" });
+                                  return;
+                                }
+                                submitDnsRecords.mutate({
+                                  taskId: task.id,
+                                  aRecord: dns.aRecord.trim(),
+                                  cname: dns.cname?.trim() || '',
+                                  mx: dns.mx?.trim() || '',
+                                  pmId: task.project_manager_id,
+                                  domain: (task as any).launch_domain || '',
+                                });
+                              }}
+                              disabled={submitDnsRecords.isPending}
+                            >
+                              Submit DNS Records
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* DNS Confirmed Badge */}
+                        {(task as any).launch_access_method === "dns_records" && (task as any).launch_dns_status === "dns_confirmed" && (
+                          <div className="mt-3 p-2 border rounded-md bg-green-500/10">
+                            <Badge className="bg-green-600 text-white">
+                              🚀 DNS Records Confirmed — Proceed with Launch
+                            </Badge>
+                          </div>
+                        )}
+
+                        {/* DNS Provided - waiting for PM */}
+                        {(task as any).launch_access_method === "dns_records" && ((task as any).launch_dns_status === "dns_provided" || (task as any).launch_dns_status === "dns_forwarded_to_client") && (
+                          <div className="mt-3 p-2 border rounded-md bg-muted/30">
+                            <p className="text-xs text-muted-foreground">DNS records submitted — waiting for client confirmation</p>
                           </div>
                         )}
                       </div>
