@@ -875,6 +875,8 @@ export type Database = {
           launch_nameserver_4: string | null
           launch_nameserver_status: string | null
           launch_self_launch_status: string | null
+          launch_website_live_at: string | null
+          launch_website_live_by: string | null
           launch_wetransfer_link: string | null
           logo_style: string | null
           logo_type: string | null
@@ -989,6 +991,8 @@ export type Database = {
           launch_nameserver_4?: string | null
           launch_nameserver_status?: string | null
           launch_self_launch_status?: string | null
+          launch_website_live_at?: string | null
+          launch_website_live_by?: string | null
           launch_wetransfer_link?: string | null
           logo_style?: string | null
           logo_type?: string | null
@@ -1103,6 +1107,8 @@ export type Database = {
           launch_nameserver_4?: string | null
           launch_nameserver_status?: string | null
           launch_self_launch_status?: string | null
+          launch_website_live_at?: string | null
+          launch_website_live_by?: string | null
           launch_wetransfer_link?: string | null
           logo_style?: string | null
           logo_type?: string | null

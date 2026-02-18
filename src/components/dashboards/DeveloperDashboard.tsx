@@ -1764,6 +1764,72 @@ const DeveloperDashboard = () => {
                             </Badge>
                           </div>
                         )}
+
+                        {/* Mark Website Live Button - appears when all access methods are resolved */}
+                        {task.status === "approved" && !(task as any).launch_website_live_at && (() => {
+                          const domainMethod = (task as any).launch_access_method;
+                          const domainResolved = 
+                            !domainMethod || domainMethod === "not_required" ||
+                            domainMethod === "credentials" ||
+                            (domainMethod === "delegate" && (task as any).launch_delegate_status === "access_granted") ||
+                            (domainMethod === "nameservers" && (task as any).launch_nameserver_status === "nameservers_confirmed") ||
+                            (domainMethod === "dns_records" && (task as any).launch_dns_status === "dns_confirmed");
+                          
+                          const hostingProvider = (task as any).launch_hosting_provider;
+                          const hostingMethod = (task as any).launch_hosting_access_method;
+                          const hostingResolved = 
+                            hostingProvider === "plex_hosting" || !hostingProvider ||
+                            hostingMethod === "hosting_credentials" ||
+                            (hostingMethod === "hosting_delegate" && (task as any).launch_hosting_delegate_status === "access_granted") ||
+                            (hostingMethod === "self_launch" && (task as any).launch_self_launch_status === "self_launch_completed");
+                          
+                          if (!domainResolved || !hostingResolved) return null;
+                          
+                          return (
+                            <div className="mt-3 p-3 border rounded-md bg-primary/5 border-primary/20">
+                              <p className="text-sm font-medium mb-2">🚀 All access methods resolved — ready to launch!</p>
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={async () => {
+                                  const { error } = await supabase
+                                    .from("tasks")
+                                    .update({
+                                      launch_website_live_at: new Date().toISOString(),
+                                      launch_website_live_by: user!.id,
+                                    } as any)
+                                    .eq("id", task.id);
+                                  if (error) {
+                                    toast({ variant: "destructive", title: "Error", description: error.message });
+                                    return;
+                                  }
+                                  await supabase.from("notifications").insert({
+                                    user_id: task.project_manager_id,
+                                    type: "website_marked_live",
+                                    title: "Website Marked Live",
+                                    message: `Developer has marked ${(task as any).launch_domain || task.title} as live. Please verify and close the task.`,
+                                    task_id: task.id,
+                                  });
+                                  queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+                                  toast({ title: "Website marked as live — PM notified to verify" });
+                                }}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                Mark Website Live
+                              </Button>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Website Already Marked Live */}
+                        {(task as any).launch_website_live_at && (
+                          <div className="mt-3 p-2 border rounded-md bg-green-500/10">
+                            <Badge className="bg-green-600 text-white">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Website Marked Live — {format(new Date((task as any).launch_website_live_at), 'MMM d, yyyy HH:mm')}
+                            </Badge>
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-2 ml-4">
                         <Badge className={hasRevision ? "bg-destructive text-destructive-foreground" : getStatusColor(task.status)}>

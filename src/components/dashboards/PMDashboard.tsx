@@ -2492,6 +2492,15 @@ const PMDashboard = () => {
                           )}
                         </div>
                       )}
+                      {/* Website Marked Live Badge */}
+                      {(task as any).launch_website_live_at && (
+                        <div className="px-4 py-3 border-t">
+                          <Badge className="bg-green-600 text-white">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            🚀 Website Marked Live — {format(new Date((task as any).launch_website_live_at), 'MMM d, yyyy HH:mm')}
+                          </Badge>
+                        </div>
+                      )}
                     </div>
 
                     {/* Card Footer */}
