@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar, MessageCircle, Timer, RotateCcw } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar, MessageCircle, Timer, RotateCcw, PauseCircle, PlayCircle, Rocket } from "lucide-react";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { exportTasksToCSV, exportSalesPerformanceToCSV, exportUsersToCSV } from "@/utils/csvExport";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -226,6 +226,22 @@ const AdminDashboard = () => {
   const { signOut, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Realtime subscription for phase_reviews and project_phases
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-phase-reviews-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_reviews' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+        queryClient.invalidateQueries({ queryKey: ["admin-project-phases"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_phases' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+        queryClient.invalidateQueries({ queryKey: ["admin-project-phases"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
   
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -301,6 +317,20 @@ const AdminDashboard = () => {
   const [pmWorkloadDialog, setPmWorkloadDialog] = useState<{ open: boolean; pmId: string; pmName: string } | null>(null);
   const [pmWorkloadFilter, setPmWorkloadFilter] = useState<'all' | 'this_month'>('all');
   const [chatTask, setChatTask] = useState<any>(null);
+  const [launchDialog, setLaunchDialog] = useState<{ taskId: string; taskTitle: string; developerId: string | null } | null>(null);
+  const [launchData, setLaunchData] = useState({
+    domain: "",
+    accessMethod: "",
+    domainProvider: "",
+    hostingUsername: "",
+    hostingPassword: "",
+    hostingProvider: "plex_hosting",
+    hostingTotal: "",
+    hostingPaid: "",
+    hostingPending: "",
+  });
+  const [holdOrderDialog, setHoldOrderDialog] = useState<{ open: boolean; taskId: string }>({ open: false, taskId: "" });
+  const [holdOrderReason, setHoldOrderReason] = useState("");
 
   // Helper function to filter tasks by metric type for a specific user
   const getFilteredTasksForMetric = (userId: string, metricType: string) => {
@@ -679,6 +709,153 @@ const AdminDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
       toast({ title: "DNS records confirmed — developer notified" });
+    },
+  });
+
+  // Launch website mutation
+  const launchWebsite = useMutation({
+    mutationFn: async ({ taskId, taskTitle, developerId, launch }: { 
+      taskId: string; taskTitle: string; developerId: string | null;
+      launch: typeof launchData;
+    }) => {
+      const isNameserverFlow = launch.accessMethod === "nameservers";
+      const isDnsFlow = launch.accessMethod === "dns_records";
+      
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          status: "approved" as any,
+          launch_domain: launch.domain,
+          launch_access_method: launch.accessMethod,
+          launch_hosting_username: launch.accessMethod === "credentials" ? launch.hostingUsername : null,
+          launch_hosting_password: launch.accessMethod === "credentials" ? launch.hostingPassword : null,
+          launch_domain_provider: launch.accessMethod === "credentials" ? launch.domainProvider : null,
+          launch_hosting_provider: launch.hostingProvider,
+          launch_hosting_total: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingTotal) || 0 : 0,
+          launch_hosting_paid: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPaid) || 0 : 0,
+          launch_hosting_pending: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPending) || 0 : 0,
+          ...(isNameserverFlow ? { launch_nameserver_status: "pending_nameservers" } : {}),
+          ...(isDnsFlow ? { launch_dns_status: "pending_dns" } : {}),
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+
+      if (developerId) {
+        const { data: developer } = await supabase
+          .from("developers")
+          .select("user_id")
+          .eq("id", developerId)
+          .single();
+
+        if (developer?.user_id) {
+          if (isNameserverFlow) {
+            await supabase.from("notifications").insert({
+              user_id: developer.user_id,
+              type: "nameserver_request",
+              title: "Provide Nameservers",
+              message: `Please provide nameservers for domain: ${launch.domain}`,
+              task_id: taskId,
+            });
+          } else if (isDnsFlow) {
+            await supabase.from("notifications").insert({
+              user_id: developer.user_id,
+              type: "dns_request",
+              title: "Provide DNS Records",
+              message: `Please provide DNS records for domain: ${launch.domain}`,
+              task_id: taskId,
+            });
+          } else {
+            await supabase.from("notifications").insert({
+              user_id: developer.user_id,
+              type: "website_launch",
+              title: "Website Ready for Launch",
+              message: `${taskTitle} has been approved and is ready for launch`,
+              task_id: taskId,
+            });
+          }
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+      toast({ title: "Website sent for launch" });
+      setLaunchDialog(null);
+      setLaunchData({
+        domain: "", accessMethod: "", domainProvider: "", hostingUsername: "", hostingPassword: "",
+        hostingProvider: "plex_hosting", hostingTotal: "", hostingPaid: "", hostingPending: "",
+      });
+    },
+  });
+
+  // Update task status (for Approve)
+  const updateTaskStatus = useMutation({
+    mutationFn: async ({ taskId, status }: { taskId: string; status: Database["public"]["Enums"]["task_status"] }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status })
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+      toast({ title: "Task status updated" });
+    },
+  });
+
+  // Accept order mutation
+  const acceptOrder = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ accepted_by_pm: true } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+      toast({ title: "Order accepted successfully" });
+    },
+  });
+
+  // Hold order mutation
+  const holdOrder = useMutation({
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          status: "on_hold" as any, 
+          hold_reason: reason,
+          held_at: new Date().toISOString(),
+          held_by: user!.id,
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+      toast({ title: "Order put on hold" });
+      setHoldOrderDialog({ open: false, taskId: "" });
+      setHoldOrderReason("");
+    },
+  });
+
+  // Resume order mutation
+  const resumeOrder = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          status: "in_progress" as any, 
+          hold_reason: null,
+          held_at: null,
+          held_by: null,
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+      toast({ title: "Order resumed" });
     },
   });
 
@@ -1443,7 +1620,18 @@ const AdminDashboard = () => {
     const isDelayed = isDeadlineDelayed || isRevisionDelayed;
     
     const categories: string[] = [];
+    // Check for completed tasks with no pending review but completed status
+    const hasCompletedTask = activeTasks.some((t: any) => t.status === 'completed');
     if (hasPendingReview) categories.push('recently_delivered');
+    else if (hasCompletedTask && groupSubmissions.length === 0) categories.push('recently_delivered');
+    // For website orders, check if any phase has been submitted but not yet reviewed
+    const isWebsiteGroup = representativeTask?.post_type === "Website Design";
+    if (isWebsiteGroup && !categories.includes('recently_delivered')) {
+      const hasPhaseAwaitingReview = (projectPhases || []).some(
+        (p: any) => activeTasks.some((t: any) => t.id === p.task_id) && p.completed_at && !p.reviewed_at
+      );
+      if (hasPhaseAwaitingReview) categories.push('recently_delivered');
+    }
     if (hasNeedsRevision) categories.push('needs_revision');
     if (isDelayed) categories.push('delayed');
     if (hasTeamsPendingDelivery) categories.push('pending_delivery');
@@ -1456,9 +1644,11 @@ const AdminDashboard = () => {
     const hasAnyPending = activeTasks.some((t: any) => t.status === 'pending' || t.status === 'assigned');
     const hasAnyInProgress = activeTasks.some((t: any) => t.status === 'in_progress');
     const hasAnyCancelled = group.allTasks.some((t: any) => t.status === 'cancelled');
+    const hasAnyOnHold = activeTasks.some((t: any) => t.status === 'on_hold');
     if (hasAnyPending) categories.push('pending');
     if (hasAnyInProgress) categories.push('in_progress');
     if (hasAnyCancelled) categories.push('cancelled');
+    if (hasAnyOnHold) categories.push('on_hold');
     
     if (categories.length === 0) {
       if (allApproved) categories.push('approved');
@@ -1489,7 +1679,15 @@ const AdminDashboard = () => {
     const isDelayed = isDeadlineDelayed || isRevisionDelayed;
     
     if (task.status === 'cancelled') return 'cancelled';
+    if (task.status === 'on_hold') return 'on_hold';
     if (hasPendingReview) return 'recently_delivered';
+    // For website orders, check if any phase awaits review
+    if (task?.post_type === "Website Design" && !hasPendingReview) {
+      const hasPhaseAwaitingReview = (projectPhases || []).some(
+        (p: any) => p.task_id === task.id && p.completed_at && !p.reviewed_at
+      );
+      if (hasPhaseAwaitingReview) return 'recently_delivered';
+    }
     if (hasNeedsRevision) return 'needs_revision';
     if (isDelayed) return 'delayed';
     if (allApproved) return 'approved';
@@ -1525,6 +1723,7 @@ const AdminDashboard = () => {
     pending_delivery: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending_delivery')).length,
     cancelled: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('cancelled')).length,
     approved: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('approved')).length,
+    on_hold: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('on_hold')).length,
     total: groupedOrders.length,
   };
 
@@ -1540,6 +1739,8 @@ const AdminDashboard = () => {
         return "bg-success text-success-foreground";
       case "cancelled":
         return "bg-destructive text-destructive-foreground";
+      case "on_hold":
+        return "bg-amber-500 text-white";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -1604,7 +1805,7 @@ const AdminDashboard = () => {
     if (!statusFilter) return true;
     if (statusFilter === 'priority') {
       const categories = getGroupCategories(group, submissions || []);
-      return categories.some(c => ['recently_delivered', 'delayed', 'delayed_ack', 'pending', 'in_progress', 'needs_revision', 'pending_delivery'].includes(c));
+      return categories.some(c => ['recently_delivered', 'delayed', 'delayed_ack', 'pending', 'in_progress', 'needs_revision', 'pending_delivery', 'on_hold'].includes(c));
     }
     // Handle all category filters using getGroupCategories for multi-team support
     const categories = getGroupCategories(group, submissions || []);
@@ -1887,6 +2088,20 @@ const AdminDashboard = () => {
         
         {viewMode === 'tasks' && (
         <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-8 mb-8">
+          <Card 
+            className={`border-l-4 border-l-amber-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'on_hold' ? 'ring-2 ring-amber-500' : ''}`}
+            onClick={() => setStatusFilter('on_hold')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">On Hold</CardTitle>
+              <PauseCircle className="h-4 w-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.on_hold}</div>
+              <p className="text-xs text-muted-foreground">Paused orders</p>
+            </CardContent>
+          </Card>
+
           <Card 
             className={`border-l-4 border-l-green-500 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'recently_delivered' ? 'ring-2 ring-green-500' : ''}`}
             onClick={() => setStatusFilter('recently_delivered')}
@@ -2633,7 +2848,7 @@ const AdminDashboard = () => {
                             userId={user!.id}
                             isAssignedPM={false}
                             queryKeysToInvalidate={[["admin-tasks"], ["admin-project-phases"], ["admin-submissions"]]}
-                            readOnly={true}
+                            readOnly={false}
                           />
                         </div>
                       )}
@@ -2775,6 +2990,70 @@ const AdminDashboard = () => {
                             </span>
                           )}
                         </Button>
+                        
+                        {/* Launch Website Button */}
+                        {task.status === "completed" && isWebsiteOrder(task) && (
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700"
+                            onClick={() =>
+                              setLaunchDialog({ taskId: task.id, taskTitle: task.title, developerId: task.developer_id })
+                            }
+                          >
+                            <Rocket className="h-3.5 w-3.5 mr-1.5" />
+                            Launch Website
+                          </Button>
+                        )}
+
+                        {/* Approve Button (for non-website orders) */}
+                        {task.status === "completed" && !isWebsiteOrder(task) && (
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => updateTaskStatus.mutate({ taskId: task.id, status: "approved" })}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                            Approve
+                          </Button>
+                        )}
+
+                        {/* Accept Order Button */}
+                        {task.status === "pending" && !(task as any).accepted_by_pm && (
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => acceptOrder.mutate(task.id)}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                            Accept Order
+                          </Button>
+                        )}
+
+                        {/* Hold/Resume Buttons */}
+                        {task.status !== "completed" && task.status !== "approved" && task.status !== "cancelled" && (
+                          task.status === "on_hold" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-green-500/50 text-green-600 hover:bg-green-500/10"
+                              onClick={() => resumeOrder.mutate(task.id)}
+                            >
+                              <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
+                              Resume
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                              onClick={() => setHoldOrderDialog({ open: true, taskId: task.id })}
+                            >
+                              <PauseCircle className="h-3.5 w-3.5 mr-1.5" />
+                              Hold
+                            </Button>
+                          )
+                        )}
+
                         <Button size="sm" variant="outline" onClick={() => openEditTaskDialog(task)}>
                           <Edit2 className="h-3.5 w-3.5 mr-1.5" />
                           Edit
