@@ -522,6 +522,9 @@ const DeveloperDashboard = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'project_phases' }, () => {
         queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
