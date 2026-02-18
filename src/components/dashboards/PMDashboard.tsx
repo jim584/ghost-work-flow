@@ -2387,6 +2387,17 @@ const PMDashboard = () => {
                           )}
                         </div>
                       )}
+                      {/* Domain Credentials Display */}
+                      {(task as any).launch_access_method === "credentials" && ((task as any).launch_domain_username || (task as any).launch_domain_password) && (
+                        <div className="px-4 py-3 border-t">
+                          <p className="text-xs font-medium text-muted-foreground mb-2">🔑 Domain Login Credentials</p>
+                          {(task as any).launch_domain_provider && (
+                            <p className="text-sm">Provider: <span className="font-medium">{(task as any).launch_domain_provider}</span></p>
+                          )}
+                          <p className="text-sm">Username: <span className="font-mono">{(task as any).launch_domain_username}</span></p>
+                          <p className="text-sm">Password: <span className="font-mono">{(task as any).launch_domain_password}</span></p>
+                        </div>
+                      )}
                       {/* Hosting Delegate Access Status Section */}
                       {(task as any).launch_hosting_access_method === "hosting_delegate" && (task as any).launch_hosting_delegate_status && (
                         <div className="px-4 py-3 border-t">
