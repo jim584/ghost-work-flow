@@ -5563,6 +5563,245 @@ const AdminDashboard = () => {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      {/* Launch Website Dialog */}
+      <Dialog open={!!launchDialog} onOpenChange={(open) => {
+        if (!open) {
+          setLaunchDialog(null);
+          setLaunchData({
+            domain: "", accessMethod: "", domainProvider: "", hostingUsername: "", hostingPassword: "",
+            hostingProvider: "plex_hosting", hostingTotal: "", hostingPaid: "", hostingPending: "",
+            hostingAccessMethod: "", hostingProviderName: "", hostingCredUsername: "", hostingCredPassword: "",
+          });
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Rocket className="h-5 w-5 text-blue-600" />
+              Launch Website
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">{launchDialog?.taskTitle}</p>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="admin-launch-domain">Domain Name *</Label>
+              <Input
+                id="admin-launch-domain"
+                value={launchData.domain}
+                onChange={(e) => setLaunchData(d => ({ ...d, domain: e.target.value }))}
+                placeholder="www.exampleclient.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Access Method *</Label>
+              <Select value={launchData.accessMethod} onValueChange={(v) => setLaunchData(d => ({ ...d, accessMethod: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select access method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="credentials">Client will provide domain login credentials</SelectItem>
+                  <SelectItem value="delegate">Client will delegate access</SelectItem>
+                  <SelectItem value="nameservers">Client will change nameservers</SelectItem>
+                  <SelectItem value="dns_records">Client will update DNS records</SelectItem>
+                  <SelectItem value="not_required">Not required</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {launchData.accessMethod === "credentials" && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-launch-domain-provider">Domain Provider</Label>
+                  <Input
+                    id="admin-launch-domain-provider"
+                    value={launchData.domainProvider}
+                    onChange={(e) => setLaunchData(d => ({ ...d, domainProvider: e.target.value }))}
+                    placeholder="e.g. GoDaddy, Namecheap"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-launch-username">Domain Username</Label>
+                    <Input
+                      id="admin-launch-username"
+                      value={launchData.hostingUsername}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingUsername: e.target.value }))}
+                      placeholder="Username"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-launch-password">Domain Password</Label>
+                    <Input
+                      id="admin-launch-password"
+                      type="password"
+                      value={launchData.hostingPassword}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingPassword: e.target.value }))}
+                      placeholder="Password"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {launchData.accessMethod === "delegate" && (
+              <div className="p-3 rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">📧 Delegate Access Instructions</p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  The client will need to provide delegate access to:
+                </p>
+                <div className="mt-2 px-3 py-2 bg-white dark:bg-background rounded border font-mono text-sm">
+                  Charley@plexLogo.com
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  This email is pre-configured and cannot be changed. You will need to call the client and explain the delegation process.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Hosting Provider *</Label>
+              <Select value={launchData.hostingProvider} onValueChange={(v) => setLaunchData(d => ({ ...d, hostingProvider: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="plex_hosting">Plex Hosting</SelectItem>
+                  <SelectItem value="client_hosting">Client Hosting</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {launchData.hostingProvider === "plex_hosting" && (
+              <div className="space-y-2">
+                <Label>Plex Hosting Price</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Total</Label>
+                    <Input
+                      type="number"
+                      value={launchData.hostingTotal}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingTotal: e.target.value }))}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Paid</Label>
+                    <Input
+                      type="number"
+                      value={launchData.hostingPaid}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingPaid: e.target.value }))}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Pending</Label>
+                    <Input
+                      type="number"
+                      value={launchData.hostingPending}
+                      onChange={(e) => setLaunchData(d => ({ ...d, hostingPending: e.target.value }))}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {launchData.hostingProvider === "client_hosting" && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Hosting Provider Name</Label>
+                  <Input
+                    value={launchData.hostingProviderName}
+                    onChange={(e) => setLaunchData(d => ({ ...d, hostingProviderName: e.target.value }))}
+                    placeholder="e.g. GoDaddy, Bluehost, etc."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hosting Access Method *</Label>
+                  <Select value={launchData.hostingAccessMethod} onValueChange={(v) => setLaunchData(d => ({ ...d, hostingAccessMethod: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select hosting access method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hosting_delegate">Client will give delegate access</SelectItem>
+                      <SelectItem value="hosting_credentials">Client will provide hosting login credentials</SelectItem>
+                      <SelectItem value="self_launch">Client will launch himself (Self-Launch)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {launchData.hostingAccessMethod === "hosting_delegate" && (
+                  <div className="p-3 rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">📧 Hosting Delegate Access</p>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      The client will need to provide delegate access to the hosting account:
+                    </p>
+                    <div className="mt-2 px-3 py-2 bg-white dark:bg-background rounded border font-mono text-sm">
+                      Charley@plexLogo.com
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Call the client and explain how to delegate hosting access.
+                    </p>
+                  </div>
+                )}
+
+                {launchData.hostingAccessMethod === "hosting_credentials" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Hosting Username</Label>
+                      <Input
+                        value={launchData.hostingCredUsername}
+                        onChange={(e) => setLaunchData(d => ({ ...d, hostingCredUsername: e.target.value }))}
+                        placeholder="Username"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Hosting Password</Label>
+                      <Input
+                        type="password"
+                        value={launchData.hostingCredPassword}
+                        onChange={(e) => setLaunchData(d => ({ ...d, hostingCredPassword: e.target.value }))}
+                        placeholder="Password"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {launchData.hostingAccessMethod === "self_launch" && (
+                  <div className="p-3 rounded-md border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">📦 Self-Launch Process</p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      The developer will generate a WeTransfer download link for the website files. You will communicate this link to the client, who will perform the launch themselves.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Button
+              onClick={() => {
+                if (!launchDialog) return;
+                if (!launchData.domain.trim() || !launchData.accessMethod) {
+                  toast({ variant: "destructive", title: "Please fill in all required fields" });
+                  return;
+                }
+                launchWebsite.mutate({
+                  taskId: launchDialog.taskId,
+                  taskTitle: launchDialog.taskTitle,
+                  developerId: launchDialog.developerId,
+                  launch: launchData,
+                });
+              }}
+              disabled={launchWebsite.isPending}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              <Rocket className="h-4 w-4 mr-2" />
+              {launchWebsite.isPending ? "Launching..." : "Launch Website"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* Chat Dialog */}
       <Dialog open={!!chatTask} onOpenChange={(open) => !open && setChatTask(null)}>
         <DialogContent className="max-w-xl max-h-[85vh] p-0 gap-0">
