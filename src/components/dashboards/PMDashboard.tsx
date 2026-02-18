@@ -661,6 +661,7 @@ const PMDashboard = () => {
     }) => {
       const isNameserverFlow = launch.accessMethod === "nameservers";
       const isDnsFlow = launch.accessMethod === "dns_records";
+      const isDelegateFlow = launch.accessMethod === "delegate";
       
       // Update task with launch details and set status to approved
       const { error } = await supabase
@@ -678,6 +679,7 @@ const PMDashboard = () => {
           launch_hosting_pending: launch.hostingProvider === "plex_hosting" ? Number(launch.hostingPending) || 0 : 0,
           ...(isNameserverFlow ? { launch_nameserver_status: "pending_nameservers" } : {}),
           ...(isDnsFlow ? { launch_dns_status: "pending_dns" } : {}),
+          ...(isDelegateFlow ? { launch_delegate_status: "pending_delegation" } : {}),
         } as any)
         .eq("id", taskId);
       if (error) throw error;
@@ -705,6 +707,14 @@ const PMDashboard = () => {
               type: "dns_request",
               title: "Provide DNS Records",
               message: `Please provide DNS records for domain: ${launch.domain}`,
+              task_id: taskId,
+            });
+          } else if (isDelegateFlow) {
+            await supabase.from("notifications").insert({
+              user_id: developer.user_id,
+              type: "delegate_request",
+              title: "Verify Delegate Access",
+              message: `Verify delegate access for domain: ${launch.domain}. Client will delegate access to Charley@plexLogo.com`,
               task_id: taskId,
             });
           } else {
@@ -787,6 +797,53 @@ const PMDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       toast({ title: "DNS records forwarded to client" });
+    },
+  });
+
+  // Delegate access workflow mutations
+  const forwardDelegateAccess = useMutation({
+    mutationFn: async ({ taskId }: { taskId: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ launch_delegate_status: "forwarded_to_client" } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Delegate access instructions forwarded to client" });
+    },
+  });
+
+  const confirmDelegateAccess = useMutation({
+    mutationFn: async ({ taskId, developerId, domain }: { taskId: string; developerId: string | null; domain: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ launch_delegate_status: "access_granted" } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+
+      if (developerId) {
+        const { data: developer } = await supabase
+          .from("developers")
+          .select("user_id")
+          .eq("id", developerId)
+          .single();
+
+        if (developer?.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: developer.user_id,
+            type: "delegate_confirmed",
+            title: "Delegate Access Granted",
+            message: `Client has granted delegate access for ${domain}. Proceed with launch.`,
+            task_id: taskId,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      toast({ title: "Delegate access confirmed — developer notified" });
     },
   });
 
@@ -2169,6 +2226,50 @@ const PMDashboard = () => {
                           )}
                         </div>
                       )}
+                      {/* Delegate Access Status Section */}
+                      {(task as any).launch_access_method === "delegate" && (task as any).launch_delegate_status && (
+                        <div className="px-4 py-3 border-t">
+                          {(task as any).launch_delegate_status === "pending_delegation" && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Mail className="h-4 w-4 text-blue-500" />
+                                <span>Client must delegate access to <strong className="font-mono">Charley@plexLogo.com</strong></span>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => forwardDelegateAccess.mutate({ taskId: task.id })}
+                                disabled={forwardDelegateAccess.isPending}
+                              >
+                                Access Forwarded to Client
+                              </Button>
+                            </div>
+                          )}
+                          {(task as any).launch_delegate_status === "forwarded_to_client" && (
+                            <div className="space-y-2">
+                              <p className="text-sm text-muted-foreground">Delegation instructions sent to client. Click below once client confirms access granted.</p>
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => confirmDelegateAccess.mutate({ 
+                                  taskId: task.id, 
+                                  developerId: task.developer_id,
+                                  domain: (task as any).launch_domain || ''
+                                })}
+                                disabled={confirmDelegateAccess.isPending}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                Access Granted
+                              </Button>
+                            </div>
+                          )}
+                          {(task as any).launch_delegate_status === "access_granted" && (
+                            <Badge className="bg-green-600 text-white">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Delegate Access Granted — Awaiting Launch
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Card Footer */}
@@ -3491,6 +3592,21 @@ const PMDashboard = () => {
                     />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {launchData.accessMethod === "delegate" && (
+              <div className="p-3 rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">📧 Delegate Access Instructions</p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  The client will need to provide delegate access to:
+                </p>
+                <div className="mt-2 px-3 py-2 bg-white dark:bg-background rounded border font-mono text-sm">
+                  Charley@plexLogo.com
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  This email is pre-configured and cannot be changed. You will need to call the client and explain the delegation process.
+                </p>
               </div>
             )}
 

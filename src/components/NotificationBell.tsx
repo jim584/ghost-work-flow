@@ -329,6 +329,10 @@ export function NotificationBell({ userId }: { userId: string }) {
         return '✅';
       case 'dns_confirmed':
         return '🚀';
+      case 'delegate_request':
+        return '🔑';
+      case 'delegate_confirmed':
+        return '✅';
       default:
         return '📢';
     }
