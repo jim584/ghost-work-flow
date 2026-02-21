@@ -13,6 +13,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNow } from "date-fns";
 import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X } from "lucide-react";
 
+// Helper to make URLs in text clickable
+const LinkifyText = ({ text }: { text: string }) => {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        urlRegex.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 break-all">
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+};
+
 interface PhaseReview {
   id: string;
   phase_id: string;
@@ -387,7 +406,9 @@ const DevActionCard = ({ type, phaseNumber, timestamp, devName, submissionFilePa
         <TimeStamp date={timestamp} />
       </div>
       {submissionComment && (
-        <div className="text-xs text-foreground whitespace-pre-wrap border-t border-primary/10 pt-1.5">{submissionComment}</div>
+        <div className="text-xs text-foreground whitespace-pre-wrap border-t border-primary/10 pt-1.5">
+          <LinkifyText text={submissionComment} />
+        </div>
       )}
       {hasFiles && (
         <ReviewFileAttachments filePaths={submissionFilePaths} fileNames={submissionFileNames} />
