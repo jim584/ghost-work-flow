@@ -446,14 +446,16 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
   const isWebsiteOrder = task.post_type === "Website Design";
   if (!isWebsiteOrder) return null;
 
-  // Extract URLs from submissions' designer_comment field
+  // Extract URLs from submissions' designer_comment field or phase submission_comment
   const parseUrls = (comment: string): { label: string; url: string }[] => {
     const results: { label: string; url: string }[] = [];
     const lines = comment.split('\n');
     for (const line of lines) {
-      const match = line.match(/🔗\s*(.+?):\s*(https?:\/\/\S+)/);
+      // Match URLs with or without http/https protocol
+      const match = line.match(/🔗\s*(.+?):\s*((?:https?:\/\/)?[^\s]+\.[a-zA-Z]{2,}[^\s]*)/);
       if (match) {
-        results.push({ label: match[1].trim(), url: match[2].trim() });
+        const url = match[2].match(/^https?:\/\//) ? match[2] : `https://${match[2]}`;
+        results.push({ label: match[1].trim(), url: url.trim() });
       }
     }
     return results;
@@ -582,6 +584,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
               </div>
             </div>
           )}
+          {/* Show URLs from design_submissions */}
           {phaseUrls.length > 0 && (
             <div className="space-y-1">
               {phaseUrls.map((sub: any) => {
@@ -594,6 +597,23 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
               })}
             </div>
           )}
+          {/* Show URLs from phase submission_comment (fallback if no design_submissions) */}
+          {phaseUrls.length === 0 && phase.submission_comment && (() => {
+            const urls = parseUrls(phase.submission_comment);
+            const nonUrlComment = phase.submission_comment.split('\n').filter((line: string) => !line.match(/🔗/)).join('\n').trim();
+            return (
+              <div className="space-y-1">
+                {urls.map((u: { label: string; url: string }, i: number) => (
+                  <a key={`phase-url-${i}`} href={u.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                    <Globe className="h-3 w-3 shrink-0" /><span className="truncate">{u.label}: {u.url}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
+                  </a>
+                ))}
+                {nonUrlComment && (
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">{nonUrlComment}</p>
+                )}
+              </div>
+            );
+          })()}
           {reviewsForPhase.length > 0 && (
             <div className="space-y-2">
               <span className="text-xs font-medium text-muted-foreground">Activity History</span>
