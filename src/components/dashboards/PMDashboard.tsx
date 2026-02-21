@@ -1269,10 +1269,9 @@ const PMDashboard = () => {
     // Use submission data if available, otherwise fall back to task status
     // This handles closedByMe orders where the user isn't the assigned PM and can't see submissions
     const hasCompletedTask = activeTasks.some((t: any) => t.status === 'completed');
-    if (hasPendingReview) categories.push('recently_delivered');
-    else if (hasCompletedTask && groupSubmissions.length === 0) categories.push('recently_delivered');
-    // For website orders, check if any phase has been submitted but not yet reviewed
     const isWebsiteGroup = representativeTask?.post_type === "Website Design";
+    if (hasPendingReview && !isWebsiteGroup) categories.push('recently_delivered');
+    else if (hasCompletedTask && groupSubmissions.length === 0) categories.push('recently_delivered');
     if (isWebsiteGroup && !categories.includes('recently_delivered')) {
       const hasPhaseAwaitingReview = (projectPhases || []).some(
         (p: any) => activeTasks.some((t: any) => t.id === p.task_id) && p.completed_at && !p.reviewed_at
@@ -1342,9 +1341,9 @@ const PMDashboard = () => {
     if (task.status === 'cancelled') return 'cancelled';
     
     // Check for pending work items first - these always show in priority
-    if (hasPendingReview) return 'recently_delivered';
+    if (hasPendingReview && task?.post_type !== "Website Design") return 'recently_delivered';
     // For website orders, check if any phase awaits review
-    if (task?.post_type === "Website Design" && !hasPendingReview) {
+    if (task?.post_type === "Website Design") {
       const hasPhaseAwaitingReview = (projectPhases || []).some(
         (p: any) => p.task_id === task.id && p.completed_at && !p.reviewed_at
       );
