@@ -535,6 +535,13 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           </div>
         </AccordionTrigger>
         <AccordionContent className="pb-3 space-y-3">
+          {/* Submission timestamp */}
+          {phase.completed_at && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3 shrink-0" />
+              <span>Submitted on {format(new Date(phase.completed_at), "MMM d, yyyy 'at' h:mm a")}</span>
+            </div>
+          )}
           {canReview && !hasActiveRevision && (
             <div className="flex items-center gap-1">
               <Button size="sm" variant="outline" className="h-7 text-xs bg-green-50 border-green-300 text-green-700 hover:bg-green-100" onClick={() => submitReview.mutate({ phaseId: phase.id, reviewStatus: "approved" })} disabled={submitReview.isPending}>
