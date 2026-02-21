@@ -150,6 +150,7 @@ const ReviewHistoryItem = ({ review, taskId }: { review: any; taskId?: string })
           taskId={taskId}
           userId=""
           canReply={false}
+          isPMViewer={true}
         />
       )}
     </div>

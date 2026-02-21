@@ -379,6 +379,7 @@ export type Database = {
           id: string
           message: string | null
           phase_review_id: string
+          pm_read_at: string | null
           task_id: string
           user_id: string
           voice_path: string | null
@@ -390,6 +391,7 @@ export type Database = {
           id?: string
           message?: string | null
           phase_review_id: string
+          pm_read_at?: string | null
           task_id: string
           user_id: string
           voice_path?: string | null
@@ -401,6 +403,7 @@ export type Database = {
           id?: string
           message?: string | null
           phase_review_id?: string
+          pm_read_at?: string | null
           task_id?: string
           user_id?: string
           voice_path?: string | null

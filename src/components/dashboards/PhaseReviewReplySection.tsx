@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +17,7 @@ interface PhaseReviewReplySectionProps {
   taskId: string;
   userId: string;
   canReply: boolean; // only developers/team leaders for their tasks
+  isPMViewer?: boolean; // when true, marks replies as read on mount
 }
 
 const ReplyVoicePlayer = ({ voicePath }: { voicePath: string }) => {
@@ -93,7 +94,7 @@ const ReplyFileAttachments = ({ filePaths, fileNames }: { filePaths: string; fil
   );
 };
 
-export const PhaseReviewReplySection = ({ phaseReviewId, taskId, userId, canReply }: PhaseReviewReplySectionProps) => {
+export const PhaseReviewReplySection = ({ phaseReviewId, taskId, userId, canReply, isPMViewer }: PhaseReviewReplySectionProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showReplyPanel, setShowReplyPanel] = useState(false);
@@ -114,6 +115,25 @@ export const PhaseReviewReplySection = ({ phaseReviewId, taskId, userId, canRepl
       return data;
     },
   });
+
+  // Auto-mark replies as read when PM views them
+  useEffect(() => {
+    if (!isPMViewer || !replies || replies.length === 0) return;
+    const unreadIds = replies
+      .filter((r: any) => !r.pm_read_at)
+      .map((r: any) => r.id);
+    if (unreadIds.length === 0) return;
+    supabase
+      .from("phase_review_replies")
+      .update({ pm_read_at: new Date().toISOString() } as any)
+      .in("id", unreadIds)
+      .then(({ error }) => {
+        if (!error) {
+          queryClient.invalidateQueries({ queryKey: ["pm-unread-replies"] });
+        }
+      });
+  }, [isPMViewer, replies, queryClient]);
+
 
   const handleSubmitReply = async () => {
     if (!replyComment.trim() && !replyVoiceBlob && replyFiles.length === 0) return;
