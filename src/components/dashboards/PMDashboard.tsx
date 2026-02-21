@@ -653,9 +653,10 @@ const PMDashboard = () => {
       if (!taskIds.length) return [];
       const { data, error } = await supabase
         .from("phase_review_replies")
-        .select("id, task_id, pm_read_at")
+        .select("id, task_id, pm_read_at, user_id")
         .in("task_id", taskIds)
-        .is("pm_read_at", null);
+        .is("pm_read_at", null)
+        .neq("user_id", user!.id); // exclude PM's own replies
       if (error) throw error;
       return data || [];
     },
