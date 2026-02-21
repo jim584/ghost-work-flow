@@ -32,7 +32,7 @@ const PMDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Realtime subscription for phase_reviews and project_phases
+  // Realtime subscription for phase_reviews, project_phases, and phase_review_replies
   useEffect(() => {
     const channel = supabase
       .channel('pm-phase-reviews-realtime')
@@ -41,6 +41,9 @@ const PMDashboard = () => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'project_phases' }, () => {
         queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_review_replies' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["pm-unread-replies"] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -642,6 +645,26 @@ const PMDashboard = () => {
       });
     },
   });
+
+  // Fetch unread developer replies for PM's tasks
+  const { data: unreadReplies } = useQuery({
+    queryKey: ["pm-unread-replies", taskIds],
+    queryFn: async () => {
+      if (!taskIds.length) return [];
+      const { data, error } = await supabase
+        .from("phase_review_replies")
+        .select("id, task_id, pm_read_at")
+        .in("task_id", taskIds)
+        .is("pm_read_at", null);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!taskIds.length,
+  });
+
+  const getUnreadReplyCount = (taskId: string) => {
+    return unreadReplies?.filter(r => r.task_id === taskId).length || 0;
+  };
 
 
   const updateTaskStatus = useMutation({
@@ -2007,7 +2030,19 @@ const PMDashboard = () => {
                     <div className="p-4 space-y-4">
                       {task.description && (
                         <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
-                      )}
+                              )}
+                              {(() => {
+                                const unreadCount = getUnreadReplyCount(task.id);
+                                if (unreadCount > 0) {
+                                  return (
+                                    <Badge className="bg-red-500 text-white animate-pulse">
+                                      <MessageCircle className="h-3 w-3 mr-1" />
+                                      {unreadCount} new {unreadCount === 1 ? 'reply' : 'replies'}
+                                    </Badge>
+                                  );
+                                }
+                                return null;
+                              })()}
 
                       {/* Info Grid */}
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
