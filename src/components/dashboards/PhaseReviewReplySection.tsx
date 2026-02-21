@@ -213,7 +213,9 @@ export const PhaseReviewReplySection = ({ phaseReviewId, taskId, userId, canRepl
             {replies.map((reply) => (
               <div key={reply.id} className="bg-primary/5 border border-primary/10 rounded-md p-2 space-y-1">
                 <div className="flex items-center justify-between">
-                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/30">Developer Reply</Badge>
+                  <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${isPMViewer && reply.user_id === userId ? 'border-blue-400 text-blue-600' : 'border-primary/30'}`}>
+                    {reply.user_id === userId ? (isPMViewer ? 'PM Reply' : 'Your Reply') : (isPMViewer ? 'Developer Reply' : 'PM Reply')}
+                  </Badge>
                   <span className="text-[9px] text-muted-foreground">
                     {formatDistanceToNow(new Date(reply.created_at), { addSuffix: true })}
                   </span>
