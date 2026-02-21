@@ -1,43 +1,44 @@
 
 
-## Add "Unread PM Notes" Indicator on Developer Dashboard
+## Add "New Developer Reply" Indicator on PM Order Cards
 
 ### Problem
-When a PM adds notes to an order's phase, the developer has no visual cue on their dashboard that new notes exist and need attention. They'd only discover notes by manually expanding each order's phase accordion.
+When a developer replies to a PM's note or review, the PM has no visual indicator on their dashboard. They'd only discover replies by manually expanding each order and checking the phase review section.
 
 ### Solution
-Add a small red dot/badge on order cards in the Developer Dashboard whenever there are unread PM notes, so developers immediately know which orders have new notes to check.
+Add a small red badge on PM order cards showing unread developer replies, similar to the "unread notes" indicator we added for developers.
 
 ### Changes Required
 
-**1. Database: Add `dev_read_at` column to `phase_reviews` table**
+**1. Database: Add `pm_read_at` column to `phase_review_replies` table**
 
-A new nullable timestamp column `dev_read_at` on the `phase_reviews` table will track when a developer has seen/read each PM note. It stays `NULL` until the developer views the note.
+A new nullable timestamp column on `phase_review_replies` to track when the PM has seen each developer reply. Stays `NULL` until the PM views the reply.
 
-- Migration: `ALTER TABLE phase_reviews ADD COLUMN dev_read_at timestamptz DEFAULT NULL;`
+- Migration: `ALTER TABLE phase_review_replies ADD COLUMN pm_read_at timestamptz DEFAULT NULL;`
+- RLS: Add an UPDATE policy for PMs so they can set `pm_read_at` on replies for their tasks.
 
-**2. File: `src/components/dashboards/DeveloperDashboard.tsx`**
+**2. File: `src/components/dashboards/PMDashboard.tsx`**
 
-- **Unread notes count**: For each task/order card, count `phase_reviews` entries where `review_status = 'pm_note'` AND `dev_read_at IS NULL`. If count > 0, show a small red badge (e.g., a red circle with a number or a "New Notes" badge) next to the order number or title on the card.
+- Fetch `phase_review_replies` for all PM tasks (or add to existing query).
+- For each order card, count replies where `pm_read_at IS NULL`.
+- If count > 0, show a small red badge on the card header (line ~1941, near existing badges like "On Hold", "Delayed") saying something like: a red dot with "X new reply/replies".
 
-- **Mark notes as read**: When the developer expands the phase timeline (clicks on the order or opens the accordion), automatically mark all unread PM notes for that task as read by updating `dev_read_at = now()` on those records.
+**3. File: `src/components/dashboards/PhaseReviewReplySection.tsx`**
 
-**3. File: `src/components/dashboards/DevPhaseReviewTimeline.tsx`**
-
-- When the timeline component mounts or becomes visible for a task, trigger the "mark as read" update for all PM notes belonging to that task's phases.
+- When the reply section mounts/becomes visible for a PM user, mark all unread replies as read by updating `pm_read_at = now()` on those records.
+- This auto-clears the badge when the PM expands the order and views the replies.
 
 ### Visual Design
 
-On the order card header (near the existing badges like "NEW", "DELAYED", etc.), a new badge will appear:
-
-- Red/pink badge with a small icon: "X unread note(s)" -- only visible when there are unread PM notes
-- Once the developer expands the order and views the timeline, the badge disappears
+On the order card header (near existing badges), a new badge will appear:
+- Small red/pink badge: "X new reply/replies" -- only visible when there are unread developer replies
+- Once the PM expands the order and views the phase review section, the badge disappears
 
 ### Technical Detail
 
-- New DB column: `phase_reviews.dev_read_at` (timestamptz, nullable)
-- Query for unread count: filter `phaseReviews` array client-side where `review_status === "pm_note" && !dev_read_at && task_id === task.id`
-- Mark-as-read mutation: `UPDATE phase_reviews SET dev_read_at = now() WHERE task_id = X AND review_status = 'pm_note' AND dev_read_at IS NULL`
-- RLS: The existing policies on `phase_reviews` should cover this since developers can already read these records; an update policy allowing developers to set `dev_read_at` on their task's reviews will be added if needed
-- The phaseReviews query already fetches all reviews for developer tasks, so no additional query is needed -- just add `dev_read_at` to the select
+- New DB column: `phase_review_replies.pm_read_at` (timestamptz, nullable)
+- New RLS policy: PMs can UPDATE `phase_review_replies` for their tasks (to set `pm_read_at`)
+- Query: Fetch all `phase_review_replies` for PM's tasks, filter client-side where `pm_read_at IS NULL`
+- Mark-as-read: When `PhaseReviewReplySection` mounts for a PM, update `pm_read_at = now()` on unread replies
+- The existing realtime subscription on `phase_reviews` table can be extended to also listen to `phase_review_replies` for instant badge updates
 
