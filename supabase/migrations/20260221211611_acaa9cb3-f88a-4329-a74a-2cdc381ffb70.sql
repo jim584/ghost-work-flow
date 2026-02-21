@@ -1,0 +1,1 @@
+ALTER TABLE public.phase_reviews ADD COLUMN dev_read_at timestamptz DEFAULT NULL;

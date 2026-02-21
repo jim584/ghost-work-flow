@@ -432,6 +432,7 @@ export type Database = {
           change_file_paths: string | null
           change_severity: string | null
           created_at: string
+          dev_read_at: string | null
           id: string
           phase_id: string
           review_comment: string | null
@@ -453,6 +454,7 @@ export type Database = {
           change_file_paths?: string | null
           change_severity?: string | null
           created_at?: string
+          dev_read_at?: string | null
           id?: string
           phase_id: string
           review_comment?: string | null
@@ -474,6 +476,7 @@ export type Database = {
           change_file_paths?: string | null
           change_severity?: string | null
           created_at?: string
+          dev_read_at?: string | null
           id?: string
           phase_id?: string
           review_comment?: string | null

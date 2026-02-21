@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +29,7 @@ interface PhaseReview {
   change_completed_at: string | null;
   change_completed_by: string | null;
   round_number: number;
+  dev_read_at?: string | null;
 }
 
 interface Phase {
@@ -811,6 +812,21 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
 
 export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false, devNames = {} }: DevPhaseReviewTimelineProps) => {
   const [showFullTimeline, setShowFullTimeline] = useState(false);
+
+  // Mark unread PM notes as read when this timeline mounts
+  useEffect(() => {
+    const unreadNoteIds = phaseReviews
+      .filter(pr => pr.review_status === "pm_note" && !pr.dev_read_at)
+      .map(pr => pr.id);
+    if (unreadNoteIds.length > 0) {
+      supabase
+        .from("phase_reviews")
+        .update({ dev_read_at: new Date().toISOString() } as any)
+        .in("id", unreadNoteIds)
+        .then();
+    }
+  }, [phaseReviews, taskId]);
+
   const sortedPhases = [...phases].sort((a, b) => a.phase_number - b.phase_number);
 
   if (sortedPhases.length === 0) return null;
