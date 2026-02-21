@@ -505,7 +505,7 @@ const DeveloperDashboard = () => {
         .from("phase_reviews")
         .select("*")
         .in("task_id", taskIds)
-        .order("reviewed_at", { ascending: true });
+        .order("round_number", { ascending: false });
       if (error) throw error;
       return data;
     },
