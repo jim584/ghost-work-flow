@@ -13,21 +13,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNow } from "date-fns";
 import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X } from "lucide-react";
 
-// Helper to make URLs in text clickable
+// Helper to make URLs in text clickable (supports with or without http/https prefix)
 const LinkifyText = ({ text }: { text: string }) => {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urlRegex = /(https?:\/\/[^\s]+|(?:www\.)[^\s]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.(?:com|org|net|io|dev|co|app|me|info|biz|us|uk|ca|au|de|fr|in|xyz|tech|site|online|store|shop|pro)[^\s]*)/gi;
   const parts = text.split(urlRegex);
   return (
     <>
-      {parts.map((part, i) =>
-        urlRegex.test(part) ? (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 break-all">
-            {part}
-          </a>
-        ) : (
-          <span key={i}>{part}</span>
-        )
-      )}
+      {parts.map((part, i) => {
+        urlRegex.lastIndex = 0;
+        if (urlRegex.test(part)) {
+          const href = part.match(/^https?:\/\//) ? part : `https://${part}`;
+          return (
+            <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 break-all">
+              {part}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
     </>
   );
 };
