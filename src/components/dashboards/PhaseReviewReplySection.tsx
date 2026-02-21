@@ -16,8 +16,9 @@ interface PhaseReviewReplySectionProps {
   phaseReviewId: string;
   taskId: string;
   userId: string;
-  canReply: boolean; // only developers/team leaders for their tasks
-  isPMViewer?: boolean; // when true, marks replies as read on mount
+  canReply: boolean;
+  isPMViewer?: boolean; // when true, marks pm_read_at on mount
+  isDevViewer?: boolean; // when true, marks dev_read_at on mount
 }
 
 const ReplyVoicePlayer = ({ voicePath }: { voicePath: string }) => {
@@ -94,7 +95,7 @@ const ReplyFileAttachments = ({ filePaths, fileNames }: { filePaths: string; fil
   );
 };
 
-export const PhaseReviewReplySection = ({ phaseReviewId, taskId, userId, canReply, isPMViewer }: PhaseReviewReplySectionProps) => {
+export const PhaseReviewReplySection = ({ phaseReviewId, taskId, userId, canReply, isPMViewer, isDevViewer }: PhaseReviewReplySectionProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showReplyPanel, setShowReplyPanel] = useState(false);
@@ -120,7 +121,7 @@ export const PhaseReviewReplySection = ({ phaseReviewId, taskId, userId, canRepl
   useEffect(() => {
     if (!isPMViewer || !replies || replies.length === 0) return;
     const unreadIds = replies
-      .filter((r: any) => !r.pm_read_at)
+      .filter((r: any) => !r.pm_read_at && r.user_id !== userId)
       .map((r: any) => r.id);
     if (unreadIds.length === 0) return;
     supabase
@@ -132,7 +133,25 @@ export const PhaseReviewReplySection = ({ phaseReviewId, taskId, userId, canRepl
           queryClient.invalidateQueries({ queryKey: ["pm-unread-replies"] });
         }
       });
-  }, [isPMViewer, replies, queryClient]);
+  }, [isPMViewer, replies, queryClient, userId]);
+
+  // Auto-mark replies as read when developer views them
+  useEffect(() => {
+    if (!isDevViewer || !replies || replies.length === 0) return;
+    const unreadIds = replies
+      .filter((r: any) => !r.dev_read_at && r.user_id !== userId)
+      .map((r: any) => r.id);
+    if (unreadIds.length === 0) return;
+    supabase
+      .from("phase_review_replies")
+      .update({ dev_read_at: new Date().toISOString() } as any)
+      .in("id", unreadIds)
+      .then(({ error }) => {
+        if (!error) {
+          queryClient.invalidateQueries({ queryKey: ["developer-unread-replies"] });
+        }
+      });
+  }, [isDevViewer, replies, queryClient, userId]);
 
 
   const handleSubmitReply = async () => {

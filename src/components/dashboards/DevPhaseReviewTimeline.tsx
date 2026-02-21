@@ -599,6 +599,7 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
           taskId={taskId}
           userId={userId}
           canReply={canReply}
+          isDevViewer={true}
         />
       )}
     </div>
