@@ -544,7 +544,10 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           )}
           {canReview && !hasActiveRevision && (
             phase.review_status === "approved" ? (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 border border-green-300 px-2 py-0.5 text-xs font-medium text-green-700">
+                  <CheckCircle2 className="h-3 w-3" />Approved
+                </span>
                 <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "approved_with_changes" })}>
                   <Clock className="h-3 w-3 mr-1" />Request Changes
                 </Button>
