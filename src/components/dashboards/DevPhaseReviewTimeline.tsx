@@ -674,11 +674,18 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
                   Started {format(new Date(phase.started_at), "MMM d, h:mm a")}
                 </span>
               )}
-              {reviewsForPhase.length > 0 && (
-                <span className="text-[10px] text-muted-foreground">
-                  · {reviewsForPhase.length} review{reviewsForPhase.length !== 1 ? "s" : ""}
-                </span>
-              )}
+              {reviewsForPhase.length > 0 && (() => {
+                const noteCount = reviewsForPhase.filter((r: any) => r.review_status === "pm_note").length;
+                const reviewCount = reviewsForPhase.length - noteCount;
+                const parts: string[] = [];
+                if (reviewCount > 0) parts.push(`${reviewCount} review${reviewCount !== 1 ? "s" : ""}`);
+                if (noteCount > 0) parts.push(`${noteCount} note${noteCount !== 1 ? "s" : ""}`);
+                return (
+                  <span className="text-[10px] text-muted-foreground">
+                    · {parts.join(", ")}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </AccordionTrigger>
