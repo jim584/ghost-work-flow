@@ -21,7 +21,7 @@ const SEVERITY_OPTIONS = [
   { value: "major_major", label: "Major Major", hours: 18, description: "Extensive rework (2 days)" },
 ] as const;
 
-const ReviewHistoryItem = ({ review, taskId }: { review: any; taskId?: string }) => {
+const ReviewHistoryItem = ({ review, taskId, replyUserId, canReply }: { review: any; taskId?: string; replyUserId?: string; canReply?: boolean }) => {
   const [playingVoice, setPlayingVoice] = useState(false);
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
 
@@ -147,10 +147,10 @@ const ReviewHistoryItem = ({ review, taskId }: { review: any; taskId?: string })
       {review.id && taskId && (
         <PhaseReviewReplySection
           phaseReviewId={review.id}
-          taskId={taskId}
-          userId=""
-          canReply={false}
-          isPMViewer={true}
+          taskId={taskId!}
+          userId={replyUserId || ""}
+          canReply={!!canReply}
+          isPMViewer={!!canReply}
         />
       )}
     </div>
@@ -598,7 +598,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
             <div className="space-y-2">
               <span className="text-xs font-medium text-muted-foreground">Activity History</span>
               {reviewsForPhase.map((review: any) => (
-                <ReviewHistoryItem key={review.id} review={review} taskId={task.id} />
+                <ReviewHistoryItem key={review.id} review={review} taskId={task.id} replyUserId={userId} canReply={isAssignedPM} />
               ))}
             </div>
           )}
