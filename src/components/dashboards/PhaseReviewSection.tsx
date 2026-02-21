@@ -517,11 +517,18 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
             <span className="text-xs font-medium truncate">{phaseLabel}</span>
             <Badge variant="outline" className="text-xs shrink-0">{phase.status === "on_hold" ? "on hold" : phase.status}</Badge>
             {getReviewBadge(phase)}
-            {reviewsForPhase.length > 0 && (
-              <span className="text-xs text-muted-foreground ml-auto shrink-0">
-                {reviewsForPhase.length} review{reviewsForPhase.length !== 1 ? "s" : ""}
-              </span>
-            )}
+            {reviewsForPhase.length > 0 && (() => {
+              const noteCount = reviewsForPhase.filter((r: any) => r.review_status === "pm_note").length;
+              const reviewCount = reviewsForPhase.length - noteCount;
+              const parts: string[] = [];
+              if (reviewCount > 0) parts.push(`${reviewCount} review${reviewCount !== 1 ? "s" : ""}`);
+              if (noteCount > 0) parts.push(`${noteCount} note${noteCount !== 1 ? "s" : ""}`);
+              return (
+                <span className="text-xs text-muted-foreground ml-auto shrink-0">
+                  {parts.join(", ")}
+                </span>
+              );
+            })()}
           </div>
         </AccordionTrigger>
         <AccordionContent className="pb-3 space-y-3">
@@ -588,7 +595,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           )}
           {reviewsForPhase.length > 0 && (
             <div className="space-y-2">
-              <span className="text-xs font-medium text-muted-foreground">Review History</span>
+              <span className="text-xs font-medium text-muted-foreground">Activity History</span>
               {reviewsForPhase.map((review: any) => (
                 <ReviewHistoryItem key={review.id} review={review} taskId={task.id} />
               ))}
