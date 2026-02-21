@@ -91,9 +91,9 @@ const ReviewHistoryItem = ({ review, taskId }: { review: any; taskId?: string })
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Badge className={`${statusColor} text-white text-xs`}>
-            Round {review.round_number}: {statusLabel}
+            {isPmNote ? statusLabel : `Round ${review.round_number}: ${statusLabel}`}
           </Badge>
-          {review.change_severity && (
+          {!isPmNote && review.change_severity && (
             <Badge variant="outline" className="text-xs">
               {SEVERITY_OPTIONS.find(s => s.value === review.change_severity)?.label || review.change_severity}
               {" — "}
