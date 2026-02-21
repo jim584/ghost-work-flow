@@ -1,30 +1,35 @@
 
+# Fix "Delivered: Awaiting Review" Badge for Website Orders
 
-# Replace Post-Approval Buttons with "Request Changes"
+## Problem
+Order 147 is a website order, but it incorrectly shows the "Delivered: Awaiting Review" badge because a stale record in the design submissions table has `revision_status = 'pending_review'`. Website orders use the phase review system exclusively, so the design submissions status should not influence the badge.
 
-## What Changes
-
-Once a phase has been approved (review_status is "approved"), the three action buttons (Approve, Approve with Changes, Disapprove) will be replaced with a single **"Request Changes"** button.
-
-- **Before approval**: Approve | Approve with Changes | Disapprove (unchanged)
-- **After approval**: Request Changes (single button, works like "Approve with Changes")
-
-The "Request Changes" button opens the same review dialog used by "Approve with Changes", reusing the existing flow -- comments, file attachments, voice notes, severity, and deadline. The task status reverts to "in_progress" so the developer sees the revision request.
-
-## Why This Approach
-
-- No database or backend changes needed -- "Request Changes" uses the exact same "approved_with_changes" review type
-- Keeps the interface clean and unambiguous after approval
-- Preserves the full audit trail since all reviews are stored in the phase_reviews table
+## Solution
+In `PMDashboard.tsx`, skip the `design_submissions` check for website orders in both places where the badge category is determined. Website orders should only use `project_phases` to decide if something is awaiting review.
 
 ## Technical Details
 
-**File: `src/components/dashboards/PhaseReviewSection.tsx` (lines 545-556)**
+**File: `src/components/dashboards/PMDashboard.tsx`**
 
-Split the existing button group into two conditional blocks:
+### Change 1: Group-level categorization (~line 1272)
+Currently:
+```
+if (hasPendingReview) categories.push('recently_delivered');
+```
+Updated to exclude website orders from the design_submissions-based check:
+```
+if (hasPendingReview && !isWebsiteGroup) categories.push('recently_delivered');
+```
+(Move `isWebsiteGroup` declaration before this line since it's currently defined after.)
 
-1. **If phase is NOT yet approved** (`phase.review_status !== "approved"`): render the current 3 buttons as-is
-2. **If phase IS approved** (`phase.review_status === "approved"`): render a single "Request Changes" button styled in amber (like "Approve with Changes"), which opens the review dialog with `reviewType: "approved_with_changes"`
+### Change 2: Task-level `getTaskCategory` function (~line 1345)
+Currently:
+```
+if (hasPendingReview) return 'recently_delivered';
+```
+Updated to skip for website orders:
+```
+if (hasPendingReview && task?.post_type !== "Website Design") return 'recently_delivered';
+```
 
-This is a small, self-contained change to one file with no impact on other components or the database.
-
+These two small changes ensure website orders rely solely on the phase review system for their delivery/review badge status, while all other order types (logo, etc.) continue working as before.
