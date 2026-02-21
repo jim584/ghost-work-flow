@@ -529,6 +529,7 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
   userId?: string;
   canReply?: boolean;
 }) => {
+  const isPmNote = review.review_status === "pm_note";
   const isDisapproved = review.review_status === "disapproved_with_changes";
   const isApprovedWithChanges = review.review_status === "approved_with_changes";
   const isApproved = review.review_status === "approved";
@@ -537,7 +538,10 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
   let borderClass = "border-amber-500/30 bg-amber-500/5";
   let statusBadge = <Badge className="bg-amber-500 text-white text-[10px]">Changes Needed</Badge>;
 
-  if (isApproved) {
+  if (isPmNote) {
+    borderClass = "border-muted-foreground/20 bg-muted/30";
+    statusBadge = <Badge variant="outline" className="text-[10px]">PM Notes</Badge>;
+  } else if (isApproved) {
     borderClass = "border-green-500/30 bg-green-500/5";
     statusBadge = <Badge className="bg-green-600 text-white text-[10px] gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />Approved</Badge>;
   } else if (isDisapproved) {
@@ -551,7 +555,7 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
       : <Badge className="bg-amber-500 text-white text-[10px] gap-0.5"><Clock className="h-2.5 w-2.5" />Revision In Progress{review.change_severity ? ` (${review.change_severity})` : ""}</Badge>;
   }
 
-  if (changesDone && !isApproved) {
+  if (changesDone && !isApproved && !isPmNote) {
     borderClass = "border-green-500/30 bg-green-500/5";
   }
 
@@ -559,8 +563,8 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
     <div className={`border rounded-md p-3 space-y-2 ${borderClass}`}>
       <div className="flex items-center justify-between flex-wrap gap-1">
         <div className="flex items-center gap-1.5">
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30">PM Review{reviewerName ? ` · ${reviewerName}` : ""}</Badge>
-          <span className="text-[10px] font-semibold text-muted-foreground">P{phaseNumber}{review.round_number ? ` · Round ${review.round_number}` : ""}</span>
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30">{isPmNote ? "PM Notes" : "PM Review"}{reviewerName ? ` · ${reviewerName}` : ""}</Badge>
+          {!isPmNote && <span className="text-[10px] font-semibold text-muted-foreground">P{phaseNumber}{review.round_number ? ` · Round ${review.round_number}` : ""}</span>}
           {statusBadge}
         </div>
         {review.reviewed_at && <TimeStamp date={review.reviewed_at} />}
