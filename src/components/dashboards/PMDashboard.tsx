@@ -38,6 +38,7 @@ const PMDashboard = () => {
       .channel('pm-phase-reviews-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_reviews' }, () => {
         queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+        queryClient.invalidateQueries({ queryKey: ["pm-phase-reviews"] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'project_phases' }, () => {
         queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
@@ -666,6 +667,23 @@ const PMDashboard = () => {
   const getUnreadReplyCount = (taskId: string) => {
     return unreadReplies?.filter(r => r.task_id === taskId).length || 0;
   };
+
+  // Fetch phase reviews for website orders (to check latest round status)
+  const { data: phaseReviews } = useQuery({
+    queryKey: ["pm-phase-reviews", taskIds],
+    queryFn: async () => {
+      const websiteTaskIds = tasks?.filter(t => t.post_type === "Website Design").map(t => t.id) || [];
+      if (!websiteTaskIds.length) return [];
+      const { data, error } = await supabase
+        .from("phase_reviews")
+        .select("*")
+        .in("task_id", websiteTaskIds)
+        .order("round_number", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!taskIds.length,
+  });
 
 
   const updateTaskStatus = useMutation({
@@ -1958,37 +1976,34 @@ const PMDashboard = () => {
                               {getAckOverdueBadge()}
                               {(() => {
                                 if (!isWebsite) return null;
-                                const submittedChangePhases = (projectPhases || []).filter(
+                                const changePhases = (projectPhases || []).filter(
                                   (p: any) => p.task_id === task.id && 
-                                  (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
-                                  p.change_completed_at
+                                  (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')
                                 );
-                                if (submittedChangePhases.length > 0) {
-                                  return submittedChangePhases.map((p: any) => (
-                                    <Badge key={p.id} className="gap-1 bg-primary text-primary-foreground animate-pulse">
-                                      <CheckCircle2 className="h-3 w-3" />
-                                      Changes Submitted (P{p.phase_number})
-                                    </Badge>
-                                  ));
-                                }
-                                return null;
-                              })()}
-                              {(() => {
-                                if (!isWebsite) return null;
-                                const pendingChangePhases = (projectPhases || []).filter(
-                                  (p: any) => p.task_id === task.id && 
-                                  (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
-                                  !p.change_completed_at
-                                );
-                                if (pendingChangePhases.length > 0) {
-                                  return pendingChangePhases.map((p: any) => (
-                                    <Badge key={p.id} className="gap-1 bg-amber-500 text-white">
-                                      <AlertTriangle className="h-3 w-3" />
-                                      Changes In Progress (P{p.phase_number})
-                                    </Badge>
-                                  ));
-                                }
-                                return null;
+                                if (changePhases.length === 0) return null;
+                                return changePhases.map((p: any) => {
+                                  // Find the latest review round for this phase (phaseReviews ordered by round_number DESC)
+                                  const latestReview = (phaseReviews || []).find(
+                                    (r: any) => r.phase_id === p.id && 
+                                    (r.review_status === 'approved_with_changes' || r.review_status === 'disapproved_with_changes')
+                                  );
+                                  if (!latestReview) return null;
+                                  if (latestReview.change_completed_at) {
+                                    return (
+                                      <Badge key={p.id} className="gap-1 bg-primary text-primary-foreground">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Changes Submitted (P{p.phase_number})
+                                      </Badge>
+                                    );
+                                  } else {
+                                    return (
+                                      <Badge key={p.id} className="gap-1 bg-amber-500 text-white">
+                                        <AlertTriangle className="h-3 w-3" />
+                                        Changes In Progress (P{p.phase_number})
+                                      </Badge>
+                                    );
+                                  }
+                                });
                               })()}
                               {task.status === 'on_hold' && (
                                 <Badge className="bg-amber-500 text-white">
