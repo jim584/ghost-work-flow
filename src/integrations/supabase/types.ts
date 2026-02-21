@@ -374,6 +374,7 @@ export type Database = {
       phase_review_replies: {
         Row: {
           created_at: string
+          dev_read_at: string | null
           file_names: string | null
           file_paths: string | null
           id: string
@@ -386,6 +387,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          dev_read_at?: string | null
           file_names?: string | null
           file_paths?: string | null
           id?: string
@@ -398,6 +400,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          dev_read_at?: string | null
           file_names?: string | null
           file_paths?: string | null
           id?: string

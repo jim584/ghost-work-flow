@@ -512,7 +512,29 @@ const DeveloperDashboard = () => {
     enabled: !!tasks?.length,
   });
 
-  // Realtime subscription for phase_reviews and project_phases updates
+  // Fetch unread PM replies for developer's tasks
+  const { data: unreadPMReplies } = useQuery({
+    queryKey: ["developer-unread-replies", user?.id],
+    queryFn: async () => {
+      if (!tasks?.length) return [];
+      const taskIds = tasks.map(t => t.id);
+      const { data, error } = await supabase
+        .from("phase_review_replies")
+        .select("id, task_id, user_id, dev_read_at" as any)
+        .in("task_id", taskIds)
+        .is("dev_read_at" as any, null)
+        .neq("user_id", user!.id); // only PM replies (not the developer's own)
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tasks?.length,
+  });
+
+  const getUnreadPMReplyCount = (taskId: string) => {
+    return (unreadPMReplies as any[])?.filter((r: any) => r.task_id === taskId).length || 0;
+  };
+
+  // Realtime subscription for phase_reviews, project_phases, and phase_review_replies updates
   useEffect(() => {
     const channel = supabase
       .channel('developer-phase-reviews-realtime')
@@ -524,6 +546,9 @@ const DeveloperDashboard = () => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
         queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_review_replies' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["developer-unread-replies"] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -1402,8 +1427,20 @@ const DeveloperDashboard = () => {
                                 </Badge>
                               );
                             }
-                            return null;
-                          })()}
+                             return null;
+                           })()}
+                           {(() => {
+                             const unreadReplies = getUnreadPMReplyCount(task.id);
+                             if (unreadReplies > 0) {
+                               return (
+                                 <Badge className="gap-1 bg-destructive text-destructive-foreground animate-pulse">
+                                   <MessageCircle className="h-3 w-3" />
+                                   {unreadReplies} new {unreadReplies === 1 ? 'reply' : 'replies'}
+                                 </Badge>
+                               );
+                             }
+                             return null;
+                           })()}
                         </div>
                         <p className="text-sm text-muted-foreground">{task.description}</p>
                         {/* Pages & Points - always visible on every card */}
