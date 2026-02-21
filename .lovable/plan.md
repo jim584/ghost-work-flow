@@ -1,45 +1,29 @@
 
 
-# Fix: Show Launched Website Tasks in Developer Active View
+## Fix: Distinguish "Notes" from "Reviews" in PM Dashboard Phase Accordion
 
-## Problem
+### Problem
+When a PM adds notes to a phase (using "Add Notes"), the accordion header shows "1 review" and the expanded section shows "Review History" — even though no formal review was performed. This is confusing because notes and reviews serve different purposes.
 
-When a PM fills out the Launch Website form, the task status changes to `approved`. However, the Developer Dashboard's "active" filter only includes tasks with status `assigned`, `pending`, or `in_progress` (plus those needing revision). Tasks with `approved` status are excluded, so the developer cannot see them in their active/working view.
+### Solution
+Update the labels to be context-aware by separating the count of actual reviews vs. PM notes, and adjusting the display text accordingly.
 
-This means order 146 (and any launched website task) vanishes from the developer's active view precisely when they need to act on it -- handling domain/hosting prerequisites and marking the website live.
+### Changes
 
-## Solution
+**File: `src/components/dashboards/PhaseReviewSection.tsx`**
 
-Update the "active" filter in the Developer Dashboard to also include `approved` tasks that have NOT yet been marked live (i.e., `launch_website_live_at` is null). This ensures launched website orders remain visible to the developer until the website is live.
+1. **Accordion header count (lines 520-523)**: Instead of showing a flat "X review(s)" count, split into reviews and notes:
+   - If there are only PM notes: show "1 note" / "2 notes"
+   - If there are only reviews: show "1 review" / "2 reviews"  
+   - If there are both: show "1 review, 2 notes" (combined)
 
-## Technical Details
+2. **Section header (line 591)**: Change "Review History" to "Activity History" — a neutral label that covers both reviews and notes accurately.
 
-### File: `src/components/dashboards/DeveloperDashboard.tsx`
+### Technical Detail
 
-**Change the active filter** (around line 1102):
-
-Current:
-```typescript
-if (statusFilter === "active") {
-  return task.status === "assigned" ||
-    task.status === "pending" ||
-    task.status === "in_progress" ||
-    tasksNeedingRevision.some(t => t.id === task.id);
-}
-```
-
-Updated:
-```typescript
-if (statusFilter === "active") {
-  return task.status === "assigned" ||
-    task.status === "pending" ||
-    task.status === "in_progress" ||
-    tasksNeedingRevision.some(t => t.id === task.id) ||
-    (task.status === "approved" && !task.launch_website_live_at);
-}
-```
-
-This single-line addition ensures that `approved` website tasks waiting to be marked live appear in the developer's active view, while already-live tasks (with a `launch_website_live_at` timestamp) remain excluded.
-
-**No database changes needed** -- this is purely a frontend filtering fix.
+The `reviewsForPhase` array contains all `phase_reviews` records for a phase, including those with `review_status === "pm_note"`. The fix will:
+- Count notes: `reviewsForPhase.filter(r => r.review_status === "pm_note").length`
+- Count reviews: `reviewsForPhase.filter(r => r.review_status !== "pm_note").length`
+- Display an appropriate combined label on the accordion trigger
+- Rename the expanded section heading from "Review History" to "Activity History"
 
