@@ -543,17 +543,25 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
             </div>
           )}
           {canReview && !hasActiveRevision && (
-            <div className="flex items-center gap-1">
-              <Button size="sm" variant="outline" className="h-7 text-xs bg-green-50 border-green-300 text-green-700 hover:bg-green-100" onClick={() => submitReview.mutate({ phaseId: phase.id, reviewStatus: "approved" })} disabled={submitReview.isPending}>
-                <CheckCircle2 className="h-3 w-3 mr-1" />Approve
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "approved_with_changes" })}>
-                <Clock className="h-3 w-3 mr-1" />Approve w/ Changes
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs bg-red-50 border-red-300 text-red-700 hover:bg-red-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "disapproved_with_changes" })}>
-                <AlertTriangle className="h-3 w-3 mr-1" />Disapprove
-              </Button>
-            </div>
+            phase.review_status === "approved" ? (
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "approved_with_changes" })}>
+                  <Clock className="h-3 w-3 mr-1" />Request Changes
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="outline" className="h-7 text-xs bg-green-50 border-green-300 text-green-700 hover:bg-green-100" onClick={() => submitReview.mutate({ phaseId: phase.id, reviewStatus: "approved" })} disabled={submitReview.isPending}>
+                  <CheckCircle2 className="h-3 w-3 mr-1" />Approve
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "approved_with_changes" })}>
+                  <Clock className="h-3 w-3 mr-1" />Approve w/ Changes
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs bg-red-50 border-red-300 text-red-700 hover:bg-red-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "disapproved_with_changes" })}>
+                  <AlertTriangle className="h-3 w-3 mr-1" />Disapprove
+                </Button>
+              </div>
+            )
           )}
           {canReview && hasActiveRevision && (
             <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "add_revision_notes" })}>
