@@ -1403,6 +1403,22 @@ const DeveloperDashboard = () => {
                               Revision Needed
                             </Badge>
                           )}
+                          {(() => {
+                            const pendingChangePhases = projectPhases?.filter(
+                              p => p.task_id === task.id && 
+                              (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
+                              !p.change_completed_at
+                            ) || [];
+                            if (pendingChangePhases.length > 0) {
+                              return pendingChangePhases.map(p => (
+                                <Badge key={p.id} className="gap-1 bg-amber-500 text-white animate-pulse">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Changes Needed (P{p.phase_number}{p.change_severity ? ` - ${p.change_severity}` : ''})
+                                </Badge>
+                              ));
+                            }
+                            return null;
+                          })()}
                           {hasReassignmentRequest && (
                             <Badge variant="outline" className="gap-1 border-orange-500 text-orange-600">
                               <RotateCcw className="h-3 w-3" />

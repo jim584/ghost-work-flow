@@ -1956,6 +1956,40 @@ const PMDashboard = () => {
                               {getCategoryBadge()}
                               {getDelayedBadge()}
                               {getAckOverdueBadge()}
+                              {(() => {
+                                if (!isWebsite) return null;
+                                const submittedChangePhases = (projectPhases || []).filter(
+                                  (p: any) => p.task_id === task.id && 
+                                  (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
+                                  p.change_completed_at
+                                );
+                                if (submittedChangePhases.length > 0) {
+                                  return submittedChangePhases.map((p: any) => (
+                                    <Badge key={p.id} className="gap-1 bg-primary text-primary-foreground animate-pulse">
+                                      <CheckCircle2 className="h-3 w-3" />
+                                      Changes Submitted (P{p.phase_number})
+                                    </Badge>
+                                  ));
+                                }
+                                return null;
+                              })()}
+                              {(() => {
+                                if (!isWebsite) return null;
+                                const pendingChangePhases = (projectPhases || []).filter(
+                                  (p: any) => p.task_id === task.id && 
+                                  (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && 
+                                  !p.change_completed_at
+                                );
+                                if (pendingChangePhases.length > 0) {
+                                  return pendingChangePhases.map((p: any) => (
+                                    <Badge key={p.id} className="gap-1 bg-amber-500 text-white">
+                                      <AlertTriangle className="h-3 w-3" />
+                                      Changes In Progress (P{p.phase_number})
+                                    </Badge>
+                                  ));
+                                }
+                                return null;
+                              })()}
                               {task.status === 'on_hold' && (
                                 <Badge className="bg-amber-500 text-white">
                                   <PauseCircle className="h-3 w-3 mr-1" />
