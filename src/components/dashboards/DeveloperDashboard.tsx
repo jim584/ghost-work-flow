@@ -1514,9 +1514,9 @@ const DeveloperDashboard = () => {
                           </div>
                         )}
 
-                        {/* Points summary for completed tasks */}
+                        {/* Points summary + Phase Timeline for completed tasks */}
                         {(task.status === "completed" || task.status === "approved") && (
-                          <div className="mt-2 p-2.5 bg-primary/5 rounded-md">
+                          <div className="mt-2 p-2.5 bg-primary/5 rounded-md space-y-2">
                             {(() => {
                               const taskPhases = projectPhases?.filter(p => p.task_id === task.id && p.status === "completed") || [];
                               const totalPts = taskPhases.reduce((sum, p) => sum + (p.points || 3), 0);
@@ -1527,6 +1527,14 @@ const DeveloperDashboard = () => {
                                   <span className="font-semibold text-primary">{totalPts} points earned</span>
                                 </div>
                               );
+                            })()}
+                            {(() => {
+                              const taskPhases = projectPhases?.filter(p => p.task_id === task.id) || [];
+                              const taskReviews = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
+                              if (taskPhases.length > 0) {
+                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} devNames={devNames} />;
+                              }
+                              return null;
                             })()}
                           </div>
                         )}
