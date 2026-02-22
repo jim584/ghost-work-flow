@@ -1,27 +1,32 @@
 
-## Remove Duplicate Expandable Section for Completed Website Orders
+
+## Remove Old Expandable "Your Uploaded Files" Section for All Task Statuses
 
 ### Problem
-For completed/approved website orders, there are now two ways to see submission details:
-1. The **new** `DevPhaseReviewTimeline` (added in the last change) -- shows full phase timeline with URLs, comments, and files inline on the card
-2. The **old** expandable section (chevron button to the right of the status badge) -- shows "Your Uploaded Files" with the same comments/submissions
+The phase submission flow writes the same data (URLs, comments, files) to **both** the `design_submissions` table and the `project_phases` table. This means:
+- The **old expandable section** (chevron button showing "Your Uploaded Files") displays `design_submissions` data
+- The **DevPhaseReviewTimeline** displays `project_phases` data
 
-This is redundant. The old expandable section should be removed for completed/approved tasks since the `DevPhaseReviewTimeline` already displays all the same information in a better, more consistent format.
+Both show the exact same URLs, comments, and files -- just in different UI formats. The timeline is the better, more consistent UI. The old expandable is redundant for **all** task statuses, not just completed/approved.
 
-### Plan
+### Solution
+Remove the status condition we just added and instead **hide the old expandable section entirely** for website orders that have phase data (since those always have the timeline). This means:
+- Remove the expand chevron button for tasks that have phases (the timeline already shows everything)
+- Remove the expanded "Your Uploaded Files" panel for those same tasks
 
-**Single change in `DeveloperDashboard.tsx`:**
+### What Changes
 
-1. **Hide the old expand button for completed/approved tasks** (around line 1955): Add a condition so the chevron expand button only shows when the task is NOT completed or approved. The timeline already covers those statuses.
+**File: `src/components/dashboards/DeveloperDashboard.tsx`**
 
-2. **Hide the old "Your Uploaded Files" section for completed/approved tasks** (around line 2006): Add a condition so the expandable submissions panel only renders when the task is NOT completed or approved.
+1. **Line ~1955 (expand button):** Change the condition from checking `completed`/`approved` status to checking whether the task has phase data. If phases exist, hide the button entirely since the timeline covers it. If no phases exist (e.g., pure logo orders), keep showing the button.
+
+2. **Line ~2006 (expanded panel):** Same condition change -- only show "Your Uploaded Files" for tasks without phase data.
+
+The condition will be something like:
+```
+taskSubmissions.length > 0 && !(projectPhases?.some(p => p.task_id === task.id))
+```
 
 This way:
-- **In-progress / assigned tasks** keep the old expand button (if they still need it for the `design_submissions` view)
-- **Completed / approved tasks** only show the `DevPhaseReviewTimeline` -- no duplicate
-
-### Technical Details
-
-- File: `src/components/dashboards/DeveloperDashboard.tsx`
-- Line ~1955: Wrap the expand button in `task.status !== "completed" && task.status !== "approved"`
-- Line ~2006: Wrap the expanded submissions panel in the same condition
+- **Website orders (with phases):** Only show the DevPhaseReviewTimeline -- no duplicate
+- **Logo orders (without phases):** Keep showing the old expandable since they don't have a timeline
