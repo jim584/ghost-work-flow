@@ -2077,9 +2077,6 @@ const PMDashboard = () => {
 
                     {/* Card Body */}
                     <div className="p-4 space-y-4">
-                      {task.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
-                              )}
                               {(() => {
                                 const unreadCount = getUnreadReplyCount(task.id);
                                 if (unreadCount > 0) {
