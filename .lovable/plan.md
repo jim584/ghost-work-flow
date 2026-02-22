@@ -1,21 +1,27 @@
 
+## Remove Duplicate Expandable Section for Completed Website Orders
 
-# Move Business Description from Card Face to View Details
+### Problem
+For completed/approved website orders, there are now two ways to see submission details:
+1. The **new** `DevPhaseReviewTimeline` (added in the last change) -- shows full phase timeline with URLs, comments, and files inline on the card
+2. The **old** expandable section (chevron button to the right of the status badge) -- shows "Your Uploaded Files" with the same comments/submissions
 
-## What Changes
-Remove the business description text from the main developer dashboard card and keep it only inside the "View Details" dialog where it already exists.
+This is redundant. The old expandable section should be removed for completed/approved tasks since the `DevPhaseReviewTimeline` already displays all the same information in a better, more consistent format.
 
-## Why
-The main card should be a quick-glance summary showing only essential info: order number, title, badges, phase progress, and timers. The full description adds visual clutter and makes cards unnecessarily tall, especially when multiple orders are listed.
+### Plan
 
-## Technical Details
+**Single change in `DeveloperDashboard.tsx`:**
 
-**File: `src/components/dashboards/DeveloperDashboard.tsx`**
+1. **Hide the old expand button for completed/approved tasks** (around line 1955): Add a condition so the chevron expand button only shows when the task is NOT completed or approved. The timeline already covers those statuses.
 
-**Line 1466** -- Remove:
-```
-<p className="text-sm text-muted-foreground">{task.description}</p>
-```
+2. **Hide the old "Your Uploaded Files" section for completed/approved tasks** (around line 2006): Add a condition so the expandable submissions panel only renders when the task is NOT completed or approved.
 
-This single line removal cleans up the card face. The description remains accessible inside the "View Details" dialog (already present at lines 2570-2576 as "Business Description").
+This way:
+- **In-progress / assigned tasks** keep the old expand button (if they still need it for the `design_submissions` view)
+- **Completed / approved tasks** only show the `DevPhaseReviewTimeline` -- no duplicate
 
+### Technical Details
+
+- File: `src/components/dashboards/DeveloperDashboard.tsx`
+- Line ~1955: Wrap the expand button in `task.status !== "completed" && task.status !== "approved"`
+- Line ~2006: Wrap the expanded submissions panel in the same condition
