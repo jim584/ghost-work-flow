@@ -1952,7 +1952,7 @@ const DeveloperDashboard = () => {
                         <Badge className={hasRevision ? "bg-destructive text-destructive-foreground" : getStatusColor(task.status)}>
                           {hasRevision ? "Revision Needed" : getStatusLabel(task.status, task)}
                         </Badge>
-                        {taskSubmissions.length > 0 && task.status !== "completed" && task.status !== "approved" && (
+                        {taskSubmissions.length > 0 && !(projectPhases?.some(p => p.task_id === task.id)) && (
                           <Button size="sm" variant="ghost" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </Button>
@@ -2003,7 +2003,7 @@ const DeveloperDashboard = () => {
                       </div>
                     </div>
                     
-                    {isExpanded && taskSubmissions.length > 0 && task.status !== "completed" && task.status !== "approved" && (
+                    {isExpanded && taskSubmissions.length > 0 && !(projectPhases?.some(p => p.task_id === task.id)) && (
                       <div className="border-t bg-muted/20 p-4">
                         <h4 className="text-sm font-semibold mb-3">Your Uploaded Files:</h4>
                         <div className="space-y-2">
