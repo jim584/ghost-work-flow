@@ -1662,6 +1662,27 @@ const AdminDashboard = () => {
     },
   });
 
+  // Verify & Close Order mutation
+  const verifyAndCloseOrder = useMutation({
+    mutationFn: async ({ taskId }: { taskId: string }) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ 
+          upsell_verified_at: new Date().toISOString(),
+          upsell_verified_by: user!.id,
+        } as any)
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
+      toast({ title: "Order verified and closed successfully" });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
   const handleRequestRevision = async () => {
     if (!revisionDialog || !revisionNotes.trim()) {
       toast({
@@ -2706,7 +2727,21 @@ const AdminDashboard = () => {
                 };
 
                 const getCategoryBadge = () => {
-                  if (category === 'recently_delivered') return <Badge className="bg-green-500 text-white">Delivered - Awaiting Review</Badge>;
+                  if (category === 'recently_delivered') {
+                    if (isWebsiteOrder(task)) {
+                      if (task.status === 'completed') {
+                        return <Badge className="bg-green-500 text-white">Website Completed - Awaiting Final Review</Badge>;
+                      }
+                      const taskPhases = (projectPhases || [])
+                        .filter((p: any) => p.task_id === task.id && p.completed_at && !p.reviewed_at)
+                        .sort((a: any, b: any) => b.phase_number - a.phase_number);
+                      const latestPhase = taskPhases[0];
+                      if (latestPhase) {
+                        return <Badge className="bg-green-500 text-white">Phase {latestPhase.phase_number} Delivered</Badge>;
+                      }
+                    }
+                    return <Badge className="bg-green-500 text-white">Delivered - Awaiting Review</Badge>;
+                  }
                   if (category === 'delayed') return null; // Handled by getDelayedBadge
                   if (category === 'delayed_ack') return null; // Handled by getAckOverdueBadge
                   if (category === 'needs_revision') return <Badge className="bg-orange-500 text-white">Needs Revision</Badge>;
@@ -3327,13 +3362,34 @@ const AdminDashboard = () => {
                           )}
                         </div>
                       )}
-                      {/* Website Marked Live Badge */}
+                      {/* Website Marked Live Badge + Verify & Close */}
                       {(task as any).launch_website_live_at && (
-                        <div className="px-4 py-3 border-t">
+                        <div className="px-4 py-3 border-t space-y-2">
                           <Badge className="bg-green-600 text-white">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             🚀 Website Marked Live — {format(new Date((task as any).launch_website_live_at), 'MMM d, yyyy HH:mm')}
                           </Badge>
+                          {/* Verify & Close - only show if not yet verified */}
+                          {!(task as any).upsell_verified_at && (
+                            <div>
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => verifyAndCloseOrder.mutate({ taskId: task.id })}
+                                disabled={verifyAndCloseOrder.isPending}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                Verify & Close Order
+                              </Button>
+                            </div>
+                          )}
+                          {/* Verified Badge */}
+                          {(task as any).upsell_verified_at && (
+                            <Badge className="bg-green-700 text-white">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              ✅ Verified & Closed {(task as any).upsell_verified_at ? `— ${format(new Date((task as any).upsell_verified_at), 'MMM d, yyyy')}` : ''}
+                            </Badge>
+                          )}
                         </div>
                       )}
                     </div>
