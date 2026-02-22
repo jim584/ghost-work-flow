@@ -1,31 +1,21 @@
 
 
-# Fix: "Changes Needed" Badge Not Showing for Round 2 on Developer Dashboard
+# Move Business Description from Card Face to View Details
 
-## Problem
-Order 148 has two review rounds for Phase 1:
-- Round 1: `change_completed_at` is set (developer already completed it)
-- Round 2: `change_completed_at` is null (pending -- developer needs to act)
+## What Changes
+Remove the business description text from the main developer dashboard card and keep it only inside the "View Details" dialog where it already exists.
 
-The badge does not appear because the `phase_reviews` query sorts by `reviewed_at ASC`, and the `.find()` call picks round 1 first. Since round 1 has `change_completed_at` set, the logic concludes no badge is needed and skips round 2 entirely.
-
-## Root Cause
-In `DeveloperDashboard.tsx` line 508, the query orders reviews by `reviewed_at ascending`. The `.find()` at line 1413 then grabs the first matching record (round 1), which already has its changes completed, so the badge is hidden.
-
-## Fix
-Change the query sort order from `reviewed_at ascending` to `round_number descending`, matching the PM dashboard query. This ensures `.find()` always picks the latest round first.
+## Why
+The main card should be a quick-glance summary showing only essential info: order number, title, badges, phase progress, and timers. The full description adds visual clutter and makes cards unnecessarily tall, especially when multiple orders are listed.
 
 ## Technical Details
 
 **File: `src/components/dashboards/DeveloperDashboard.tsx`**
 
-**Line 508** -- Change:
+**Line 1466** -- Remove:
 ```
-.order("reviewed_at", { ascending: true });
-```
-to:
-```
-.order("round_number", { ascending: false });
+<p className="text-sm text-muted-foreground">{task.description}</p>
 ```
 
-This single-line fix ensures the latest review round is always checked first, so the "Changes Needed" badge correctly appears for round 2 of order 148.
+This single line removal cleans up the card face. The description remains accessible inside the "View Details" dialog (already present at lines 2570-2576 as "Business Description").
+
