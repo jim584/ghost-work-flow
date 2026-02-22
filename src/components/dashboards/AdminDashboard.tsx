@@ -3085,9 +3085,8 @@ const AdminDashboard = () => {
                             task={task}
                             phases={projectPhases || []}
                             userId={user!.id}
-                            isAssignedPM={false}
-                            queryKeysToInvalidate={[["admin-tasks"], ["admin-project-phases"], ["admin-submissions"]]}
-                            readOnly={false}
+                            isAssignedPM={true}
+                            queryKeysToInvalidate={[["admin-tasks"], ["admin-project-phases"], ["admin-submissions"], ["admin-phase-reviews"], ["admin-unread-replies"]]}
                           />
                         </div>
                       )}
