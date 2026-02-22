@@ -269,6 +269,7 @@ const AdminDashboard = () => {
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showPmBreakdown, setShowPmBreakdown] = useState(false);
+  const [showFsBreakdown, setShowFsBreakdown] = useState(false);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [newUserData, setNewUserData] = useState({ 
     email: "", 
@@ -2198,6 +2199,67 @@ const AdminDashboard = () => {
                             <TableCell className="py-1.5 text-right">
                               <strong className={progress >= 100 ? "text-green-600" : "text-foreground"}>
                                 {dollarTarget > 0 ? `${progress.toFixed(0)}%` : '—'}
+                              </strong>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
+          {frontSalesUsers && salesTargets && (
+            <div className="space-y-0">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground border rounded-lg px-3 py-1.5 bg-muted/30 flex-wrap">
+                <button 
+                  onClick={() => setShowFsBreakdown(!showFsBreakdown)} 
+                  className="flex items-center gap-1 font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  Front Sales Overview
+                  {showFsBreakdown ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
+                <span className="text-border">|</span>
+                <span>Agents: <strong className="text-foreground">{frontSalesUsers.length}</strong></span>
+                <span className="text-border">|</span>
+                <span>Total Transferred: <strong className="text-foreground">{salesTargets.filter(t => frontSalesUsers.some(f => f.id === t.user_id)).reduce((sum, t) => sum + (t.transferred_orders_count || 0), 0)}</strong></span>
+                <span className="text-border">|</span>
+                <span>Total Closed: <strong className="text-foreground">{salesTargets.filter(t => frontSalesUsers.some(f => f.id === t.user_id)).reduce((sum, t) => sum + (t.closed_orders_count || 0), 0)}</strong></span>
+                <span className="text-border">|</span>
+                <span>Total Achieved: <strong className="text-primary">{salesTargets.filter(t => frontSalesUsers.some(f => f.id === t.user_id)).reduce((sum, t) => sum + (t.transferred_orders_count || 0) + (t.closed_orders_count || 0), 0)}</strong></span>
+              </div>
+              {showFsBreakdown && (
+                <div className="border border-t-0 rounded-b-lg bg-card overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead className="py-2">Agent</TableHead>
+                        <TableHead className="py-2 text-right">Target</TableHead>
+                        <TableHead className="py-2 text-right">Transferred</TableHead>
+                        <TableHead className="py-2 text-right">Closed</TableHead>
+                        <TableHead className="py-2 text-right">Achieved</TableHead>
+                        <TableHead className="py-2 text-right">Progress</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {frontSalesUsers.map(agent => {
+                        const target = salesTargets.find(t => t.user_id === agent.id);
+                        const orderTarget = target?.monthly_order_target ?? 10;
+                        const transferred = target?.transferred_orders_count || 0;
+                        const closed = target?.closed_orders_count || 0;
+                        const achieved = transferred + closed;
+                        const progress = orderTarget > 0 ? Math.min((achieved / orderTarget) * 100, 100) : 0;
+                        return (
+                          <TableRow key={agent.id} className="text-xs">
+                            <TableCell className="py-1.5 font-medium">{agent.full_name || agent.email}</TableCell>
+                            <TableCell className="py-1.5 text-right">{orderTarget}</TableCell>
+                            <TableCell className="py-1.5 text-right">{transferred}</TableCell>
+                            <TableCell className="py-1.5 text-right">{closed}</TableCell>
+                            <TableCell className="py-1.5 text-right font-medium text-primary">{achieved}</TableCell>
+                            <TableCell className="py-1.5 text-right">
+                              <strong className={progress >= 100 ? "text-green-600" : "text-foreground"}>
+                                {progress.toFixed(0)}%
                               </strong>
                             </TableCell>
                           </TableRow>
