@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar, MessageCircle, Timer, RotateCcw, PauseCircle, PlayCircle, Rocket } from "lucide-react";
+import { LogOut, Users, FolderKanban, CheckCircle2, Clock, FileText, Download, ChevronDown, ChevronUp, UserCog, UserPlus, Edit2, Shield, KeyRound, RefreshCw, History, Palette, Code, FileDown, Plus, Globe, Image, XCircle, Ban, User, Mail, Phone, DollarSign, Calendar, MessageCircle, Timer, RotateCcw, PauseCircle, PlayCircle, Rocket, AlertTriangle } from "lucide-react";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { exportTasksToCSV, exportSalesPerformanceToCSV, exportUsersToCSV } from "@/utils/csvExport";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -238,6 +238,9 @@ const AdminDashboard = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'project_phases' }, () => {
         queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
         queryClient.invalidateQueries({ queryKey: ["admin-project-phases"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_review_replies' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["admin-unread-replies"] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -1050,6 +1053,44 @@ const AdminDashboard = () => {
     },
     enabled: !!tasks?.length,
   });
+
+  // Fetch phase reviews for website orders (cross-phase revision badges)
+  const { data: adminPhaseReviews } = useQuery({
+    queryKey: ["admin-phase-reviews", adminTaskIds],
+    queryFn: async () => {
+      const websiteTaskIds = tasks?.filter((t: any) => t.post_type === "Website Design").map((t: any) => t.id) || [];
+      if (!websiteTaskIds.length) return [];
+      const { data, error } = await supabase
+        .from("phase_reviews")
+        .select("*")
+        .in("task_id", websiteTaskIds)
+        .order("round_number", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tasks?.length,
+  });
+
+  // Fetch unread developer replies for admin's tasks
+  const { data: unreadReplies } = useQuery({
+    queryKey: ["admin-unread-replies", adminTaskIds],
+    queryFn: async () => {
+      if (!adminTaskIds.length) return [];
+      const { data, error } = await supabase
+        .from("phase_review_replies")
+        .select("id, task_id, pm_read_at, user_id")
+        .in("task_id", adminTaskIds)
+        .is("pm_read_at", null)
+        .neq("user_id", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!adminTaskIds.length,
+  });
+
+  const getUnreadReplyCount = (taskId: string) => {
+    return unreadReplies?.filter(r => r.task_id === taskId).length || 0;
+  };
 
   const { data: users } = useQuery({
     queryKey: ["admin-users"],
@@ -2771,6 +2812,36 @@ const AdminDashboard = () => {
                               {getCategoryBadge()}
                               {getDelayedBadge()}
                               {getAckOverdueBadge()}
+                              {(() => {
+                                if (!isWebsiteOrder(task)) return null;
+                                const changePhases = (projectPhases || []).filter(
+                                  (p: any) => p.task_id === task.id && 
+                                  (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')
+                                );
+                                if (changePhases.length === 0) return null;
+                                return changePhases.map((p: any) => {
+                                  const latestReview = (adminPhaseReviews || []).find(
+                                    (r: any) => r.phase_id === p.id && 
+                                    (r.review_status === 'approved_with_changes' || r.review_status === 'disapproved_with_changes')
+                                  );
+                                  if (!latestReview) return null;
+                                  if (latestReview.change_completed_at) {
+                                    return (
+                                      <Badge key={p.id} className="gap-1 bg-primary text-primary-foreground">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Changes Submitted (P{p.phase_number})
+                                      </Badge>
+                                    );
+                                  } else {
+                                    return (
+                                      <Badge key={p.id} className="gap-1 bg-amber-500 text-white">
+                                        <AlertTriangle className="h-3 w-3" />
+                                        Changes In Progress (P{p.phase_number})
+                                      </Badge>
+                                    );
+                                  }
+                                });
+                              })()}
                             </div>
                             <h3 className="font-semibold text-lg mt-1 truncate">{task.title}</h3>
                           </div>
@@ -2811,9 +2882,18 @@ const AdminDashboard = () => {
 
                     {/* Card Body */}
                     <div className="p-4 space-y-4">
-                      {task.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
-                      )}
+                      {(() => {
+                        const unreadCount = getUnreadReplyCount(task.id);
+                        if (unreadCount > 0) {
+                          return (
+                            <Badge className="bg-red-500 text-white animate-pulse">
+                              <MessageCircle className="h-3 w-3 mr-1" />
+                              {unreadCount} new {unreadCount === 1 ? 'reply' : 'replies'}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      })()}
 
                       {/* Info Grid */}
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
