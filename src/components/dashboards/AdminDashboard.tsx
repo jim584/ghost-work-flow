@@ -268,6 +268,7 @@ const AdminDashboard = () => {
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showPmBreakdown, setShowPmBreakdown] = useState(false);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [newUserData, setNewUserData] = useState({ 
     email: "", 
@@ -2130,27 +2131,81 @@ const AdminDashboard = () => {
             </div>
           </div>
           {platformStats && (
-            <div className="flex items-center gap-3 text-sm text-muted-foreground border rounded-lg px-3 py-1.5 bg-muted/30 flex-wrap">
-              <span className="font-medium text-foreground">Platform Overview</span>
-              <span className="text-border">|</span>
-              <span>Target: <strong className="text-foreground">${platformStats.totalTarget.toLocaleString()}</strong></span>
-              <span className="text-border">|</span>
-              <span>Closed: <strong className="text-foreground">{platformStats.totalClosed}</strong></span>
-              <span className="text-border">|</span>
-              <span>Closed Value: <strong className="text-foreground">${(platformClosedRevenue || 0).toLocaleString()}</strong></span>
-              <span className="text-border">|</span>
-              <span>Transferred: <strong className="text-foreground">{platformStats.totalTransferred}</strong></span>
-              <span className="text-border">|</span>
-              <span>Upsells: <strong className="text-foreground">${platformStats.totalUpsell.toLocaleString()}</strong></span>
-              <span className="text-border">|</span>
-              <span>Total: <strong className="text-primary">${((platformClosedRevenue || 0) + platformStats.totalUpsell).toLocaleString()}</strong></span>
-              {platformStats.totalTarget > 0 && (
-                <>
-                  <span className="text-border">|</span>
-                  <span>Progress: <strong className={((platformClosedRevenue || 0) + platformStats.totalUpsell) >= platformStats.totalTarget ? "text-green-600" : "text-foreground"}>
-                    {Math.min(((platformClosedRevenue || 0) + platformStats.totalUpsell) / platformStats.totalTarget * 100, 100).toFixed(0)}%
-                  </strong></span>
-                </>
+            <div className="space-y-0">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground border rounded-lg px-3 py-1.5 bg-muted/30 flex-wrap">
+                <button 
+                  onClick={() => setShowPmBreakdown(!showPmBreakdown)} 
+                  className="flex items-center gap-1 font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  Platform Overview
+                  {showPmBreakdown ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
+                <span className="text-border">|</span>
+                <span>Target: <strong className="text-foreground">${platformStats.totalTarget.toLocaleString()}</strong></span>
+                <span className="text-border">|</span>
+                <span>Closed: <strong className="text-foreground">{platformStats.totalClosed}</strong></span>
+                <span className="text-border">|</span>
+                <span>Closed Value: <strong className="text-foreground">${(platformClosedRevenue || 0).toLocaleString()}</strong></span>
+                <span className="text-border">|</span>
+                <span>Transferred: <strong className="text-foreground">{platformStats.totalTransferred}</strong></span>
+                <span className="text-border">|</span>
+                <span>Upsells: <strong className="text-foreground">${platformStats.totalUpsell.toLocaleString()}</strong></span>
+                <span className="text-border">|</span>
+                <span>Total: <strong className="text-primary">${((platformClosedRevenue || 0) + platformStats.totalUpsell).toLocaleString()}</strong></span>
+                {platformStats.totalTarget > 0 && (
+                  <>
+                    <span className="text-border">|</span>
+                    <span>Progress: <strong className={((platformClosedRevenue || 0) + platformStats.totalUpsell) >= platformStats.totalTarget ? "text-green-600" : "text-foreground"}>
+                      {Math.min(((platformClosedRevenue || 0) + platformStats.totalUpsell) / platformStats.totalTarget * 100, 100).toFixed(0)}%
+                    </strong></span>
+                  </>
+                )}
+              </div>
+              {showPmBreakdown && pmUsers && salesTargets && (
+                <div className="border border-t-0 rounded-b-lg bg-card overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead className="py-2">PM</TableHead>
+                        <TableHead className="py-2 text-right">Target</TableHead>
+                        <TableHead className="py-2 text-right">Closed</TableHead>
+                        <TableHead className="py-2 text-right">Closed Value</TableHead>
+                        <TableHead className="py-2 text-right">Transferred</TableHead>
+                        <TableHead className="py-2 text-right">Upsells</TableHead>
+                        <TableHead className="py-2 text-right">Total</TableHead>
+                        <TableHead className="py-2 text-right">Progress</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pmUsers.map(pm => {
+                        const target = salesTargets.find(t => t.user_id === pm.id);
+                        const dollarTarget = Number(target?.monthly_dollar_target || 0);
+                        const closedCount = target?.closed_orders_count || 0;
+                        const closedValue = pm.closedRevenue || 0;
+                        const transferred = target?.transferred_orders_count || 0;
+                        const upsells = Number(target?.upsell_revenue || 0);
+                        const total = closedValue + upsells;
+                        const progress = dollarTarget > 0 ? Math.min((total / dollarTarget) * 100, 100) : 0;
+                        return (
+                          <TableRow key={pm.id} className="text-xs">
+                            <TableCell className="py-1.5 font-medium">{pm.full_name || pm.email}</TableCell>
+                            <TableCell className="py-1.5 text-right">${dollarTarget.toLocaleString()}</TableCell>
+                            <TableCell className="py-1.5 text-right">{closedCount}</TableCell>
+                            <TableCell className="py-1.5 text-right">${closedValue.toLocaleString()}</TableCell>
+                            <TableCell className="py-1.5 text-right">{transferred}</TableCell>
+                            <TableCell className="py-1.5 text-right">${upsells.toLocaleString()}</TableCell>
+                            <TableCell className="py-1.5 text-right font-medium text-primary">${total.toLocaleString()}</TableCell>
+                            <TableCell className="py-1.5 text-right">
+                              <strong className={progress >= 100 ? "text-green-600" : "text-foreground"}>
+                                {dollarTarget > 0 ? `${progress.toFixed(0)}%` : '—'}
+                              </strong>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </div>
           )}
