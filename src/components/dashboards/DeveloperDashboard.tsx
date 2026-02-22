@@ -1463,7 +1463,7 @@ const DeveloperDashboard = () => {
                              return null;
                            })()}
                         </div>
-                        <p className="text-sm text-muted-foreground">{task.description}</p>
+                        
                         {/* Pages & Points - always visible on every card */}
                         {(() => {
                           const taskPhases = projectPhases?.filter(p => p.task_id === task.id && p.status === "completed") || [];
