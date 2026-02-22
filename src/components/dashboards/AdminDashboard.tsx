@@ -1181,6 +1181,45 @@ const AdminDashboard = () => {
     },
   });
 
+  // Fetch aggregate platform-wide closed revenue (non-upsell, deduplicated by order_group_id)
+  const { data: platformClosedRevenue } = useQuery({
+    queryKey: ["admin-platform-closed-revenue"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("amount_total, order_group_id, closed_by")
+        .not("closed_by", "is", null)
+        .eq("is_upsell", false);
+      if (error) throw error;
+      const seenOrderGroups = new Set<string>();
+      let total = 0;
+      data?.forEach(task => {
+        if (task.order_group_id) {
+          if (!seenOrderGroups.has(task.order_group_id)) {
+            seenOrderGroups.add(task.order_group_id);
+            total += Number(task.amount_total) || 0;
+          }
+        } else {
+          total += Number(task.amount_total) || 0;
+        }
+      });
+      return total;
+    },
+  });
+
+  // Compute aggregate platform-wide sales stats from salesTargets
+  const platformStats = useMemo(() => {
+    if (!salesTargets) return null;
+    let totalClosed = 0, totalTransferred = 0, totalUpsell = 0, totalTarget = 0;
+    salesTargets.forEach(t => {
+      totalClosed += t.closed_orders_count || 0;
+      totalTransferred += t.transferred_orders_count || 0;
+      totalUpsell += Number(t.upsell_revenue) || 0;
+      totalTarget += Number(t.monthly_dollar_target) || 0;
+    });
+    return { totalClosed, totalTransferred, totalUpsell, totalTarget };
+  }, [salesTargets]);
+
   // Fetch PM users with their performance data
   const { data: pmUsers } = useQuery({
     queryKey: ["pm-users-performance"],
@@ -2068,26 +2107,53 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Welcome, {profile?.full_name || 'Admin'}</h1>
-            <p className="text-sm text-muted-foreground">Admin Dashboard</p>
+        <div className="container mx-auto px-4 py-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Welcome, {profile?.full_name || 'Admin'}</h1>
+              <p className="text-sm text-muted-foreground">Admin Dashboard</p>
+            </div>
+            <div className="flex gap-2">
+              <NotificationBell userId={user!.id} />
+              <Button 
+                onClick={() => setShowUserManagement(!showUserManagement)} 
+                variant="outline" 
+                size="sm"
+              >
+                <UserCog className="mr-2 h-4 w-4" />
+                {showUserManagement ? "View Tasks" : "Manage Users"}
+              </Button>
+              <Button onClick={signOut} variant="outline" size="sm">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <NotificationBell userId={user!.id} />
-            <Button 
-              onClick={() => setShowUserManagement(!showUserManagement)} 
-              variant="outline" 
-              size="sm"
-            >
-              <UserCog className="mr-2 h-4 w-4" />
-              {showUserManagement ? "View Tasks" : "Manage Users"}
-            </Button>
-            <Button onClick={signOut} variant="outline" size="sm">
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
-            </Button>
-          </div>
+          {platformStats && (
+            <div className="flex items-center gap-3 text-sm text-muted-foreground border rounded-lg px-3 py-1.5 bg-muted/30 flex-wrap">
+              <span className="font-medium text-foreground">Platform Overview</span>
+              <span className="text-border">|</span>
+              <span>Target: <strong className="text-foreground">${platformStats.totalTarget.toLocaleString()}</strong></span>
+              <span className="text-border">|</span>
+              <span>Closed: <strong className="text-foreground">{platformStats.totalClosed}</strong></span>
+              <span className="text-border">|</span>
+              <span>Closed Value: <strong className="text-foreground">${(platformClosedRevenue || 0).toLocaleString()}</strong></span>
+              <span className="text-border">|</span>
+              <span>Transferred: <strong className="text-foreground">{platformStats.totalTransferred}</strong></span>
+              <span className="text-border">|</span>
+              <span>Upsells: <strong className="text-foreground">${platformStats.totalUpsell.toLocaleString()}</strong></span>
+              <span className="text-border">|</span>
+              <span>Total: <strong className="text-primary">${((platformClosedRevenue || 0) + platformStats.totalUpsell).toLocaleString()}</strong></span>
+              {platformStats.totalTarget > 0 && (
+                <>
+                  <span className="text-border">|</span>
+                  <span>Progress: <strong className={((platformClosedRevenue || 0) + platformStats.totalUpsell) >= platformStats.totalTarget ? "text-green-600" : "text-foreground"}>
+                    {Math.min(((platformClosedRevenue || 0) + platformStats.totalUpsell) / platformStats.totalTarget * 100, 100).toFixed(0)}%
+                  </strong></span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
