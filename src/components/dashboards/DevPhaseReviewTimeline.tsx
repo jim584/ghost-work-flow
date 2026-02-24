@@ -12,7 +12,7 @@ import { PhaseReviewReplySection } from "@/components/dashboards/PhaseReviewRepl
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
-import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X, PauseCircle, UserCheck, Bell, Rocket } from "lucide-react";
+import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X, PauseCircle, UserCheck, Bell, Rocket, ArrowRightLeft } from "lucide-react";
 
 // Helper to make URLs in text clickable (supports with or without http/https prefix)
 const LinkifyText = ({ text }: { text: string }) => {
@@ -783,7 +783,7 @@ const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, t
 
 // ─── Full Timeline Dialog Content ───────────────────────────────────
 
-const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames, holdEvents = [], taskMilestones }: {
+const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames, holdEvents = [], taskMilestones, reassignmentEvents = [] }: {
   sortedPhases: Phase[];
   phaseReviews: PhaseReview[];
   onMarkPhaseComplete?: (phaseId: string, reviewStatus: string, comment?: string, filePaths?: string, fileNames?: string) => void;
@@ -794,6 +794,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   devNames?: Record<string, string>;
   holdEvents?: any[];
   taskMilestones?: { assigned_at?: string; acknowledged_at?: string; first_phase_started_at?: string; completed_at?: string; approved_at?: string; cancelled_at?: string; cancellation_reason?: string } | null;
+  reassignmentEvents?: any[];
 }) => {
   const renderPhaseAccordionItem = (phase: Phase) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
@@ -955,6 +956,46 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
           </Collapsible>
         )}
 
+        {/* Reassignment History */}
+        {reassignmentEvents.length > 0 && (
+          <Collapsible defaultOpen={true}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reassignment History</h4>
+              <Badge variant="outline" className="text-[10px] ml-auto">{reassignmentEvents.length}</Badge>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1.5 mb-3">
+              {reassignmentEvents
+                .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                .map((event: any) => (
+                  <div key={event.id} className="flex items-start gap-3 p-3 rounded-md border bg-orange-50 border-orange-200 dark:bg-orange-500/10 dark:border-orange-500/30">
+                    <div className="mt-0.5 p-1 rounded-full bg-orange-100 dark:bg-orange-500/20">
+                      <ArrowRightLeft className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold">Developer Reassigned</span>
+                        <Badge variant="outline" className="text-[10px] text-orange-600 border-orange-300">Reassigned</Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {event.from_name && <><span className="font-medium">{event.from_name}</span> → </>}
+                        <span className="font-medium">{event.to_name || "New Developer"}</span>
+                        {event.reassigned_by_name && <> • by {event.reassigned_by_name}</>}
+                        {" "}• {format(new Date(event.created_at), "MMM d, yyyy 'at' h:mm a")}
+                        {" "}({formatDistanceToNow(new Date(event.created_at), { addSuffix: true })})
+                      </p>
+                      {event.reason && (
+                        <p className="text-xs mt-1.5 text-foreground/80 bg-orange-100/50 dark:bg-orange-500/5 px-2 py-1 rounded">
+                          <span className="font-medium">Reason:</span> {event.reason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
         {/* Hold events section if any exist */}
         {holdEvents.length > 0 && (
           <Collapsible defaultOpen={true}>
@@ -994,6 +1035,55 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data || [];
+    },
+    enabled: showFullTimeline,
+  });
+
+  // Fetch reassignment history for this task
+  const { data: reassignmentEvents } = useQuery({
+    queryKey: ["task-reassignment-history", taskId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("reassignment_history")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      if (!data || data.length === 0) return [];
+
+      // Resolve developer names
+      const devIds = new Set<string>();
+      const userIds = new Set<string>();
+      data.forEach((r: any) => {
+        if (r.from_developer_id) devIds.add(r.from_developer_id);
+        if (r.to_developer_id) devIds.add(r.to_developer_id);
+        if (r.reassigned_by) userIds.add(r.reassigned_by);
+      });
+
+      const devNameMap: Record<string, string> = {};
+      if (devIds.size > 0) {
+        const { data: devs } = await supabase
+          .from("developers")
+          .select("id, name")
+          .in("id", Array.from(devIds));
+        devs?.forEach((d: any) => { devNameMap[d.id] = d.name; });
+      }
+
+      const userNameMap: Record<string, string> = {};
+      if (userIds.size > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", Array.from(userIds));
+        profiles?.forEach((p: any) => { userNameMap[p.id] = p.full_name || p.email; });
+      }
+
+      return data.map((r: any) => ({
+        ...r,
+        from_name: r.from_developer_id ? devNameMap[r.from_developer_id] : null,
+        to_name: devNameMap[r.to_developer_id] || null,
+        reassigned_by_name: userNameMap[r.reassigned_by] || null,
+      }));
     },
     enabled: showFullTimeline,
   });
@@ -1129,6 +1219,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
             devNames={devNames}
             holdEvents={holdEvents || []}
             taskMilestones={taskMilestones}
+            reassignmentEvents={reassignmentEvents || []}
           />
         </DialogContent>
       </Dialog>
