@@ -793,7 +793,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   canReply?: boolean;
   devNames?: Record<string, string>;
   holdEvents?: any[];
-  taskMilestones?: { assigned_at?: string; acknowledged_at?: string; first_phase_started_at?: string } | null;
+  taskMilestones?: { assigned_at?: string; acknowledged_at?: string; first_phase_started_at?: string; completed_at?: string; approved_at?: string } | null;
 }) => {
   const renderPhaseAccordionItem = (phase: Phase) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
@@ -896,6 +896,22 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
       colorClass: "bg-primary/5 border-primary/20",
     });
   }
+  if (taskMilestones?.completed_at) {
+    milestoneItems.push({
+      label: "Order Completed",
+      icon: <CheckCircle2 className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />,
+      date: taskMilestones.completed_at,
+      colorClass: "bg-violet-50 border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/30",
+    });
+  }
+  if (taskMilestones?.approved_at) {
+    milestoneItems.push({
+      label: "Order Approved",
+      icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />,
+      date: taskMilestones.approved_at,
+      colorClass: "bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/30",
+    });
+  }
 
   return (
     <ScrollArea className="max-h-[70vh]">
@@ -975,7 +991,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
       // Get task-level data
       const { data: task } = await supabase
         .from("tasks")
-        .select("created_at, acknowledged_at, status")
+        .select("created_at, acknowledged_at, status, updated_at")
         .eq("id", taskId)
         .single();
 
@@ -987,10 +1003,22 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
         .eq("phase_number", 1)
         .single();
 
+      // Get last phase completed_at for "completed" milestone
+      const { data: lastCompletedPhase } = await supabase
+        .from("project_phases")
+        .select("completed_at")
+        .eq("task_id", taskId)
+        .not("completed_at", "is", null)
+        .order("phase_number", { ascending: false })
+        .limit(1)
+        .single();
+
       return {
         assigned_at: task?.created_at || undefined,
         acknowledged_at: task?.acknowledged_at || undefined,
         first_phase_started_at: firstPhase?.started_at || undefined,
+        completed_at: task?.status === 'completed' || task?.status === 'approved' ? lastCompletedPhase?.completed_at || undefined : undefined,
+        approved_at: task?.status === 'approved' ? task?.updated_at || undefined : undefined,
       };
     },
     enabled: showFullTimeline,
