@@ -1033,7 +1033,6 @@ const AdminDashboard = () => {
 
       const updatePayload: any = {
         status: "in_progress" as any,
-        hold_reason: null,
         held_at: null,
         held_by: null,
       };
