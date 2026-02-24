@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link, MessageCircle, Users } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link, MessageCircle, Users, History } from "lucide-react";
 import TeamOverviewDashboard from "@/components/dashboards/TeamOverviewDashboard";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1434,6 +1434,13 @@ const DeveloperDashboard = () => {
                             <Badge variant="destructive" className="gap-1">
                               <AlertTriangle className="h-3 w-3" />
                               LATE ACK
+                            </Badge>
+                          )}
+                          {/* Was previously on hold indicator */}
+                          {task.hold_reason && task.status !== "on_hold" && task.status !== "completed" && task.status !== "approved" && (
+                            <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30">
+                              <History className="h-3 w-3" />
+                              Was On Hold
                             </Badge>
                           )}
                           {(() => {
