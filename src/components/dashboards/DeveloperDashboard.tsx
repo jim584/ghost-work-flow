@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link, MessageCircle, Users, History } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link, MessageCircle, Users, History, Paperclip } from "lucide-react";
 import TeamOverviewDashboard from "@/components/dashboards/TeamOverviewDashboard";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1571,40 +1571,11 @@ const DeveloperDashboard = () => {
                           </Button>
                         </div>
                         {(task.attachment_file_path || (task as any).logo_url) && (() => {
-                          const attachmentCount = task.attachment_file_path ? task.attachment_file_path.split('|||').length : 0;
-                          const logoCount = (task as any).logo_url ? (task as any).logo_url.split('|||').length : 0;
-                          const totalCount = attachmentCount + logoCount;
+                          const totalCount = (task.attachment_file_path ? task.attachment_file_path.split('|||').length : 0) + ((task as any).logo_url ? (task as any).logo_url.split('|||').length : 0);
                           return (
-                            <div className="mt-3 space-y-2">
-                              <p className="text-xs text-muted-foreground">Task Attachments ({totalCount}):</p>
-                              {(task as any).logo_url && (task as any).logo_url.split('|||').map((filePath: string, index: number) => {
-                                const fileName = filePath.trim().split('/').pop() || `logo_${index + 1}`;
-                                return (
-                                  <div key={`logo-${index}`} className="p-2 bg-muted/30 rounded border">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <FilePreview filePath={filePath.trim()} fileName={fileName} className="w-10 h-10" />
-                                      <span className="text-xs flex-1 truncate">{fileName}</span>
-                                      <Button size="sm" variant="outline" onClick={() => handleDownload(filePath.trim(), fileName)}>
-                                        <Download className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                              {task.attachment_file_path && task.attachment_file_path.split('|||').map((filePath: string, index: number) => {
-                                const fileName = task.attachment_file_name?.split('|||')[index] || `attachment_${index + 1}`;
-                                return (
-                                  <div key={`att-${index}`} className="p-2 bg-muted/30 rounded border">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} className="w-10 h-10" />
-                                      <span className="text-xs flex-1 truncate">{fileName.trim()}</span>
-                                      <Button size="sm" variant="outline" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
-                                        <Download className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                            <div className="mt-2 flex items-center gap-1.5 text-muted-foreground">
+                              <Paperclip className="h-3 w-3" />
+                              <span className="text-[11px]">Attachments ({totalCount})</span>
                             </div>
                           );
                         })()}
