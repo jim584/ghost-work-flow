@@ -491,6 +491,31 @@ const AdminDashboard = () => {
     enabled: !!viewDetailsTask?.id,
   });
 
+  // Fetch hold/resume history for view details
+  const { data: holdHistory } = useQuery({
+    queryKey: ["admin-hold-history", viewDetailsTask?.id],
+    queryFn: async () => {
+      if (!viewDetailsTask?.id) return [];
+      const { data, error } = await (supabase as any)
+        .from("task_hold_events")
+        .select("*")
+        .eq("task_id", viewDetailsTask.id)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map((e: any) => e.performed_by))] as string[];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", userIds);
+        const nameMap = new Map(profiles?.map(p => [p.id, p.full_name || p.email]) || []);
+        return data.map((e: any) => ({ ...e, performer_name: nameMap.get(e.performed_by) || "Unknown" }));
+      }
+      return data || [];
+    },
+    enabled: !!viewDetailsTask?.id,
+  });
+
   const { data: developerProfiles } = useQuery({
     queryKey: ["developer-profiles"],
     queryFn: async () => {
@@ -5151,6 +5176,43 @@ const AdminDashboard = () => {
                         <p className="font-medium">{viewDetailsTask.additional_details}</p>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Hold / Resume History */}
+              {holdHistory && holdHistory.length > 0 && (
+                <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <PauseCircle className="h-4 w-4" />
+                    Hold / Resume History ({holdHistory.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {holdHistory.map((entry: any) => (
+                      <div key={entry.id} className={`p-3 rounded-md border text-sm space-y-1 ${entry.event_type === 'hold' ? 'bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/30' : 'bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/30'}`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {entry.event_type === 'hold' ? (
+                              <PauseCircle className="h-3.5 w-3.5 text-amber-600" />
+                            ) : (
+                              <PlayCircle className="h-3.5 w-3.5 text-green-600" />
+                            )}
+                            <span className="font-medium">
+                              {entry.event_type === 'hold' ? 'Put On Hold' : 'Resumed'}
+                            </span>
+                            <span className="text-muted-foreground">by {entry.performer_name}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
+                          </span>
+                        </div>
+                        {entry.event_type === 'hold' && entry.reason && (
+                          <p className="text-xs text-muted-foreground ml-5.5">
+                            <span className="font-medium">Reason:</span> {entry.reason}
+                          </p>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
