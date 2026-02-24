@@ -2979,6 +2979,13 @@ const AdminDashboard = () => {
                   return <Badge className="bg-amber-600 text-white">ACK OVERDUE</Badge>;
                 };
 
+                const getLateAckHistoryBadge = () => {
+                  const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
+                  const lateAcked = activeTasks.some((t: any) => t.late_acknowledgement === true && t.acknowledged_at);
+                  if (!lateAcked) return null;
+                  return <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20">Late ACK</Badge>;
+                };
+
                 const getOrderTypeIcon = () => {
                   if (isWebsiteOrder(task)) return <Globe className="h-5 w-5 text-blue-500" />;
                   if (isLogoOrder(task)) return <Palette className="h-5 w-5 text-purple-500" />;
@@ -3030,6 +3037,7 @@ const AdminDashboard = () => {
                               {getCategoryBadge()}
                               {getDelayedBadge()}
                               {getAckOverdueBadge()}
+                              {getLateAckHistoryBadge()}
                               {(() => {
                                 if (!isWebsiteOrder(task)) return null;
                                 const changePhases = (projectPhases || []).filter(
