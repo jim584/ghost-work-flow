@@ -994,6 +994,13 @@ const AdminDashboard = () => {
         } as any)
         .eq("id", taskId);
       if (error) throw error;
+
+      await supabase.from("task_hold_events").insert({
+        task_id: taskId,
+        event_type: "hold",
+        performed_by: user!.id,
+        reason,
+      } as any);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
@@ -1053,6 +1060,13 @@ const AdminDashboard = () => {
           .eq("task_id", taskId)
           .eq("phase_number", taskData.current_phase);
       }
+
+      // Record resume event
+      await supabase.from("task_hold_events").insert({
+        task_id: taskId,
+        event_type: "resume",
+        performed_by: user!.id,
+      } as any);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-tasks"] });
