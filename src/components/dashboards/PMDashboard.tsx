@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle, RotateCcw, AlertTriangle, PauseCircle, PlayCircle, Rocket, ArrowUpRight } from "lucide-react";
+import { LogOut, Plus, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, Globe, User, Mail, Phone, DollarSign, Calendar, Users, Image, Palette, RefreshCw, XCircle, Ban, MessageCircle, RotateCcw, AlertTriangle, PauseCircle, PlayCircle, Rocket, ArrowUpRight, Paperclip } from "lucide-react";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 
 import { useProjectManagers } from "@/hooks/useProjectManagers";
@@ -1953,6 +1953,12 @@ const PMDashboard = () => {
                                 #{task.task_number}
                               </span>
                               {getOrderTypeBadge()}
+                              {task.attachment_file_path && (
+                                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={`${task.attachment_file_path.split('|||').length} attachment(s)`}>
+                                  <Paperclip className="h-3 w-3" />
+                                  {task.attachment_file_path.split('|||').length}
+                                </span>
+                              )}
                               {group.isMultiTeam && (
                                 <>
                                   <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-200">
