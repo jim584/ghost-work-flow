@@ -4788,7 +4788,7 @@ const AdminDashboard = () => {
               Edit Task
             </Button>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-4">
+          <div className="max-h-[70vh] overflow-y-auto pr-4" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
             <div className="space-y-6">
               {/* Customer Information */}
               <div className="space-y-3">
@@ -5125,7 +5125,7 @@ const AdminDashboard = () => {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -5567,7 +5567,7 @@ const AdminDashboard = () => {
               {metricDetailsDialog?.userName} - {metricDetailsDialog && getMetricDisplayName(metricDetailsDialog.metricType)}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[60vh]">
+          <div className="max-h-[60vh] overflow-y-auto">
             {metricDetailsDialog && (() => {
               const filteredTasks = getFilteredTasksForMetric(metricDetailsDialog.userId, metricDetailsDialog.metricType);
               
@@ -5641,7 +5641,7 @@ const AdminDashboard = () => {
                 </div>
               );
             })()}
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -5654,7 +5654,7 @@ const AdminDashboard = () => {
               Edit Task - #{editTaskDialog?.task?.task_number}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-4">
+          <div className="max-h-[70vh] overflow-y-auto pr-4" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
             <div className="space-y-6">
               {/* Customer Information */}
               <div className="space-y-3">
@@ -5778,7 +5778,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
             </div>
-          </ScrollArea>
+          </div>
           <div className="flex justify-end gap-2 pt-4 border-t">
             <Button variant="outline" onClick={() => setEditTaskDialog(null)}>
               Cancel
@@ -5848,7 +5848,7 @@ const AdminDashboard = () => {
               This Month
             </Button>
           </div>
-          <ScrollArea className="max-h-[60vh]">
+          <div className="max-h-[60vh] overflow-y-auto">
             {(() => {
               if (!pmWorkloadDialog) return null;
               const now = new Date();
@@ -5911,7 +5911,7 @@ const AdminDashboard = () => {
                 </Table>
               );
             })()}
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
       {/* Launch Website Dialog */}

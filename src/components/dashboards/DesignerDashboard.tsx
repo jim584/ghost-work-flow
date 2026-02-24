@@ -1096,7 +1096,7 @@ const DesignerDashboard = () => {
           <DialogHeader>
             <DialogTitle>Task Details - #{viewDetailsTask?.task_number}</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-4">
+          <div className="max-h-[70vh] overflow-y-auto pr-4" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
             <div className="space-y-6">
               {/* Basic Information */}
               {/* Logo Order Details - shown first for logo orders */}
@@ -1357,7 +1357,7 @@ const DesignerDashboard = () => {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
