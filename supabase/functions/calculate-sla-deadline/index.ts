@@ -262,6 +262,85 @@ function walkThroughWindow(
   return current;
 }
 
+/**
+ * Calculate remaining working minutes between two dates (for resume-from-hold).
+ */
+function calculateRemainingMinutes(
+  fromUTC: Date, toUTC: Date, calendar: CalendarConfig, leaves: LeaveRecord[]
+): number {
+  const { working_days, start_time, end_time, saturday_start_time, saturday_end_time, timezone } = calendar;
+  const workStartMin = timeToMinutes(start_time);
+  const workEndMin = timeToMinutes(end_time);
+  const satStartMin = saturday_start_time ? timeToMinutes(saturday_start_time) : workStartMin;
+  const satEndMin = saturday_end_time ? timeToMinutes(saturday_end_time) : workEndMin;
+
+  let currentLocal = toTimezoneDate(fromUTC, timezone);
+  const deadlineLocal = toTimezoneDate(toUTC, timezone);
+  let totalMinutes = 0;
+  let iterations = 0;
+
+  while (currentLocal < deadlineLocal && iterations < 730) {
+    iterations++;
+    const dayOfWeek = getISODay(currentLocal);
+    if (!working_days.includes(dayOfWeek)) {
+      currentLocal.setDate(currentLocal.getDate() + 1);
+      const nextStart = getISODay(currentLocal) === 6 ? satStartMin : workStartMin;
+      currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
+      continue;
+    }
+    const isSaturday = dayOfWeek === 6;
+    const todayStart = isSaturday ? satStartMin : workStartMin;
+    const todayEnd = isSaturday ? satEndMin : workEndMin;
+    const currentMinute = currentLocal.getHours() * 60 + currentLocal.getMinutes();
+
+    if (!isWithinShift(currentMinute, todayStart, todayEnd)) {
+      if (!isOvernightShift(todayStart, todayEnd) && currentMinute < todayStart) {
+        currentLocal.setHours(Math.floor(todayStart / 60), todayStart % 60, 0, 0);
+      } else if (isOvernightShift(todayStart, todayEnd) && currentMinute < todayStart && currentMinute >= todayEnd) {
+        currentLocal.setHours(Math.floor(todayStart / 60), todayStart % 60, 0, 0);
+      } else {
+        currentLocal.setDate(currentLocal.getDate() + 1);
+        const nextStart = getISODay(currentLocal) === 6 ? satStartMin : workStartMin;
+        currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
+        continue;
+      }
+    }
+
+    const available = minutesUntilShiftEnd(
+      currentLocal.getHours() * 60 + currentLocal.getMinutes(), todayStart, todayEnd
+    );
+    let windowEnd: Date;
+    const overnight = isOvernightShift(todayStart, todayEnd);
+    const curMin = currentLocal.getHours() * 60 + currentLocal.getMinutes();
+    if (overnight && curMin >= todayStart) {
+      windowEnd = new Date(currentLocal);
+      windowEnd.setDate(windowEnd.getDate() + 1);
+      windowEnd.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    } else {
+      windowEnd = new Date(currentLocal);
+      windowEnd.setHours(Math.floor(todayEnd / 60), todayEnd % 60, 0, 0);
+    }
+
+    const effectiveEnd = deadlineLocal < windowEnd ? deadlineLocal : windowEnd;
+    const cappedMinutes = Math.max(0, Math.floor((effectiveEnd.getTime() - currentLocal.getTime()) / (1000 * 60)));
+    const minutesToCount = Math.min(available, cappedMinutes);
+
+    const leaveOverlap = getLeaveOverlap(new Date(currentLocal), effectiveEnd, leaves, timezone);
+    totalMinutes += Math.max(0, minutesToCount - leaveOverlap);
+
+    if (deadlineLocal <= windowEnd) break;
+
+    if (overnight && curMin >= todayStart) {
+      currentLocal.setDate(currentLocal.getDate() + 2);
+    } else {
+      currentLocal.setDate(currentLocal.getDate() + 1);
+    }
+    const nextStart = getISODay(currentLocal) === 6 ? satStartMin : workStartMin;
+    currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
+  }
+  return totalMinutes;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -273,7 +352,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { developer_id, start_time, sla_hours = 8 } = await req.json();
+    const { developer_id, start_time, sla_hours = 8, resume_from_hold, held_at, original_sla_deadline } = await req.json();
 
     if (!developer_id) {
       return new Response(
@@ -283,7 +362,7 @@ serve(async (req) => {
     }
 
     const startTimeUTC = start_time ? new Date(start_time) : new Date();
-    const slaMinutes = sla_hours * 60;
+    let slaMinutes = sla_hours * 60;
 
     console.log(`Calculating SLA: developer=${developer_id}, start=${startTimeUTC.toISOString()}, hours=${sla_hours}`);
 
@@ -331,6 +410,21 @@ serve(async (req) => {
 
     if (leaveError) {
       console.error("Error fetching leaves:", leaveError);
+    }
+
+    // If resuming from hold, compute remaining working minutes between held_at and original deadline
+    if (resume_from_hold && held_at && original_sla_deadline) {
+      const heldAtUTC = new Date(held_at);
+      const originalDeadlineUTC = new Date(original_sla_deadline);
+      
+      if (originalDeadlineUTC > heldAtUTC) {
+        const remainingMinutes = calculateRemainingMinutes(heldAtUTC, originalDeadlineUTC, calendar, leaves || []);
+        slaMinutes = Math.max(1, Math.round(remainingMinutes));
+        console.log(`Resume mode: ${remainingMinutes} working minutes remained at hold time`);
+      } else {
+        slaMinutes = 0;
+        console.log(`Resume mode: was already overdue at hold time`);
+      }
     }
 
     const deadline = calculateDeadline(startTimeUTC, slaMinutes, calendar, leaves || []);
