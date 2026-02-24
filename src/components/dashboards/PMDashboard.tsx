@@ -2278,42 +2278,7 @@ const PMDashboard = () => {
                         </div>
                       </div>
 
-                      {/* Attachments */}
-                      {task.attachment_file_path && (
-                        <div className="pt-2 border-t">
-                          <p className="text-xs text-muted-foreground mb-2">
-                            Attachments ({task.attachment_file_path.split('|||').length})
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {task.attachment_file_path.split('|||').slice(0, 3).map((filePath: string, index: number) => {
-                              const fileName = task.attachment_file_name?.split('|||')[index] || `attachment_${index + 1}`;
-                              return (
-                                <div key={index} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg border hover:border-primary/50 transition-colors">
-                                  <FilePreview 
-                                    filePath={filePath.trim()}
-                                    fileName={fileName.trim()}
-                                    className="w-8 h-8"
-                                  />
-                                  <span className="text-xs max-w-[100px] truncate">{fileName.trim()}</span>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 w-6 p-0"
-                                    onClick={() => handleDownload(filePath.trim(), fileName.trim())}
-                                  >
-                                    <Download className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              );
-                            })}
-                            {task.attachment_file_path.split('|||').length > 3 && (
-                              <span className="text-xs text-muted-foreground self-center">
-                                +{task.attachment_file_path.split('|||').length - 3} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
+
 
 
                       {/* Phase Review Section for Website Orders */}
