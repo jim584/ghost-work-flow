@@ -3239,7 +3239,7 @@ const PMDashboard = () => {
             <DialogTitle>Task Details - #{viewDetailsTask?.task_number}</DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="space-y-6 overflow-hidden">
+            <div className="space-y-6" style={{ maxWidth: '100%', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
               {/* Customer Information */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Customer Information</h3>
