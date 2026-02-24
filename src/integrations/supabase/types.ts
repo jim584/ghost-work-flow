@@ -814,6 +814,41 @@ export type Database = {
           },
         ]
       }
+      task_hold_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          performed_by: string
+          reason: string | null
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          performed_by: string
+          reason?: string | null
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          performed_by?: string
+          reason?: string | null
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_hold_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           accepted_by_pm: boolean

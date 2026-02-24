@@ -10,8 +10,9 @@ import { FilePreview } from "@/components/FilePreview";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { PhaseReviewReplySection } from "@/components/dashboards/PhaseReviewReplySection";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
-import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X } from "lucide-react";
+import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X, PauseCircle } from "lucide-react";
 
 // Helper to make URLs in text clickable (supports with or without http/https prefix)
 const LinkifyText = ({ text }: { text: string }) => {
@@ -782,7 +783,7 @@ const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, t
 
 // ─── Full Timeline Dialog Content ───────────────────────────────────
 
-const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames }: {
+const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames, holdEvents = [] }: {
   sortedPhases: Phase[];
   phaseReviews: PhaseReview[];
   onMarkPhaseComplete?: (phaseId: string, reviewStatus: string, comment?: string, filePaths?: string, fileNames?: string) => void;
@@ -791,6 +792,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   userId?: string;
   canReply?: boolean;
   devNames?: Record<string, string>;
+  holdEvents?: any[];
 }) => {
   const renderPhaseAccordionItem = (phase: Phase) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
@@ -824,11 +826,71 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
     );
   };
 
+  // Build a combined timeline: phases + hold events, sorted by date
+  const renderHoldEvent = (event: any) => {
+    const isHold = event.event_type === "hold";
+    const performerName = reviewerNames[event.performed_by] || devNames?.[event.performed_by] || "PM";
+    return (
+      <div key={event.id} className={`flex items-start gap-3 p-3 rounded-md border ${isHold ? "bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/30" : "bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/30"}`}>
+        <div className={`mt-0.5 p-1 rounded-full ${isHold ? "bg-amber-100 dark:bg-amber-500/20" : "bg-green-100 dark:bg-green-500/20"}`}>
+          {isHold ? <PauseCircle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" /> : <PlayCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold">
+              {isHold ? "Order Put On Hold" : "Order Resumed"}
+            </span>
+            <Badge variant="outline" className={`text-[10px] ${isHold ? "text-amber-600 border-amber-300" : "text-green-600 border-green-300"}`}>
+              {isHold ? "Hold" : "Resumed"}
+            </Badge>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            by {performerName} • {format(new Date(event.created_at), "MMM d, yyyy 'at' h:mm a")}
+            {" "}({formatDistanceToNow(new Date(event.created_at), { addSuffix: true })})
+          </p>
+          {isHold && event.reason && (
+            <p className="text-xs mt-1.5 text-foreground/80 bg-amber-100/50 dark:bg-amber-500/5 px-2 py-1 rounded">
+              <span className="font-medium">Reason:</span> {event.reason}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Interleave hold events chronologically among phases
+  const allItems: { type: "phase" | "hold"; date: string; content: any }[] = [];
+  
+  sortedPhases.forEach(phase => {
+    allItems.push({ type: "phase", date: phase.started_at || "", content: phase });
+  });
+  holdEvents.forEach(event => {
+    allItems.push({ type: "hold", date: event.created_at, content: event });
+  });
+  allItems.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
   return (
     <ScrollArea className="max-h-[70vh]">
-      <Accordion type="multiple" defaultValue={sortedPhases.map(p => p.id)}>
-        {sortedPhases.map(phase => renderPhaseAccordionItem(phase))}
-      </Accordion>
+      <div className="space-y-2">
+        {/* Hold events section if any exist */}
+        {holdEvents.length > 0 && (
+          <Collapsible defaultOpen={true}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hold / Resume History</h4>
+              <Badge variant="outline" className="text-[10px] ml-auto">{holdEvents.length}</Badge>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1.5 mb-3">
+              {holdEvents
+                .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                .map((event: any) => renderHoldEvent(event))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+        <Accordion type="multiple" defaultValue={sortedPhases.map(p => p.id)}>
+          {sortedPhases.map(phase => renderPhaseAccordionItem(phase))}
+        </Accordion>
+      </div>
     </ScrollArea>
   );
 };
@@ -837,6 +899,21 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
 
 export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false, devNames = {} }: DevPhaseReviewTimelineProps) => {
   const [showFullTimeline, setShowFullTimeline] = useState(false);
+
+  // Fetch hold/resume events for this task
+  const { data: holdEvents } = useQuery({
+    queryKey: ["task-hold-events", taskId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("task_hold_events")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: showFullTimeline,
+  });
 
   // Mark unread PM notes as read when this timeline mounts
   useEffect(() => {
@@ -925,6 +1002,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
             userId={userId}
             canReply={canReply}
             devNames={devNames}
+            holdEvents={holdEvents || []}
           />
         </DialogContent>
       </Dialog>
