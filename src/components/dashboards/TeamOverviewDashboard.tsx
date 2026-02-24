@@ -1613,8 +1613,8 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
           <DialogHeader>
             <DialogTitle>Order Details — #{viewDetailsTask?.task_number}</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="space-y-4">
+          <div className="max-h-[70vh] overflow-y-auto pr-4">
+            <div className="space-y-4" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
               {/* Phase Progress in Details */}
               {viewDetailsTask?.current_phase && (
                 <div className="p-4 bg-muted/30 rounded-lg space-y-3">
@@ -1707,7 +1707,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
 
