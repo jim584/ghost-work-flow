@@ -3239,7 +3239,7 @@ const PMDashboard = () => {
             <DialogTitle>Task Details - #{viewDetailsTask?.task_number}</DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="space-y-6">
+            <div className="space-y-6 overflow-hidden">
               {/* Customer Information */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg border-b pb-2">Customer Information</h3>
@@ -3406,9 +3406,9 @@ const PMDashboard = () => {
                     </div>
                   </div>
                   {(viewDetailsTask as any)?.video_keywords && (
-                    <div>
+                    <div className="overflow-hidden">
                       <Label className="text-muted-foreground">Video Keywords</Label>
-                      <p className="font-medium break-words whitespace-pre-wrap overflow-hidden">{(viewDetailsTask as any)?.video_keywords}</p>
+                      <p className="font-medium whitespace-pre-wrap" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{(viewDetailsTask as any)?.video_keywords}</p>
                     </div>
                   )}
                   <div>
