@@ -3234,7 +3234,7 @@ const PMDashboard = () => {
       </main>
 
       <Dialog open={!!viewDetailsTask} onOpenChange={() => setViewDetailsTask(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl w-[95vw]">
           <DialogHeader>
             <DialogTitle>Task Details - #{viewDetailsTask?.task_number}</DialogTitle>
           </DialogHeader>
@@ -3404,11 +3404,13 @@ const PMDashboard = () => {
                       <Label className="text-muted-foreground">Number of Pages</Label>
                       <p className="font-medium">{viewDetailsTask?.number_of_pages || "N/A"}</p>
                     </div>
+                  </div>
+                  {(viewDetailsTask as any)?.video_keywords && (
                     <div>
                       <Label className="text-muted-foreground">Video Keywords</Label>
-                      <p className="font-medium break-words whitespace-pre-wrap">{(viewDetailsTask as any)?.video_keywords || "N/A"}</p>
+                      <p className="font-medium break-words whitespace-pre-wrap overflow-hidden">{(viewDetailsTask as any)?.video_keywords}</p>
                     </div>
-                  </div>
+                  )}
                   <div>
                     <Label className="text-muted-foreground">Supporting Text</Label>
                     <p className="font-medium whitespace-pre-wrap">{viewDetailsTask?.supporting_text || "N/A"}</p>
@@ -3434,11 +3436,11 @@ const PMDashboard = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="mt-3 w-full"
+                                className="mt-3 w-full overflow-hidden"
                                 onClick={() => handleDownload(filePath.trim(), fileName.trim())}
                               >
                                 <Download className="h-3 w-3 mr-2 flex-shrink-0" />
-                                <span className="truncate">{fileName.trim()}</span>
+                                <span className="truncate">Download {fileName.trim()}</span>
                               </Button>
                             </div>
                           );
