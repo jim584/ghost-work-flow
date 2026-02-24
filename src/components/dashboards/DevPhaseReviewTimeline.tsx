@@ -12,7 +12,7 @@ import { PhaseReviewReplySection } from "@/components/dashboards/PhaseReviewRepl
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
-import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X, PauseCircle } from "lucide-react";
+import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X, PauseCircle, UserCheck, Bell, Rocket } from "lucide-react";
 
 // Helper to make URLs in text clickable (supports with or without http/https prefix)
 const LinkifyText = ({ text }: { text: string }) => {
@@ -783,7 +783,7 @@ const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, t
 
 // ─── Full Timeline Dialog Content ───────────────────────────────────
 
-const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames, holdEvents = [] }: {
+const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames, holdEvents = [], taskMilestones }: {
   sortedPhases: Phase[];
   phaseReviews: PhaseReview[];
   onMarkPhaseComplete?: (phaseId: string, reviewStatus: string, comment?: string, filePaths?: string, fileNames?: string) => void;
@@ -793,6 +793,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   canReply?: boolean;
   devNames?: Record<string, string>;
   holdEvents?: any[];
+  taskMilestones?: { assigned_at?: string; acknowledged_at?: string; first_phase_started_at?: string } | null;
 }) => {
   const renderPhaseAccordionItem = (phase: Phase) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
@@ -869,9 +870,61 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   });
   allItems.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+  // Build milestone items
+  const milestoneItems: { label: string; icon: React.ReactNode; date: string; colorClass: string }[] = [];
+  if (taskMilestones?.assigned_at) {
+    milestoneItems.push({
+      label: "Order Assigned to Developer",
+      icon: <Rocket className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />,
+      date: taskMilestones.assigned_at,
+      colorClass: "bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/30",
+    });
+  }
+  if (taskMilestones?.acknowledged_at) {
+    milestoneItems.push({
+      label: "Order Acknowledged",
+      icon: <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />,
+      date: taskMilestones.acknowledged_at,
+      colorClass: "bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30",
+    });
+  }
+  if (taskMilestones?.first_phase_started_at) {
+    milestoneItems.push({
+      label: "Work Started (Phase 1)",
+      icon: <PlayCircle className="h-3.5 w-3.5 text-primary" />,
+      date: taskMilestones.first_phase_started_at,
+      colorClass: "bg-primary/5 border-primary/20",
+    });
+  }
+
   return (
     <ScrollArea className="max-h-[70vh]">
       <div className="space-y-2">
+        {/* Order Milestones */}
+        {milestoneItems.length > 0 && (
+          <Collapsible defaultOpen={true}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Order Milestones</h4>
+              <Badge variant="outline" className="text-[10px] ml-auto">{milestoneItems.length}</Badge>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1.5 mb-3">
+              {milestoneItems.map((item, idx) => (
+                <div key={idx} className={`flex items-start gap-3 p-3 rounded-md border ${item.colorClass}`}>
+                  <div className="mt-0.5">{item.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-semibold">{item.label}</span>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {format(new Date(item.date), "MMM d, yyyy 'at' h:mm a")}
+                      {" "}({formatDistanceToNow(new Date(item.date), { addSuffix: true })})
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
         {/* Hold events section if any exist */}
         {holdEvents.length > 0 && (
           <Collapsible defaultOpen={true}>
@@ -911,6 +964,34 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data || [];
+    },
+    enabled: showFullTimeline,
+  });
+
+  // Fetch task milestones (assigned_at from status=assigned, acknowledged_at, first phase started_at)
+  const { data: taskMilestones } = useQuery({
+    queryKey: ["task-milestones", taskId],
+    queryFn: async () => {
+      // Get task-level data
+      const { data: task } = await supabase
+        .from("tasks")
+        .select("created_at, acknowledged_at, status")
+        .eq("id", taskId)
+        .single();
+
+      // Get first phase started_at
+      const { data: firstPhase } = await supabase
+        .from("project_phases")
+        .select("started_at")
+        .eq("task_id", taskId)
+        .eq("phase_number", 1)
+        .single();
+
+      return {
+        assigned_at: task?.created_at || undefined,
+        acknowledged_at: task?.acknowledged_at || undefined,
+        first_phase_started_at: firstPhase?.started_at || undefined,
+      };
     },
     enabled: showFullTimeline,
   });
@@ -1003,6 +1084,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
             canReply={canReply}
             devNames={devNames}
             holdEvents={holdEvents || []}
+            taskMilestones={taskMilestones}
           />
         </DialogContent>
       </Dialog>
