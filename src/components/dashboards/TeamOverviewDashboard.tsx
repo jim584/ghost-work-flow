@@ -1173,25 +1173,44 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                             )}
                           </Button>
                         </div>
-                        {task.attachment_file_path && (
-                          <div className="mt-3 space-y-2">
-                            <p className="text-xs text-muted-foreground">Task Attachments ({task.attachment_file_path.split('|||').length}):</p>
-                            {task.attachment_file_path.split('|||').map((filePath: string, index: number) => {
-                              const fileName = task.attachment_file_name?.split('|||')[index] || `attachment_${index + 1}`;
-                              return (
-                                <div key={index} className="p-2 bg-muted/30 rounded border">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} className="w-10 h-10" />
-                                    <span className="text-xs flex-1 truncate">{fileName.trim()}</span>
-                                    <Button size="sm" variant="outline" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
-                                      <Download className="h-3 w-3" />
-                                    </Button>
+                        {(task.attachment_file_path || (task as any).logo_url) && (() => {
+                          const attachmentCount = task.attachment_file_path ? task.attachment_file_path.split('|||').length : 0;
+                          const logoCount = (task as any).logo_url ? (task as any).logo_url.split('|||').length : 0;
+                          const totalCount = attachmentCount + logoCount;
+                          return (
+                            <div className="mt-3 space-y-2">
+                              <p className="text-xs text-muted-foreground">Task Attachments ({totalCount}):</p>
+                              {(task as any).logo_url && (task as any).logo_url.split('|||').map((filePath: string, index: number) => {
+                                const fileName = filePath.trim().split('/').pop() || `logo_${index + 1}`;
+                                return (
+                                  <div key={`logo-${index}`} className="p-2 bg-muted/30 rounded border">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <FilePreview filePath={filePath.trim()} fileName={fileName} className="w-10 h-10" />
+                                      <span className="text-xs flex-1 truncate">{fileName}</span>
+                                      <Button size="sm" variant="outline" onClick={() => handleDownload(filePath.trim(), fileName)}>
+                                        <Download className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                                );
+                              })}
+                              {task.attachment_file_path && task.attachment_file_path.split('|||').map((filePath: string, index: number) => {
+                                const fileName = task.attachment_file_name?.split('|||')[index] || `attachment_${index + 1}`;
+                                return (
+                                  <div key={`att-${index}`} className="p-2 bg-muted/30 rounded border">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <FilePreview filePath={filePath.trim()} fileName={fileName.trim()} className="w-10 h-10" />
+                                      <span className="text-xs flex-1 truncate">{fileName.trim()}</span>
+                                      <Button size="sm" variant="outline" onClick={() => handleDownload(filePath.trim(), fileName.trim())}>
+                                        <Download className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="flex flex-col items-end gap-2 ml-4">
                         <Badge className={
