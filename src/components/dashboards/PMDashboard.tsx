@@ -1184,21 +1184,69 @@ const PMDashboard = () => {
 
   const resumeOrder = useMutation({
     mutationFn: async (taskId: string) => {
+      // Fetch task details for SLA recalculation
+      const { data: taskData } = await supabase
+        .from("tasks")
+        .select("developer_id, held_at, sla_deadline")
+        .eq("id", taskId)
+        .single();
+
+      // Recalculate SLA deadline if developer and hold data exist
+      let newDeadline: string | null = null;
+      if (taskData?.developer_id && taskData?.held_at && taskData?.sla_deadline) {
+        try {
+          const { data: slaResult } = await supabase.functions.invoke("calculate-sla-deadline", {
+            body: {
+              developer_id: taskData.developer_id,
+              resume_from_hold: true,
+              held_at: taskData.held_at,
+              original_sla_deadline: taskData.sla_deadline,
+            },
+          });
+          if (slaResult?.deadline) {
+            newDeadline = slaResult.deadline;
+          }
+        } catch (e) {
+          console.error("SLA recalculation failed on resume:", e);
+        }
+      }
+
+      const updatePayload: any = {
+        status: "in_progress" as any,
+        hold_reason: null,
+        held_at: null,
+        held_by: null,
+      };
+      if (newDeadline) {
+        updatePayload.sla_deadline = newDeadline;
+      }
+
       const { error } = await supabase
         .from("tasks")
-        .update({ 
-          status: "in_progress" as any, 
-          hold_reason: null,
-          held_at: null,
-          held_by: null,
-        } as any)
+        .update(updatePayload)
         .eq("id", taskId);
       if (error) throw error;
+
+      // Also update the active phase's sla_deadline if applicable
+      if (newDeadline && taskData) {
+        const { data: task } = await supabase
+          .from("tasks")
+          .select("current_phase")
+          .eq("id", taskId)
+          .single();
+        if (task?.current_phase) {
+          await supabase
+            .from("project_phases")
+            .update({ sla_deadline: newDeadline } as any)
+            .eq("task_id", taskId)
+            .eq("phase_number", task.current_phase);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["all-tasks-search"] });
-      toast({ title: "Order resumed" });
+      toast({ title: "Order resumed", description: "SLA deadline recalculated with remaining time" });
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Error", description: error.message });
