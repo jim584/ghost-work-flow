@@ -904,7 +904,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
   const { data: holdEvents } = useQuery({
     queryKey: ["task-hold-events", taskId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("task_hold_events")
         .select("*")
         .eq("task_id", taskId)
