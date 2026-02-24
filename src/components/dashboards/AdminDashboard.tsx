@@ -1899,7 +1899,7 @@ const AdminDashboard = () => {
     if (hasTeamsPendingDelivery) categories.push('pending_delivery');
     
     // Check for late acknowledgement (ACK OVERDUE)
-    const hasLateAck = activeTasks.some((t: any) => t.late_acknowledgement === true && t.status !== 'cancelled');
+    const hasLateAck = activeTasks.some((t: any) => t.late_acknowledgement === true && !t.acknowledged_at && t.status !== 'cancelled');
     if (hasLateAck) categories.push('delayed_ack');
     
     // For multi-team orders, also check individual task statuses
@@ -2961,7 +2961,7 @@ const AdminDashboard = () => {
                   const allCats = getGroupCategories(group, submissions || []);
                   if (!allCats.includes('delayed_ack')) return null;
                   const activeTasks = group.isMultiTeam ? group.allTasks.filter((t: any) => t.status !== 'cancelled') : [task];
-                  const lateTask = activeTasks.find((t: any) => t.late_acknowledgement === true && t.ack_deadline);
+                  const lateTask = activeTasks.find((t: any) => t.late_acknowledgement === true && !t.acknowledged_at && t.ack_deadline);
                   if (!lateTask) return <Badge className="bg-amber-600 text-white">ACK OVERDUE</Badge>;
                   
                   const devRecord = developerCalendars?.find((d: any) => d.id === lateTask.developer_id);
