@@ -793,7 +793,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   canReply?: boolean;
   devNames?: Record<string, string>;
   holdEvents?: any[];
-  taskMilestones?: { assigned_at?: string; acknowledged_at?: string; first_phase_started_at?: string; completed_at?: string; approved_at?: string } | null;
+  taskMilestones?: { assigned_at?: string; acknowledged_at?: string; first_phase_started_at?: string; completed_at?: string; approved_at?: string; cancelled_at?: string; cancellation_reason?: string } | null;
 }) => {
   const renderPhaseAccordionItem = (phase: Phase) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
@@ -871,7 +871,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   allItems.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Build milestone items
-  const milestoneItems: { label: string; icon: React.ReactNode; date: string; colorClass: string }[] = [];
+  const milestoneItems: { label: string; icon: React.ReactNode; date: string; colorClass: string; reason?: string }[] = [];
   if (taskMilestones?.assigned_at) {
     milestoneItems.push({
       label: "Order Assigned to Developer",
@@ -912,6 +912,15 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
       colorClass: "bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/30",
     });
   }
+  if (taskMilestones?.cancelled_at) {
+    milestoneItems.push({
+      label: "Order Cancelled",
+      icon: <X className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />,
+      date: taskMilestones.cancelled_at,
+      colorClass: "bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/30",
+      reason: taskMilestones.cancellation_reason,
+    });
+  }
 
   return (
     <ScrollArea className="max-h-[70vh]">
@@ -934,6 +943,11 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
                       {format(new Date(item.date), "MMM d, yyyy 'at' h:mm a")}
                       {" "}({formatDistanceToNow(new Date(item.date), { addSuffix: true })})
                     </p>
+                    {item.reason && (
+                      <p className="text-xs mt-1.5 text-foreground/80 bg-red-100/50 dark:bg-red-500/5 px-2 py-1 rounded">
+                        <span className="font-medium">Reason:</span> {item.reason}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -991,7 +1005,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
       // Get task-level data
       const { data: task } = await supabase
         .from("tasks")
-        .select("created_at, acknowledged_at, status, updated_at")
+        .select("created_at, acknowledged_at, status, updated_at, cancelled_at, cancellation_reason")
         .eq("id", taskId)
         .single();
 
@@ -1019,6 +1033,8 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
         first_phase_started_at: firstPhase?.started_at || undefined,
         completed_at: task?.status === 'completed' || task?.status === 'approved' ? lastCompletedPhase?.completed_at || undefined : undefined,
         approved_at: task?.status === 'approved' ? task?.updated_at || undefined : undefined,
+        cancelled_at: task?.status === 'cancelled' ? task?.cancelled_at || undefined : undefined,
+        cancellation_reason: task?.status === 'cancelled' ? task?.cancellation_reason || undefined : undefined,
       };
     },
     enabled: showFullTimeline,
