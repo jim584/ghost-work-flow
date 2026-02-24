@@ -3406,7 +3406,7 @@ const PMDashboard = () => {
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Video Keywords</Label>
-                      <p className="font-medium">{(viewDetailsTask as any)?.video_keywords || "N/A"}</p>
+                      <p className="font-medium break-words whitespace-pre-wrap">{(viewDetailsTask as any)?.video_keywords || "N/A"}</p>
                     </div>
                   </div>
                   <div>
@@ -3415,7 +3415,7 @@ const PMDashboard = () => {
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Design References</Label>
-                    <p className="font-medium">{viewDetailsTask?.design_references || "N/A"}</p>
+                    <p className="font-medium break-words whitespace-pre-wrap">{viewDetailsTask?.design_references || "N/A"}</p>
                   </div>
                   
                   {/* Logo Files for Website Orders */}
@@ -3437,8 +3437,8 @@ const PMDashboard = () => {
                                 className="mt-3 w-full"
                                 onClick={() => handleDownload(filePath.trim(), fileName.trim())}
                               >
-                                <Download className="h-3 w-3 mr-2" />
-                                Download {fileName.trim()}
+                                <Download className="h-3 w-3 mr-2 flex-shrink-0" />
+                                <span className="truncate">{fileName.trim()}</span>
                               </Button>
                             </div>
                           );
