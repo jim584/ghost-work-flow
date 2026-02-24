@@ -2607,12 +2607,18 @@ const PMDashboard = () => {
                           <FileText className="h-3.5 w-3.5 mr-1.5" />
                           View Details
                         </Button>
-                        {task.attachment_file_path && (
-                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground px-2 py-1 bg-muted rounded-md" title={`${task.attachment_file_path.split('|||').length} attachment(s)`}>
-                            <Paperclip className="h-3.5 w-3.5" />
-                            {task.attachment_file_path.split('|||').length}
-                          </span>
-                        )}
+                        {(() => {
+                          const totalFiles = 
+                            (task.attachment_file_path ? task.attachment_file_path.split('|||').length : 0) +
+                            (task.logo_url ? task.logo_url.split('|||').length : 0);
+                          if (totalFiles === 0) return null;
+                          return (
+                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground px-2 py-1 bg-muted rounded-md" title={`${totalFiles} file(s) attached`}>
+                              <Paperclip className="h-3.5 w-3.5" />
+                              {totalFiles}
+                            </span>
+                          );
+                        })()}
                         <Button size="sm" variant="outline" className="relative hover-scale" onClick={() => setChatTask(task)}>
                           <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
                           Chat
