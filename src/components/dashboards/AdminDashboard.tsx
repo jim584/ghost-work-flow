@@ -995,7 +995,7 @@ const AdminDashboard = () => {
         .eq("id", taskId);
       if (error) throw error;
 
-      await supabase.from("task_hold_events").insert({
+      await (supabase as any).from("task_hold_events").insert({
         task_id: taskId,
         event_type: "hold",
         performed_by: user!.id,
@@ -1062,7 +1062,7 @@ const AdminDashboard = () => {
       }
 
       // Record resume event
-      await supabase.from("task_hold_events").insert({
+      await (supabase as any).from("task_hold_events").insert({
         task_id: taskId,
         event_type: "resume",
         performed_by: user!.id,
