@@ -1493,7 +1493,7 @@ const DeveloperDashboard = () => {
                         )}
 
                         {/* Phase Progress & SLA for in-progress tasks */}
-                        {!isAssigned && task.current_phase && task.status !== "completed" && task.status !== "approved" && (
+                        {!isAssigned && task.current_phase && task.status !== "completed" && task.status !== "approved" && task.status !== "on_hold" && (
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
                             {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={9} />}
                             {/* Change timers for phases with changes needed */}
@@ -2455,7 +2455,7 @@ const DeveloperDashboard = () => {
                 <div className="p-4 bg-muted/30 rounded-lg space-y-3">
                   <h3 className="font-semibold text-lg">Project Progress</h3>
                   <PhaseProgress currentPhase={viewDetailsTask.current_phase} totalPhases={viewDetailsTask.total_phases} phases={projectPhases?.filter(p => p.task_id === viewDetailsTask?.id)} />
-                  {viewDetailsTask.sla_deadline && viewDetailsTask.status !== "completed" && viewDetailsTask.status !== "approved" && (
+                  {viewDetailsTask.sla_deadline && viewDetailsTask.status !== "completed" && viewDetailsTask.status !== "approved" && viewDetailsTask.status !== "on_hold" && (
                     <SlaCountdown deadline={viewDetailsTask.sla_deadline} label="9hr SLA" calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={9} />
                   )}
                   {viewDetailsTask.ack_deadline && viewDetailsTask.status === "assigned" && (

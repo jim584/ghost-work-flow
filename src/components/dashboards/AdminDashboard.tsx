@@ -3252,7 +3252,7 @@ const AdminDashboard = () => {
                       )}
 
                       {/* SLA Countdown Timers for Website Orders */}
-                      {isWebsiteOrder(task) && !['completed', 'approved', 'cancelled'].includes(task.status) && (() => {
+                      {isWebsiteOrder(task) && !['completed', 'approved', 'cancelled', 'on_hold'].includes(task.status) && (() => {
                         const devRecord = developerCalendars?.find((d: any) => d.id === task.developer_id);
                         const cal = devRecord?.availability_calendars as CalendarConfig | undefined;
                         const devLeaves = (allLeaveRecords?.filter((l: any) => l.developer_id === devRecord?.id) || []) as LeaveRecord[];
@@ -4908,7 +4908,7 @@ const AdminDashboard = () => {
               )}
 
               {/* SLA Timers in Details View */}
-              {isWebsiteOrder(viewDetailsTask) && !['completed', 'approved', 'cancelled'].includes(viewDetailsTask.status) && (() => {
+              {isWebsiteOrder(viewDetailsTask) && !['completed', 'approved', 'cancelled', 'on_hold'].includes(viewDetailsTask.status) && (() => {
                 const devRecord = developerCalendars?.find((d: any) => d.id === viewDetailsTask.developer_id);
                 const cal = devRecord?.availability_calendars as CalendarConfig | undefined;
                 const devLeaves = (allLeaveRecords?.filter((l: any) => l.developer_id === devRecord?.id) || []) as LeaveRecord[];
