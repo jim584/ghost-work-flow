@@ -1953,12 +1953,6 @@ const PMDashboard = () => {
                                 #{task.task_number}
                               </span>
                               {getOrderTypeBadge()}
-                              {task.attachment_file_path && (
-                                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={`${task.attachment_file_path.split('|||').length} attachment(s)`}>
-                                  <Paperclip className="h-3 w-3" />
-                                  {task.attachment_file_path.split('|||').length}
-                                </span>
-                              )}
                               {group.isMultiTeam && (
                                 <>
                                   <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-200">
@@ -2613,6 +2607,12 @@ const PMDashboard = () => {
                           <FileText className="h-3.5 w-3.5 mr-1.5" />
                           View Details
                         </Button>
+                        {task.attachment_file_path && (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground px-2 py-1 bg-muted rounded-md" title={`${task.attachment_file_path.split('|||').length} attachment(s)`}>
+                            <Paperclip className="h-3.5 w-3.5" />
+                            {task.attachment_file_path.split('|||').length}
+                          </span>
+                        )}
                         <Button size="sm" variant="outline" className="relative hover-scale" onClick={() => setChatTask(task)}>
                           <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
                           Chat
