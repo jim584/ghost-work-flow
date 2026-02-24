@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, AlertTriangle, Clock, MessageSquare, Globe, ExternalLink, ChevronDown, Play, Pause, Download, Volume2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Clock, MessageSquare, Globe, ExternalLink, ChevronDown, Pause, Download, Volume2 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FilePreview } from "@/components/FilePreview";
@@ -181,8 +181,6 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
   const [changeSeverity, setChangeSeverity] = useState<string>("minor");
   const [reviewVoiceBlob, setReviewVoiceBlob] = useState<Blob | null>(null);
   const [reviewFiles, setReviewFiles] = useState<File[]>([]);
-  const [holdDialog, setHoldDialog] = useState<{ open: boolean; phaseId: string; phaseNumber: number } | null>(null);
-  const [holdReason, setHoldReason] = useState("");
 
   const taskPhases = phases.filter(p => p.task_id === task.id).sort((a, b) => a.phase_number - b.phase_number);
 
@@ -368,50 +366,10 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     },
   });
 
-  const putOnHold = useMutation({
-    mutationFn: async ({ phaseId, reason }: { phaseId: string; reason: string }) => {
-      const { error } = await supabase
-        .from("project_phases")
-        .update({ status: "on_hold", hold_reason: reason, held_at: new Date().toISOString(), held_by: userId } as any)
-        .eq("id", phaseId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryKeysToInvalidate.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
-      toast({ title: "Phase put on hold" });
-      setHoldDialog(null);
-      setHoldReason("");
-    },
-    onError: (error: any) => {
-      toast({ variant: "destructive", title: "Error", description: error.message });
-    },
-  });
 
-  const resumePhase = useMutation({
-    mutationFn: async ({ phaseId }: { phaseId: string }) => {
-      const { error } = await supabase
-        .from("project_phases")
-        .update({ status: "in_progress", hold_reason: null, held_at: null, held_by: null } as any)
-        .eq("id", phaseId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryKeysToInvalidate.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
-      toast({ title: "Phase resumed" });
-    },
-    onError: (error: any) => {
-      toast({ variant: "destructive", title: "Error", description: error.message });
-    },
-  });
+
 
   const getReviewBadge = (phase: any) => {
-    if (phase.status === "on_hold") {
-      return (
-        <Badge className="bg-slate-500 text-white text-xs gap-1">
-          <Clock className="h-3 w-3" />On Hold
-        </Badge>
-      );
-    }
     if (!phase.review_status) return null;
     if (phase.review_status === "approved") {
       return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Approved</Badge>;
@@ -476,7 +434,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
   const getDefaultAccordionValue = () => {
     // Open the phase that's currently in progress or has active change requests
     for (const phase of [...taskPhases].reverse()) {
-      if (phase.status === "in_progress" || phase.status === "on_hold") return phase.id;
+      if (phase.status === "in_progress") return phase.id;
       if ((phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at) return phase.id;
     }
     // Default to the last phase
@@ -502,9 +460,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     const canReview = isAssignedPM && !readOnly && hasBeenSubmitted && (phase.status === "in_progress" || phase.status === "completed");
     const reviewsForPhase = phaseReviews.filter((r: any) => r.phase_id === phase.id);
 
-    const canAddPreSubmitNotes = isAssignedPM && !readOnly && !hasBeenSubmitted && phase.status === "in_progress";
-    const canPutOnHold = isAssignedPM && !readOnly && phase.status === "in_progress" && !hasBeenSubmitted;
-    const canResumeFromHold = isAssignedPM && !readOnly && phase.status === "on_hold";
+      const canAddPreSubmitNotes = isAssignedPM && !readOnly && !hasBeenSubmitted && phase.status === "in_progress";
 
     // Check if there's an active revision in progress (review exists with no change_completed_at)
     const hasActiveRevision = reviewsForPhase.some((r: any) => 
@@ -518,7 +474,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
         <AccordionTrigger className="py-2 hover:no-underline">
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
             <span className="text-xs font-medium truncate">{phaseLabel}</span>
-            <Badge variant="outline" className="text-xs shrink-0">{phase.status === "on_hold" ? "on hold" : phase.status}</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">{phase.status}</Badge>
             {getReviewBadge(phase)}
             {reviewsForPhase.length > 0 && (() => {
               const noteCount = reviewsForPhase.filter((r: any) => r.review_status === "pm_note").length;
@@ -573,34 +529,9 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           )}
           {/* PM actions for unsubmitted in-progress phases */}
           {canAddPreSubmitNotes && (
-            <div className="flex items-center gap-1">
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "pm_note" })}>
-                <MessageSquare className="h-3 w-3 mr-1" />Add Notes
-              </Button>
-              {canPutOnHold && (
-                <Button size="sm" variant="outline" className="h-7 text-xs bg-slate-50 border-slate-300 text-slate-700 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300" onClick={() => setHoldDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number })}>
-                  <Clock className="h-3 w-3 mr-1" />Put on Hold
-                </Button>
-              )}
-            </div>
-          )}
-          {/* Resume from hold */}
-          {canResumeFromHold && (
-            <div className="space-y-2">
-              {(phase as any).hold_reason && (
-                <div className="p-2 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-600 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400">
-                  <span className="font-medium">Hold reason:</span> {(phase as any).hold_reason}
-                </div>
-              )}
-              <div className="flex items-center gap-1">
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => resumePhase.mutate({ phaseId: phase.id })} disabled={resumePhase.isPending}>
-                  <Play className="h-3 w-3 mr-1" />{resumePhase.isPending ? "Resuming..." : "Resume Phase"}
-                </Button>
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "pm_note" })}>
-                  <MessageSquare className="h-3 w-3 mr-1" />Add Notes
-                </Button>
-              </div>
-            </div>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReviewDialog({ open: true, phaseId: phase.id, phaseNumber: phase.phase_number, reviewType: "pm_note" })}>
+              <MessageSquare className="h-3 w-3 mr-1" />Add Notes
+            </Button>
           )}
           {/* Show URLs from design_submissions */}
           {phaseUrls.length > 0 && (
@@ -762,40 +693,6 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
         </DialogContent>
       </Dialog>
 
-      {/* Hold Dialog */}
-      <Dialog open={!!holdDialog} onOpenChange={() => { setHoldDialog(null); setHoldReason(""); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Put Phase {holdDialog?.phaseNumber} on Hold</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="p-3 bg-accent border border-border rounded-md text-sm text-accent-foreground">
-              <p>This will pause the phase. The developer will see the hold status and reason.</p>
-            </div>
-            <div className="space-y-2">
-              <Label>
-                Hold Reason <span className="text-destructive">*</span>
-              </Label>
-              <textarea
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                placeholder="e.g. Customer traveling, waiting for content..."
-                value={holdReason}
-                onChange={(e) => setHoldReason(e.target.value)}
-              />
-            </div>
-            <Button
-              className="w-full"
-              disabled={putOnHold.isPending || !holdReason.trim()}
-              onClick={() => {
-                if (!holdDialog) return;
-                putOnHold.mutate({ phaseId: holdDialog.phaseId, reason: holdReason.trim() });
-              }}
-            >
-              {putOnHold.isPending ? "Putting on hold..." : "Put on Hold"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 };
