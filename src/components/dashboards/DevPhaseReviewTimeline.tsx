@@ -12,7 +12,7 @@ import { PhaseReviewReplySection } from "@/components/dashboards/PhaseReviewRepl
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
-import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X, PauseCircle, UserCheck, Bell, Rocket, ArrowRightLeft } from "lucide-react";
+import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X, PauseCircle, UserCheck, Bell, Rocket, ArrowRightLeft, List, Layers } from "lucide-react";
 
 // Helper to make URLs in text clickable (supports with or without http/https prefix)
 const LinkifyText = ({ text }: { text: string }) => {
@@ -796,6 +796,8 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   taskMilestones?: { assigned_at?: string; acknowledged_at?: string; first_phase_started_at?: string; completed_at?: string; approved_at?: string; cancelled_at?: string; cancellation_reason?: string } | null;
   reassignmentEvents?: any[];
 }) => {
+  const [viewMode, setViewMode] = useState<"grouped" | "chronological">("grouped");
+
   const renderPhaseAccordionItem = (phase: Phase) => {
     const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
     const events = buildPhaseTimeline(phase, phaseReviews, onMarkPhaseComplete, reviewerNames, devNames);
@@ -828,7 +830,6 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
     );
   };
 
-  // Build a combined timeline: phases + hold events, sorted by date
   const renderHoldEvent = (event: any) => {
     const isHold = event.event_type === "hold";
     const performerName = reviewerNames[event.performed_by] || devNames?.[event.performed_by] || "PM";
@@ -860,162 +861,232 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
     );
   };
 
-  // Interleave hold events chronologically among phases
-  const allItems: { type: "phase" | "hold"; date: string; content: any }[] = [];
-  
-  sortedPhases.forEach(phase => {
-    allItems.push({ type: "phase", date: phase.started_at || "", content: phase });
-  });
-  holdEvents.forEach(event => {
-    allItems.push({ type: "hold", date: event.created_at, content: event });
-  });
-  allItems.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const renderReassignmentEvent = (event: any) => (
+    <div key={event.id} className="flex items-start gap-3 p-3 rounded-md border bg-orange-50 border-orange-200 dark:bg-orange-500/10 dark:border-orange-500/30">
+      <div className="mt-0.5 p-1 rounded-full bg-orange-100 dark:bg-orange-500/20">
+        <ArrowRightLeft className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold">Developer Reassigned</span>
+          <Badge variant="outline" className="text-[10px] text-orange-600 border-orange-300">Reassigned</Badge>
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          {event.from_name && <><span className="font-medium">{event.from_name}</span> → </>}
+          <span className="font-medium">{event.to_name || "New Developer"}</span>
+          {event.reassigned_by_name && <> • by {event.reassigned_by_name}</>}
+          {" "}• {format(new Date(event.created_at), "MMM d, yyyy 'at' h:mm a")}
+          {" "}({formatDistanceToNow(new Date(event.created_at), { addSuffix: true })})
+        </p>
+        {event.reason && (
+          <p className="text-xs mt-1.5 text-foreground/80 bg-orange-100/50 dark:bg-orange-500/5 px-2 py-1 rounded">
+            <span className="font-medium">Reason:</span> {event.reason}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderMilestoneCard = (item: { label: string; icon: React.ReactNode; date: string; colorClass: string; reason?: string }) => (
+    <div className={`flex items-start gap-3 p-3 rounded-md border ${item.colorClass}`}>
+      <div className="mt-0.5">{item.icon}</div>
+      <div className="flex-1 min-w-0">
+        <span className="text-xs font-semibold">{item.label}</span>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          {format(new Date(item.date), "MMM d, yyyy 'at' h:mm a")}
+          {" "}({formatDistanceToNow(new Date(item.date), { addSuffix: true })})
+        </p>
+        {item.reason && (
+          <p className="text-xs mt-1.5 text-foreground/80 bg-red-100/50 dark:bg-red-500/5 px-2 py-1 rounded">
+            <span className="font-medium">Reason:</span> {item.reason}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 
   // Build milestone items
   const milestoneItems: { label: string; icon: React.ReactNode; date: string; colorClass: string; reason?: string }[] = [];
   if (taskMilestones?.assigned_at) {
-    milestoneItems.push({
-      label: "Order Assigned to Developer",
-      icon: <Rocket className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />,
-      date: taskMilestones.assigned_at,
-      colorClass: "bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/30",
-    });
+    milestoneItems.push({ label: "Order Assigned to Developer", icon: <Rocket className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />, date: taskMilestones.assigned_at, colorClass: "bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/30" });
   }
   if (taskMilestones?.acknowledged_at) {
-    milestoneItems.push({
-      label: "Order Acknowledged",
-      icon: <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />,
-      date: taskMilestones.acknowledged_at,
-      colorClass: "bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30",
-    });
+    milestoneItems.push({ label: "Order Acknowledged", icon: <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />, date: taskMilestones.acknowledged_at, colorClass: "bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30" });
   }
   if (taskMilestones?.first_phase_started_at) {
-    milestoneItems.push({
-      label: "Work Started (Phase 1)",
-      icon: <PlayCircle className="h-3.5 w-3.5 text-primary" />,
-      date: taskMilestones.first_phase_started_at,
-      colorClass: "bg-primary/5 border-primary/20",
-    });
+    milestoneItems.push({ label: "Work Started (Phase 1)", icon: <PlayCircle className="h-3.5 w-3.5 text-primary" />, date: taskMilestones.first_phase_started_at, colorClass: "bg-primary/5 border-primary/20" });
   }
   if (taskMilestones?.completed_at) {
-    milestoneItems.push({
-      label: "Order Completed",
-      icon: <CheckCircle2 className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />,
-      date: taskMilestones.completed_at,
-      colorClass: "bg-violet-50 border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/30",
-    });
+    milestoneItems.push({ label: "Order Completed", icon: <CheckCircle2 className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />, date: taskMilestones.completed_at, colorClass: "bg-violet-50 border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/30" });
   }
   if (taskMilestones?.approved_at) {
-    milestoneItems.push({
-      label: "Order Approved",
-      icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />,
-      date: taskMilestones.approved_at,
-      colorClass: "bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/30",
-    });
+    milestoneItems.push({ label: "Order Approved", icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />, date: taskMilestones.approved_at, colorClass: "bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/30" });
   }
   if (taskMilestones?.cancelled_at) {
-    milestoneItems.push({
-      label: "Order Cancelled",
-      icon: <X className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />,
-      date: taskMilestones.cancelled_at,
-      colorClass: "bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/30",
-      reason: taskMilestones.cancellation_reason,
-    });
+    milestoneItems.push({ label: "Order Cancelled", icon: <X className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />, date: taskMilestones.cancelled_at, colorClass: "bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/30", reason: taskMilestones.cancellation_reason });
   }
 
-  return (
-    <ScrollArea className="max-h-[70vh]">
-      <div className="space-y-2">
-        {/* Order Milestones */}
-        {milestoneItems.length > 0 && (
-          <Collapsible defaultOpen={true}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Order Milestones</h4>
-              <Badge variant="outline" className="text-[10px] ml-auto">{milestoneItems.length}</Badge>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1.5 mb-3">
-              {milestoneItems.map((item, idx) => (
-                <div key={idx} className={`flex items-start gap-3 p-3 rounded-md border ${item.colorClass}`}>
-                  <div className="mt-0.5">{item.icon}</div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs font-semibold">{item.label}</span>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {format(new Date(item.date), "MMM d, yyyy 'at' h:mm a")}
-                      {" "}({formatDistanceToNow(new Date(item.date), { addSuffix: true })})
-                    </p>
-                    {item.reason && (
-                      <p className="text-xs mt-1.5 text-foreground/80 bg-red-100/50 dark:bg-red-500/5 px-2 py-1 rounded">
-                        <span className="font-medium">Reason:</span> {item.reason}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        )}
+  // ─── Chronological View ───────────────────────────────────────
+  const renderChronologicalView = () => {
+    type ChronoItem = { date: string; type: string; render: () => React.ReactNode };
+    const items: ChronoItem[] = [];
 
-        {/* Reassignment History */}
-        {reassignmentEvents.length > 0 && (
-          <Collapsible defaultOpen={true}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reassignment History</h4>
-              <Badge variant="outline" className="text-[10px] ml-auto">{reassignmentEvents.length}</Badge>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1.5 mb-3">
-              {reassignmentEvents
-                .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                .map((event: any) => (
-                  <div key={event.id} className="flex items-start gap-3 p-3 rounded-md border bg-orange-50 border-orange-200 dark:bg-orange-500/10 dark:border-orange-500/30">
-                    <div className="mt-0.5 p-1 rounded-full bg-orange-100 dark:bg-orange-500/20">
-                      <ArrowRightLeft className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-semibold">Developer Reassigned</span>
-                        <Badge variant="outline" className="text-[10px] text-orange-600 border-orange-300">Reassigned</Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {event.from_name && <><span className="font-medium">{event.from_name}</span> → </>}
-                        <span className="font-medium">{event.to_name || "New Developer"}</span>
-                        {event.reassigned_by_name && <> • by {event.reassigned_by_name}</>}
-                        {" "}• {format(new Date(event.created_at), "MMM d, yyyy 'at' h:mm a")}
-                        {" "}({formatDistanceToNow(new Date(event.created_at), { addSuffix: true })})
-                      </p>
-                      {event.reason && (
-                        <p className="text-xs mt-1.5 text-foreground/80 bg-orange-100/50 dark:bg-orange-500/5 px-2 py-1 rounded">
-                          <span className="font-medium">Reason:</span> {event.reason}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-            </CollapsibleContent>
-          </Collapsible>
-        )}
+    // Add milestones
+    milestoneItems.forEach((m, idx) => {
+      items.push({ date: m.date, type: "milestone", render: () => <div key={`m-${idx}`}>{renderMilestoneCard(m)}</div> });
+    });
 
-        {/* Hold events section if any exist */}
-        {holdEvents.length > 0 && (
-          <Collapsible defaultOpen={true}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hold / Resume History</h4>
-              <Badge variant="outline" className="text-[10px] ml-auto">{holdEvents.length}</Badge>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1.5 mb-3">
-              {holdEvents
-                .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                .map((event: any) => renderHoldEvent(event))}
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-        <Accordion type="multiple" defaultValue={sortedPhases.map(p => p.id)}>
-          {sortedPhases.map(phase => renderPhaseAccordionItem(phase))}
-        </Accordion>
+    // Add hold events
+    holdEvents.forEach(e => {
+      items.push({ date: e.created_at, type: "hold", render: () => renderHoldEvent(e) });
+    });
+
+    // Add reassignment events
+    reassignmentEvents.forEach(e => {
+      items.push({ date: e.created_at, type: "reassignment", render: () => renderReassignmentEvent(e) });
+    });
+
+    // Add phase-level events (flattened from all phases)
+    sortedPhases.forEach(phase => {
+      const phaseEvents = buildPhaseTimeline(phase, phaseReviews, onMarkPhaseComplete, reviewerNames, devNames);
+      phaseEvents.forEach(ev => {
+        items.push({
+          date: ev.dateStr,
+          type: ev.type,
+          render: () => (
+            <div key={ev.key} className="relative">
+              {ev.type === "dev_action" ? (
+                <DevActionCard
+                  type={ev.actionType!}
+                  phaseNumber={ev.phaseNumber}
+                  timestamp={ev.dateStr}
+                  devName={ev.devName}
+                  submissionFilePaths={ev.submissionFilePaths}
+                  submissionFileNames={ev.submissionFileNames}
+                  submissionComment={ev.submissionComment}
+                />
+              ) : (
+                <ReviewCard
+                  review={ev.review}
+                  phaseNumber={ev.phaseNumber}
+                  isCurrent={ev.isCurrent || false}
+                  phaseId={ev.phaseId}
+                  onMarkComplete={onMarkPhaseComplete}
+                  reviewerName={ev.review?.reviewed_by ? reviewerNames?.[ev.review.reviewed_by] : undefined}
+                  taskId={taskId}
+                  userId={userId}
+                  canReply={canReply}
+                />
+              )}
+            </div>
+          ),
+        });
+      });
+    });
+
+    items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    if (items.length === 0) {
+      return <p className="text-xs text-muted-foreground italic text-center py-4">No timeline events yet.</p>;
+    }
+
+    return (
+      <div className="relative space-y-2">
+        <div className="absolute left-3 top-2 bottom-2 w-px bg-border" />
+        {items.map((item, idx) => (
+          <div key={idx} className="relative pl-7">
+            <div className={`absolute left-[9px] top-4 w-1.5 h-1.5 rounded-full ${
+              item.type === "milestone" ? "bg-blue-500" :
+              item.type === "hold" ? "bg-amber-500" :
+              item.type === "reassignment" ? "bg-orange-500" :
+              item.type === "pm_review" ? "bg-amber-500" :
+              "bg-primary"
+            }`} />
+            {item.render()}
+          </div>
+        ))}
       </div>
-    </ScrollArea>
+    );
+  };
+
+  // ─── Grouped View (original) ──────────────────────────────────
+  const renderGroupedView = () => (
+    <div className="space-y-2">
+      {milestoneItems.length > 0 && (
+        <Collapsible defaultOpen={true}>
+          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Order Milestones</h4>
+            <Badge variant="outline" className="text-[10px] ml-auto">{milestoneItems.length}</Badge>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-1.5 mb-3">
+            {milestoneItems.map((item, idx) => <div key={idx}>{renderMilestoneCard(item)}</div>)}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {reassignmentEvents.length > 0 && (
+        <Collapsible defaultOpen={true}>
+          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reassignment History</h4>
+            <Badge variant="outline" className="text-[10px] ml-auto">{reassignmentEvents.length}</Badge>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-1.5 mb-3">
+            {reassignmentEvents
+              .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+              .map((event: any) => renderReassignmentEvent(event))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {holdEvents.length > 0 && (
+        <Collapsible defaultOpen={true}>
+          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hold / Resume History</h4>
+            <Badge variant="outline" className="text-[10px] ml-auto">{holdEvents.length}</Badge>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-1.5 mb-3">
+            {holdEvents
+              .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+              .map((event: any) => renderHoldEvent(event))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+      <Accordion type="multiple" defaultValue={sortedPhases.map(p => p.id)}>
+        {sortedPhases.map(phase => renderPhaseAccordionItem(phase))}
+      </Accordion>
+    </div>
+  );
+
+  return (
+    <div>
+      {/* View mode toggle */}
+      <div className="flex items-center gap-1 mb-3 p-0.5 bg-muted rounded-md w-fit">
+        <Button
+          variant={viewMode === "grouped" ? "secondary" : "ghost"}
+          size="sm"
+          className="h-7 text-[11px] gap-1.5 px-3"
+          onClick={() => setViewMode("grouped")}
+        >
+          <Layers className="h-3 w-3" />
+          Grouped
+        </Button>
+        <Button
+          variant={viewMode === "chronological" ? "secondary" : "ghost"}
+          size="sm"
+          className="h-7 text-[11px] gap-1.5 px-3"
+          onClick={() => setViewMode("chronological")}
+        >
+          <List className="h-3 w-3" />
+          Chronological
+        </Button>
+      </div>
+      <ScrollArea className="max-h-[65vh]">
+        {viewMode === "grouped" ? renderGroupedView() : renderChronologicalView()}
+      </ScrollArea>
+    </div>
   );
 };
 
