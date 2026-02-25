@@ -141,11 +141,8 @@ export function calculateRemainingWorkingMinutes(
 
     if (deadlineLocal <= windowEnd) break;
 
-    if (overnight && (currentLocal.getHours() * 60 + currentLocal.getMinutes()) >= todayStart) {
-      currentLocal.setDate(currentLocal.getDate() + 2);
-    } else {
-      currentLocal.setDate(currentLocal.getDate() + 1);
-    }
+    // Continue from the next calendar day shift start
+    currentLocal.setDate(currentLocal.getDate() + 1);
     const nextDay = getISODay(currentLocal);
     const nextStart = nextDay === 6 ? satStartMin : workStartMin;
     currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);

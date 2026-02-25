@@ -199,12 +199,8 @@ function calculateDeadline(
 
     if (usableMinutes <= 0) {
       // Skip to next day
-      if (overnight && currentMinute >= todayStart) {
-        // Jump past midnight portion too
-        currentLocal.setDate(currentLocal.getDate() + 2);
-      } else {
-        currentLocal.setDate(currentLocal.getDate() + 1);
-      }
+      // Advance to next calendar day shift start (overnight already accounted for in windowEnd)
+      currentLocal.setDate(currentLocal.getDate() + 1);
       const nextDay = getISODay(currentLocal);
       const nextStart = nextDay === 6 ? satStartMin : workStartMin;
       advanceToShiftStart(currentLocal, nextStart);
@@ -221,11 +217,8 @@ function calculateDeadline(
     } else {
       remainingMinutes -= usableMinutes;
       // Advance past this shift window
-      if (overnight && currentMinute >= todayStart) {
-        currentLocal.setDate(currentLocal.getDate() + 2);
-      } else {
-        currentLocal.setDate(currentLocal.getDate() + 1);
-      }
+      // Move to the next shift start on the following calendar day
+      currentLocal.setDate(currentLocal.getDate() + 1);
       const nextDay = getISODay(currentLocal);
       const nextStart = nextDay === 6 ? satStartMin : workStartMin;
       advanceToShiftStart(currentLocal, nextStart);
@@ -330,11 +323,8 @@ function calculateRemainingMinutes(
 
     if (deadlineLocal <= windowEnd) break;
 
-    if (overnight && curMin >= todayStart) {
-      currentLocal.setDate(currentLocal.getDate() + 2);
-    } else {
-      currentLocal.setDate(currentLocal.getDate() + 1);
-    }
+    // Continue from the next calendar day shift start
+    currentLocal.setDate(currentLocal.getDate() + 1);
     const nextStart = getISODay(currentLocal) === 6 ? satStartMin : workStartMin;
     currentLocal.setHours(Math.floor(nextStart / 60), nextStart % 60, 0, 0);
   }
