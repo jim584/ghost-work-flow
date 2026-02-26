@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, AlertTriangle, Clock, MessageSquare, Globe, ExternalLink, ChevronDown, Pause, Download, Volume2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { CheckCircle2, AlertTriangle, Clock, MessageSquare, Globe, ExternalLink, ChevronDown, Pause, Download, Volume2, XCircle, Pencil, Trash2 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FilePreview } from "@/components/FilePreview";
@@ -21,7 +23,7 @@ const SEVERITY_OPTIONS = [
   { value: "major_major", label: "Major Major", hours: 18, description: "Extensive rework (2 days)" },
 ] as const;
 
-const ReviewHistoryItem = ({ review, taskId, replyUserId, canReply }: { review: any; taskId?: string; replyUserId?: string; canReply?: boolean }) => {
+const ReviewHistoryItem = ({ review, taskId, replyUserId, canReply, onEditNote, onDeleteNote, onCancelRevision, isAssignedPM, userId }: { review: any; taskId?: string; replyUserId?: string; canReply?: boolean; onEditNote?: (review: any) => void; onDeleteNote?: (review: any) => void; onCancelRevision?: (review: any) => void; isAssignedPM?: boolean; userId?: string }) => {
   const [playingVoice, setPlayingVoice] = useState(false);
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
 
@@ -69,30 +71,47 @@ const ReviewHistoryItem = ({ review, taskId, replyUserId, canReply }: { review: 
     : [];
 
   const isPmNote = review.review_status === "pm_note";
+  const isSuperseded = !!review.superseded_at;
 
   const statusLabel = isPmNote ? "PM Notes" :
     review.review_status === "approved" ? "Approved" :
     review.review_status === "approved_with_changes" ? "Approved with Changes" : "Disapproved";
 
-  const statusColor = isPmNote ? "bg-slate-500" :
+  const statusColor = isSuperseded ? "bg-muted-foreground" : isPmNote ? "bg-slate-500" :
     review.review_status === "approved" ? "bg-green-600" :
     review.review_status === "approved_with_changes" ? "bg-amber-500" : "bg-destructive";
 
+  // PM Notes: editable/deletable within 1 hour by author
+  const isOwnPmNote = isPmNote && review.reviewed_by === userId;
+  const isWithinOneHour = review.reviewed_at && (Date.now() - new Date(review.reviewed_at).getTime()) < 60 * 60 * 1000;
+  const canEditDelete = isOwnPmNote && isWithinOneHour && isAssignedPM;
+
+  // Cancel Revision: active revision by assigned PM
+  const hasActiveRevision = !isSuperseded && !isPmNote &&
+    (review.review_status === "approved_with_changes" || review.review_status === "disapproved_with_changes") &&
+    !review.change_completed_at;
+  const canCancelRevision = hasActiveRevision && isAssignedPM;
+
   return (
     <div className={`p-3 rounded-md border space-y-2 ${
-      isPmNote
-        ? "bg-slate-50 border-slate-200 dark:bg-slate-950/20 dark:border-slate-800"
-        : review.review_status === "disapproved_with_changes"
-          ? "bg-destructive/5 border-destructive/20"
-          : review.review_status === "approved_with_changes"
-            ? "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800"
-            : "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
+      isSuperseded
+        ? "bg-muted/30 border-muted opacity-60"
+        : isPmNote
+          ? "bg-slate-50 border-slate-200 dark:bg-slate-950/20 dark:border-slate-800"
+          : review.review_status === "disapproved_with_changes"
+            ? "bg-destructive/5 border-destructive/20"
+            : review.review_status === "approved_with_changes"
+              ? "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800"
+              : "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
     }`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Badge className={`${statusColor} text-white text-xs`}>
+          <Badge className={`${statusColor} text-white text-xs ${isSuperseded ? "line-through" : ""}`}>
             {isPmNote ? statusLabel : `Round ${review.round_number}: ${statusLabel}`}
           </Badge>
+          {isSuperseded && (
+            <Badge variant="outline" className="text-xs text-muted-foreground">Superseded</Badge>
+          )}
           {!isPmNote && review.change_severity && (
             <Badge variant="outline" className="text-xs">
               {SEVERITY_OPTIONS.find(s => s.value === review.change_severity)?.label || review.change_severity}
@@ -104,9 +123,26 @@ const ReviewHistoryItem = ({ review, taskId, replyUserId, canReply }: { review: 
             <Badge className="bg-green-100 text-green-700 text-xs">Changes Done</Badge>
           )}
         </div>
-        <span className="text-xs text-muted-foreground">
-          {format(new Date(review.reviewed_at), "MMM d, yyyy h:mm a")}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {canEditDelete && (
+            <>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => onEditNote?.(review)} title="Edit note">
+                <Pencil className="h-3 w-3" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => onDeleteNote?.(review)} title="Delete note">
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </>
+          )}
+          {canCancelRevision && (
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive gap-1" onClick={() => onCancelRevision?.(review)} title="Cancel this revision and re-review">
+              <XCircle className="h-3 w-3" />Cancel Revision
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground">
+            {format(new Date(review.reviewed_at), "MMM d, yyyy h:mm a")}
+          </span>
+        </div>
       </div>
       {review.review_comment && (
         <p className="text-sm whitespace-pre-wrap">{review.review_comment}</p>
@@ -189,6 +225,9 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
   const [changeSeverity, setChangeSeverity] = useState<string>("minor");
   const [reviewVoiceBlob, setReviewVoiceBlob] = useState<Blob | null>(null);
   const [reviewFiles, setReviewFiles] = useState<File[]>([]);
+  const [cancelRevisionReview, setCancelRevisionReview] = useState<any>(null);
+  const [editNoteDialog, setEditNoteDialog] = useState<{ review: any; comment: string } | null>(null);
+  const [deleteNoteReview, setDeleteNoteReview] = useState<any>(null);
 
   const taskPhases = phases.filter(p => p.task_id === task.id).sort((a, b) => a.phase_number - b.phase_number);
 
@@ -404,6 +443,116 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
   });
 
 
+  // ─── Cancel Revision (Supersede) ──────────────────────────────
+
+  const cancelRevision = useMutation({
+    mutationFn: async (review: any) => {
+      // Mark review as superseded
+      const { error: supersedeError } = await supabase
+        .from("phase_reviews")
+        .update({ superseded_at: new Date().toISOString(), superseded_by: userId } as any)
+        .eq("id", review.id);
+      if (supersedeError) throw supersedeError;
+
+      // Find the previous non-superseded review for this phase to revert to
+      const previousReview = [...phaseReviews]
+        .filter((r: any) =>
+          r.phase_id === review.phase_id &&
+          r.id !== review.id &&
+          !r.superseded_at &&
+          r.review_status !== "pm_note" &&
+          r.review_status !== "add_revision_notes"
+        )
+        .sort((a: any, b: any) => (b.round_number || 0) - (a.round_number || 0))[0];
+
+      // Revert project_phases to previous state
+      const revertData: any = {
+        review_status: previousReview?.review_status || null,
+        review_comment: previousReview?.review_comment || null,
+        reviewed_at: previousReview?.reviewed_at || null,
+        reviewed_by: previousReview?.reviewed_by || null,
+        change_severity: previousReview?.change_severity || null,
+        change_deadline: previousReview?.change_deadline || null,
+        change_completed_at: previousReview?.change_completed_at || null,
+        change_completed_by: previousReview?.change_completed_by || null,
+        review_voice_path: previousReview?.review_voice_path || null,
+        review_file_paths: previousReview?.review_file_paths || null,
+        review_file_names: previousReview?.review_file_names || null,
+      };
+      const { error: phaseError } = await supabase
+        .from("project_phases")
+        .update(revertData)
+        .eq("id", review.phase_id);
+      if (phaseError) throw phaseError;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        ...queryKeysToInvalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })),
+        queryClient.invalidateQueries({ queryKey: ["phase-reviews", task.id] }),
+      ]);
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["phase-reviews", task.id] }),
+        queryClient.refetchQueries({ queryKey: ["pm-project-phases"] }),
+      ]);
+      toast({ title: "Revision canceled — you can now submit a new review" });
+      setCancelRevisionReview(null);
+      // Re-open review dialog for the same phase
+      const phase = taskPhases.find((p: any) => p.id === cancelRevisionReview?.phase_id);
+      if (phase) {
+        setTimeout(() => {
+          setReviewDialog({
+            open: true,
+            phaseId: phase.id,
+            phaseNumber: phase.phase_number,
+            reviewType: "approved_with_changes",
+          });
+        }, 300);
+      }
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error canceling revision", description: error.message });
+    },
+  });
+
+  // ─── Edit PM Note ──────────────────────────────────────────────
+  const editPmNote = useMutation({
+    mutationFn: async ({ reviewId, newComment }: { reviewId: string; newComment: string }) => {
+      const { error } = await supabase
+        .from("phase_reviews")
+        .update({ review_comment: newComment } as any)
+        .eq("id", reviewId);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["phase-reviews", task.id] });
+      await queryClient.refetchQueries({ queryKey: ["phase-reviews", task.id] });
+      toast({ title: "PM Note updated" });
+      setEditNoteDialog(null);
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error editing note", description: error.message });
+    },
+  });
+
+  // ─── Delete PM Note ────────────────────────────────────────────
+  const deletePmNote = useMutation({
+    mutationFn: async (reviewId: string) => {
+      const { error } = await supabase
+        .from("phase_reviews")
+        .delete()
+        .eq("id", reviewId);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["phase-reviews", task.id] });
+      await queryClient.refetchQueries({ queryKey: ["phase-reviews", task.id] });
+      toast({ title: "PM Note deleted" });
+      setDeleteNoteReview(null);
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error deleting note", description: error.message });
+    },
+  });
 
 
   const getLatestActionableReviewForPhase = (phaseId: string) => {
@@ -411,7 +560,8 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
       .filter((review: any) =>
         review.phase_id === phaseId &&
         review.review_status !== "pm_note" &&
-        review.review_status !== "add_revision_notes"
+        review.review_status !== "add_revision_notes" &&
+        !review.superseded_at
       )
       .sort((a: any, b: any) => {
         const roundDiff = (b.round_number || 0) - (a.round_number || 0);
@@ -556,9 +706,9 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
 
       const canAddPreSubmitNotes = isAssignedPM && !readOnly && !hasBeenSubmitted && phase.status === "in_progress";
 
-    // Check if there's an active revision in progress (review exists with no change_completed_at)
+    // Check if there's an active revision in progress (review exists with no change_completed_at, excluding superseded)
     const hasActiveRevision = reviewsForPhase.some((r: any) => 
-      (r.review_status === "approved_with_changes" || r.review_status === "disapproved_with_changes") && !r.change_completed_at
+      (r.review_status === "approved_with_changes" || r.review_status === "disapproved_with_changes") && !r.change_completed_at && !r.superseded_at
     ) || (
       (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at
     );
@@ -661,7 +811,18 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
             <div className="space-y-2">
               <span className="text-xs font-medium text-muted-foreground">Activity History</span>
               {reviewsForPhase.map((review: any) => (
-                <ReviewHistoryItem key={review.id} review={review} taskId={task.id} replyUserId={userId} canReply={isAssignedPM} />
+                <ReviewHistoryItem
+                  key={review.id}
+                  review={review}
+                  taskId={task.id}
+                  replyUserId={userId}
+                  canReply={isAssignedPM}
+                  isAssignedPM={isAssignedPM}
+                  userId={userId}
+                  onEditNote={(r) => setEditNoteDialog({ review: r, comment: r.review_comment || "" })}
+                  onDeleteNote={(r) => setDeleteNoteReview(r)}
+                  onCancelRevision={(r) => setCancelRevisionReview(r)}
+                />
               ))}
             </div>
           )}
@@ -786,6 +947,76 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           </div>
         </DialogContent>
       </Dialog>
+      {/* Cancel Revision Confirmation */}
+      <AlertDialog open={!!cancelRevisionReview} onOpenChange={() => setCancelRevisionReview(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this revision?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the current revision request as superseded and revert the phase to its previous state. You'll be prompted to submit a new review immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Revision</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => cancelRevision.mutate(cancelRevisionReview)}
+              disabled={cancelRevision.isPending}
+            >
+              {cancelRevision.isPending ? "Canceling..." : "Cancel & Re-review"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit PM Note Dialog */}
+      <Dialog open={!!editNoteDialog} onOpenChange={() => setEditNoteDialog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit PM Note</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={editNoteDialog?.comment || ""}
+              onChange={(e) => setEditNoteDialog(prev => prev ? { ...prev, comment: e.target.value } : null)}
+              className="min-h-[100px]"
+              placeholder="Edit your note..."
+            />
+            <Button
+              className="w-full"
+              disabled={editPmNote.isPending || !editNoteDialog?.comment?.trim()}
+              onClick={() => {
+                if (!editNoteDialog) return;
+                editPmNote.mutate({ reviewId: editNoteDialog.review.id, newComment: editNoteDialog.comment.trim() });
+              }}
+            >
+              {editPmNote.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete PM Note Confirmation */}
+      <AlertDialog open={!!deleteNoteReview} onOpenChange={() => setDeleteNoteReview(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this PM Note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this note. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deletePmNote.mutate(deleteNoteReview?.id)}
+              disabled={deletePmNote.isPending}
+            >
+              {deletePmNote.isPending ? "Deleting..." : "Delete Note"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </>
   );

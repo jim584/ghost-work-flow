@@ -245,6 +245,7 @@ const buildPhaseTimeline = (
   const reviewsForPhase = phaseReviews.filter(pr => pr.phase_id === phase.id);
 
   for (const pr of reviewsForPhase) {
+    const isSuperseded = !!(pr as any).superseded_at;
     items.push({
       key: `pr-${pr.id}`,
       timestamp: new Date(pr.reviewed_at).getTime(),
@@ -253,7 +254,7 @@ const buildPhaseTimeline = (
       phaseId: phase.id,
       dateStr: pr.reviewed_at,
       review: { ...pr, round_number: pr.round_number },
-      isCurrent: !pr.change_completed_at && (pr.review_status === "approved_with_changes" || pr.review_status === "disapproved_with_changes"),
+      isCurrent: !isSuperseded && !pr.change_completed_at && (pr.review_status === "approved_with_changes" || pr.review_status === "disapproved_with_changes"),
     });
 
     if (pr.change_completed_at) {
@@ -560,11 +561,22 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
   const isApprovedWithChanges = review.review_status === "approved_with_changes";
   const isApproved = review.review_status === "approved";
   const changesDone = !!review.change_completed_at;
+  const isSuperseded = !!(review as any).superseded_at;
 
   let borderClass = "border-amber-500/30 bg-amber-500/5";
   let statusBadge = <Badge className="bg-amber-500 text-white text-[10px]">Changes Needed</Badge>;
 
-  if (isPmNote) {
+  if (isSuperseded) {
+    borderClass = "border-muted/50 bg-muted/20 opacity-60";
+    statusBadge = (
+      <div className="flex items-center gap-1">
+        <Badge variant="outline" className="text-[10px] line-through text-muted-foreground">
+          {isPmNote ? "PM Notes" : isApproved ? "Approved" : isApprovedWithChanges ? "Changes Needed" : "Changes Required"}
+        </Badge>
+        <Badge variant="outline" className="text-[10px] text-muted-foreground">Superseded</Badge>
+      </div>
+    );
+  } else if (isPmNote) {
     borderClass = "border-muted-foreground/20 bg-muted/30";
     statusBadge = <Badge variant="outline" className="text-[10px]">PM Notes</Badge>;
   } else if (isApproved) {
@@ -581,7 +593,7 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
       : <Badge className="bg-amber-500 text-white text-[10px] gap-0.5"><Clock className="h-2.5 w-2.5" />Revision In Progress{review.change_severity ? ` (${review.change_severity})` : ""}</Badge>;
   }
 
-  if (changesDone && !isApproved && !isPmNote) {
+  if (changesDone && !isApproved && !isPmNote && !isSuperseded) {
     borderClass = "border-green-500/30 bg-green-500/5";
   }
 
@@ -608,7 +620,7 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
         <ReviewFileAttachments filePaths={review.review_file_paths} fileNames={review.review_file_names} />
       )}
 
-      {isCurrent && phaseId && onMarkComplete && (
+      {isCurrent && !isSuperseded && phaseId && onMarkComplete && (
         <MarkChangesCompletePanel
           phaseId={phaseId}
           phaseNumber={phaseNumber}
@@ -636,7 +648,7 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
 const getPhaseStatusBadge = (phase: Phase, phaseReviews: PhaseReview[] = []) => {
   // Derive status from latest actionable review to avoid stale project_phases data
   const latestReview = [...phaseReviews]
-    .filter(r => r.phase_id === phase.id && r.review_status !== "pm_note" && r.review_status !== "add_revision_notes")
+    .filter(r => r.phase_id === phase.id && r.review_status !== "pm_note" && r.review_status !== "add_revision_notes" && !(r as any).superseded_at)
     .sort((a, b) => {
       const roundDiff = (b.round_number || 0) - (a.round_number || 0);
       if (roundDiff !== 0) return roundDiff;
@@ -690,7 +702,7 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
   const latestReview = reviewsForPhase[0];
 
   const hasActiveRevision = latestReview
-    ? (latestReview.review_status === "approved_with_changes" || latestReview.review_status === "disapproved_with_changes") && !latestReview.change_completed_at
+    ? (latestReview.review_status === "approved_with_changes" || latestReview.review_status === "disapproved_with_changes") && !latestReview.change_completed_at && !(latestReview as any).superseded_at
     : (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at;
 
   return (

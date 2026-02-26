@@ -449,6 +449,8 @@ export type Database = {
           reviewed_at: string
           reviewed_by: string
           round_number: number
+          superseded_at: string | null
+          superseded_by: string | null
           task_id: string
         }
         Insert: {
@@ -471,6 +473,8 @@ export type Database = {
           reviewed_at?: string
           reviewed_by: string
           round_number?: number
+          superseded_at?: string | null
+          superseded_by?: string | null
           task_id: string
         }
         Update: {
@@ -493,6 +497,8 @@ export type Database = {
           reviewed_at?: string
           reviewed_by?: string
           round_number?: number
+          superseded_at?: string | null
+          superseded_by?: string | null
           task_id?: string
         }
         Relationships: [
