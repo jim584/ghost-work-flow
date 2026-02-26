@@ -1007,6 +1007,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
             <div className="space-y-4">
               {sortedActiveTasks.map(task => {
                 const taskPhases = allPhases?.filter(p => p.task_id === task.id) || [];
+                const taskReviews = allPhaseReviews?.filter(pr => pr.task_id === task.id) || [];
                 const taskSubmissions = allSubmissions?.filter(s => s.task_id === task.id) || [];
                 const devName = (task as any).developers?.name || "Unassigned";
                 const cal = task.developer_id ? getDevCalendar(task.developer_id) : null;
@@ -1017,9 +1018,28 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                   new Date(task.ack_deadline) < new Date() || task.late_acknowledgement
                 );
                 const hasReassignmentRequest = !!(task as any).reassignment_requested_at;
-                const hasChangesNeeded = taskPhases.some(p =>
-                  (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes') && !p.change_completed_at
-                );
+                const pendingRevisionPhases = taskPhases
+                  .map((p) => {
+                    const latestActionableReview = [...taskReviews]
+                      .filter((r) => r.phase_id === p.id && r.review_status !== "pm_note" && r.review_status !== "add_revision_notes")
+                      .sort((a, b) => {
+                        const roundDiff = ((b as any).round_number || 0) - ((a as any).round_number || 0);
+                        if (roundDiff !== 0) return roundDiff;
+                        return new Date(b.reviewed_at || 0).getTime() - new Date(a.reviewed_at || 0).getTime();
+                      })[0] as any;
+                    if (!latestActionableReview) return null;
+                    if ((latestActionableReview.review_status === "approved_with_changes" || latestActionableReview.review_status === "disapproved_with_changes") && !latestActionableReview.change_completed_at) {
+                      return {
+                        phaseId: p.id,
+                        phaseNumber: p.phase_number,
+                        changeSeverity: latestActionableReview.change_severity,
+                        changeDeadline: latestActionableReview.change_deadline,
+                      };
+                    }
+                    return null;
+                  })
+                  .filter(Boolean) as Array<{ phaseId: string; phaseNumber: number; changeSeverity: string | null; changeDeadline: string | null }>;
+                const hasChangesNeeded = pendingRevisionPhases.length > 0;
                 const hasRevision = taskSubmissions.some(s => s.revision_status === "needs_revision");
                 const isExpanded = expandedTaskId === task.id;
 
@@ -1056,7 +1076,9 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                           {hasChangesNeeded && (
                             <Badge variant="destructive" className="gap-1">
                               <AlertCircle className="h-3 w-3" />
-                              Changes Needed
+                              {pendingRevisionPhases.length === 1
+                                ? `P${pendingRevisionPhases[0].phaseNumber} Revision In Progress${pendingRevisionPhases[0].changeSeverity ? ` (${pendingRevisionPhases[0].changeSeverity})` : ""}`
+                                : `${pendingRevisionPhases.length} Phases Need Revision`}
                             </Badge>
                           )}
                           {hasRevision && (
@@ -1111,11 +1133,14 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                         {!isAssigned && task.current_phase && task.status !== "completed" && task.status !== "approved" && (
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
                             {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={cal} leaves={leaves} slaHours={9} />}
-                            {taskPhases.filter(p => p.change_deadline && !p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')).map(p => (
-                              <SlaCountdown key={p.id} deadline={p.change_deadline} label={`Changes (P${p.phase_number} - ${p.change_severity})`} calendar={cal} leaves={leaves} slaHours={
-                                p.change_severity === 'minor' ? 2 : p.change_severity === 'average' ? 4 : p.change_severity === 'major' ? 9 : 18
-                              } />
-                            ))}
+                            {pendingRevisionPhases.map((p) => {
+                              if (!p.changeDeadline) return null;
+                              return (
+                                <SlaCountdown key={`timer-${p.phaseId}`} deadline={p.changeDeadline} label={`Changes (P${p.phaseNumber} - ${p.changeSeverity || 'minor'})`} calendar={cal} leaves={leaves} slaHours={
+                                  p.changeSeverity === 'minor' ? 2 : p.changeSeverity === 'average' ? 4 : p.changeSeverity === 'major' ? 9 : 18
+                                } />
+                              );
+                            })}
                             {/* Phase Submissions Timeline */}
                             {taskPhases.length > 0 && (
                               <DevPhaseReviewTimeline
@@ -1196,6 +1221,12 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                            task.status === "completed" ? "Website Complete" :
                            task.status?.replace("_", " ")}
                         </Badge>
+                        {pendingRevisionPhases.map((p) => (
+                          <Badge key={`top-${p.phaseId}`} className="gap-1 bg-amber-500 text-white text-[10px] animate-pulse">
+                            <Clock className="h-3 w-3" />
+                            P{p.phaseNumber} Revision In Progress{p.changeSeverity ? ` (${p.changeSeverity})` : ""}
+                          </Badge>
+                        ))}
                         {taskSubmissions.length > 0 && (
                           <Button size="sm" variant="ghost" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
