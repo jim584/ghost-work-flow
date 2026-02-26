@@ -401,6 +401,13 @@ const DeveloperDashboard = () => {
   const [dnsInputs, setDnsInputs] = useState<{[taskId: string]: {aRecord: string; cname: string; mx: string}}>({});
   const [wetransferInputs, setWetransferInputs] = useState<{[taskId: string]: string}>({});
 
+  // Clear scrollToReplyPhase when user switches to a different task
+  useEffect(() => {
+    if (scrollToReplyPhase && expandedTaskId !== scrollToReplyPhase.taskId) {
+      setScrollToReplyPhase(null);
+    }
+  }, [expandedTaskId, scrollToReplyPhase]);
+
   // Fetch user's team IDs for notifications
   useEffect(() => {
     const fetchTeams = async () => {
@@ -1537,11 +1544,9 @@ const DeveloperDashboard = () => {
                                      const firstPR = phaseReviews?.find(p => p.id === firstPhaseReviewId);
                                      const firstPhaseId = firstPR ? (firstPR as any).phase_id : null;
                                      setExpandedTaskId(task.id);
-                                     if (firstPhaseId) {
-                                       setScrollToReplyPhase({ taskId: task.id, phaseId: firstPhaseId });
-                                       // Clear after component has rendered with the phase open
-                                       setTimeout(() => setScrollToReplyPhase(null), 500);
-                                     }
+                                      if (firstPhaseId) {
+                                        setScrollToReplyPhase({ taskId: task.id, phaseId: firstPhaseId });
+                                      }
                                    }}
                                  >
                                    <MessageCircle className="h-3 w-3" />
