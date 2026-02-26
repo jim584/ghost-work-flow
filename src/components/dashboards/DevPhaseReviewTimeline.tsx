@@ -1097,7 +1097,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
           Chronological
         </Button>
       </div>
-      <ScrollArea className="max-h-[65vh]">
+      <ScrollArea className="h-[65vh]">
         {viewMode === "grouped" ? renderGroupedView() : renderChronologicalView()}
       </ScrollArea>
     </div>
