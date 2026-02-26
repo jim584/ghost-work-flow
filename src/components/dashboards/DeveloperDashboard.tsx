@@ -866,6 +866,8 @@ const DeveloperDashboard = () => {
   const handleFileUpload = async () => {
     if (!selectedTask || !homepageUrls.length) return;
 
+    // Capture current_phase early to avoid stale references during async operations
+    const currentPhaseNumber = selectedTask.current_phase || 1;
     setUploading(true);
     try {
       const teamName = selectedTask.teams.name.replace(/\s+/g, "_");
@@ -931,8 +933,8 @@ const DeveloperDashboard = () => {
       const { error: phaseUpdateError } = await supabase.from("project_phases")
         .update(phaseUpdate)
         .eq("task_id", selectedTask.id)
-        .eq("phase_number", selectedTask.current_phase || 1);
-      if (phaseUpdateError) console.error("Phase update error:", phaseUpdateError);
+        .eq("phase_number", currentPhaseNumber);
+      if (phaseUpdateError) console.error("Phase update error:", phaseUpdateError, "phase_number:", currentPhaseNumber);
 
       // Reset SLA to 9 working hours from now after every upload
       if (selectedTask.developer_id) {
@@ -949,7 +951,7 @@ const DeveloperDashboard = () => {
             // Update project_phases SLA deadline for current phase
             await supabase.from("project_phases").update({ 
               sla_deadline: newDeadline, sla_hours: 9 
-            }).eq("task_id", selectedTask.id).eq("phase_number", selectedTask.current_phase || 1);
+            }).eq("task_id", selectedTask.id).eq("phase_number", currentPhaseNumber);
             // Update tasks SLA deadline
             await supabase.from("tasks").update({ 
               sla_deadline: newDeadline 
