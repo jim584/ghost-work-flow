@@ -1,19 +1,19 @@
 
 
-## Problem
+## Fix: Hide "Uploaded Files" expand arrow for website orders with phases in Team Overview Dashboard
 
-The Developer Dashboard's `DevPhaseReviewTimeline.tsx` has the same stale-status bug that was fixed in the PM Dashboard. The `getPhaseStatusBadge` function (line 636) reads `phase.review_status` and `phase.change_completed_at` directly from the `project_phases` table. When a PM submits a new round of "Approve with Changes," the top-level `project_phases` row may still have the old `change_completed_at` timestamp from the previous round, causing the badge to incorrectly show "Changes Done" instead of "Revision In Progress."
+### Problem
+In `TeamOverviewDashboard.tsx`, the expand chevron (line 1230) and "Uploaded Files" section (line 1283) are shown for **all** tasks with submissions, including website orders that have phase data. This was already fixed in `DeveloperDashboard.tsx` by adding the guard `!(projectPhases?.some(p => p.task_id === task.id))`, but the same guard is missing in the Team Overview dashboard.
 
-This is confusing for developers because they see "Changes Done" in the accordion header but have to expand and scroll to the bottom to discover there is actually a new round of changes requested.
+### Changes
 
-## Fix
+**File: `src/components/dashboards/TeamOverviewDashboard.tsx`**
 
-**File: `src/components/dashboards/DevPhaseReviewTimeline.tsx`**
+1. **Line 1230** — Add phase guard to the expand button:
+   - Change `{taskSubmissions.length > 0 && (` to `{taskSubmissions.length > 0 && !(phases?.some(p => p.task_id === task.id)) && (`
 
-1. Update `getPhaseStatusBadge` to accept `phaseReviews` as a second parameter.
-2. Inside the function, find the latest actionable review (filtering out `pm_note` and `add_revision_notes`, sorting by `round_number` desc then `reviewed_at` desc).
-3. Derive `reviewStatus`, `changeCompletedAt`, and `changeSeverity` from the latest review if one exists, otherwise fall back to the phase-level fields.
-4. Update all three call sites (lines 688, 761, 811) to pass `phaseReviews` as the second argument.
+2. **Line 1283** — Add phase guard to the expanded content:
+   - Change `{isExpanded && taskSubmissions.length > 0 && (` to `{isExpanded && taskSubmissions.length > 0 && !(phases?.some(p => p.task_id === task.id)) && (`
 
-This mirrors the exact same pattern already applied in `PhaseReviewSection.tsx` and `LatestSubmissionPanel.tsx`.
+This ensures the old file-based "Uploaded Files" section is hidden for website orders that use the phase-based submission timeline, matching the behavior already implemented in the Developer Dashboard.
 
