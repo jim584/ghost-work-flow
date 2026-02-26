@@ -474,9 +474,21 @@ const DeveloperDashboard = () => {
         .select("id, current_phase, total_phases, status")
         .eq("id", phaseData.task_id)
         .maybeSingle();
-      if (taskData && taskData.total_phases && taskData.current_phase === taskData.total_phases && taskData.status === 'in_progress') {
-        // All phases were submitted before, revert to completed
-        await supabase.from("tasks").update({ status: 'completed' }).eq("id", taskData.id);
+      if (taskData && taskData.status === 'in_progress') {
+        // First check total_phases match
+        if (taskData.total_phases && taskData.current_phase === taskData.total_phases) {
+          await supabase.from("tasks").update({ status: 'completed' }).eq("id", taskData.id);
+        } else {
+          // Fallback: check if ALL phases for this task have completed_at set
+          const { data: allPhases } = await supabase
+            .from("project_phases")
+            .select("completed_at")
+            .eq("task_id", phaseData.task_id);
+          const allPhasesCompleted = allPhases && allPhases.length > 0 && allPhases.every(p => p.completed_at);
+          if (allPhasesCompleted) {
+            await supabase.from("tasks").update({ status: 'completed' }).eq("id", taskData.id);
+          }
+        }
       }
     }
     queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
@@ -1170,7 +1182,19 @@ const DeveloperDashboard = () => {
 
   const getStatusLabel = (status: string, task?: any) => {
     if (status === "assigned") return "Awaiting Acknowledgement";
-    if (status === "in_progress") return `Phase ${task?.current_phase || 1} in Progress`;
+    if (status === "in_progress") {
+      // Check if the current phase is already submitted (all phases done)
+      if (task && projectPhases) {
+        const currentPhaseRecord = projectPhases.find((p: any) => p.task_id === task.id && p.phase_number === (task.current_phase || 1));
+        if (currentPhaseRecord?.completed_at) {
+          // Check if ALL phases for this task are completed
+          const taskPhases = projectPhases.filter((p: any) => p.task_id === task.id);
+          const allDone = taskPhases.length > 0 && taskPhases.every((p: any) => p.completed_at);
+          if (allDone) return "Website Complete";
+        }
+      }
+      return `Phase ${task?.current_phase || 1} in Progress`;
+    }
     if (status === "completed") return "Website Complete";
     if (status === "on_hold") return "On Hold";
     if (status === "approved" && task) {
