@@ -43,6 +43,7 @@ const PMDashboard = () => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'project_phases' }, () => {
         queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+        queryClient.invalidateQueries({ queryKey: ["pm-project-phases"] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_review_replies' }, () => {
         queryClient.invalidateQueries({ queryKey: ["pm-unread-replies"] });
