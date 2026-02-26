@@ -12,7 +12,7 @@ import { PhaseReviewReplySection } from "@/components/dashboards/PhaseReviewRepl
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
-import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X, PauseCircle, UserCheck, Bell, Rocket, ArrowRightLeft, List, Layers } from "lucide-react";
+import { Download, Play, Pause, Mic, CheckCircle2, AlertTriangle, Clock, ChevronDown, Upload, PlayCircle, RotateCcw, History, Paperclip, Send, X, PauseCircle, UserCheck, Bell, Rocket, ArrowRightLeft, List, Layers, Eye } from "lucide-react";
 
 // Helper to make URLs in text clickable (supports with or without http/https prefix)
 const LinkifyText = ({ text }: { text: string }) => {
@@ -1020,6 +1020,35 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
       });
     });
 
+    // Add "Notes Read" events for pm_note reviews with dev_read_at
+    phaseReviews.forEach(pr => {
+      if (pr.review_status === "pm_note" && pr.dev_read_at) {
+        const phase = sortedPhases.find(p => p.id === pr.phase_id);
+        const phaseNum = phase?.phase_number ?? "?";
+        items.push({
+          date: pr.dev_read_at,
+          type: "notes_read",
+          render: () => (
+            <div key={`notes-read-${pr.id}`} className="flex items-start gap-3 p-3 rounded-md border bg-indigo-50 border-indigo-200 dark:bg-indigo-500/10 dark:border-indigo-500/30">
+              <div className="mt-0.5 p-1 rounded-full bg-indigo-100 dark:bg-indigo-500/20">
+                <Eye className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold">Developer Read PM Notes</span>
+                  <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-300">Phase {phaseNum}</Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {format(new Date(pr.dev_read_at), "MMM d, yyyy 'at' h:mm a")}
+                  {" "}({formatDistanceToNow(new Date(pr.dev_read_at), { addSuffix: true })})
+                </p>
+              </div>
+            </div>
+          ),
+        });
+      }
+    });
+
     items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     if (items.length === 0) {
@@ -1035,6 +1064,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
               item.type === "milestone" ? "bg-blue-500" :
               item.type === "hold" ? "bg-amber-500" :
               item.type === "reassignment" ? "bg-orange-500" :
+              item.type === "notes_read" ? "bg-indigo-500" :
               item.type === "pm_review" ? "bg-amber-500" :
               "bg-primary"
             }`} />
@@ -1090,6 +1120,46 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
           </CollapsibleContent>
         </Collapsible>
       )}
+      {/* Notes Read section */}
+      {(() => {
+        const notesReadItems = phaseReviews.filter(pr => pr.review_status === "pm_note" && pr.dev_read_at);
+        if (notesReadItems.length === 0) return null;
+        return (
+          <Collapsible defaultOpen={true}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes Read</h4>
+              <Badge variant="outline" className="text-[10px] ml-auto">{notesReadItems.length}</Badge>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1.5 mb-3">
+              {notesReadItems
+                .sort((a, b) => new Date(a.dev_read_at!).getTime() - new Date(b.dev_read_at!).getTime())
+                .map(pr => {
+                  const phase = sortedPhases.find(p => p.id === pr.phase_id);
+                  const phaseNum = phase?.phase_number ?? "?";
+                  return (
+                    <div key={`notes-read-${pr.id}`} className="flex items-start gap-3 p-3 rounded-md border bg-indigo-50 border-indigo-200 dark:bg-indigo-500/10 dark:border-indigo-500/30">
+                      <div className="mt-0.5 p-1 rounded-full bg-indigo-100 dark:bg-indigo-500/20">
+                        <Eye className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-semibold">Developer Read PM Notes</span>
+                          <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-300">Phase {phaseNum}</Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {format(new Date(pr.dev_read_at!), "MMM d, yyyy 'at' h:mm a")}
+                          {" "}({formatDistanceToNow(new Date(pr.dev_read_at!), { addSuffix: true })})
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+            </CollapsibleContent>
+          </Collapsible>
+        );
+      })()}
+
       <Accordion type="multiple" defaultValue={sortedPhases.map(p => p.id)}>
         {sortedPhases.map(phase => renderPhaseAccordionItem(phase))}
       </Accordion>
