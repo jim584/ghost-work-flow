@@ -77,17 +77,17 @@ export const LatestSubmissionPanel = ({
 
   const phaseLabel = displayPhase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${displayPhase.phase_number} — Inner Pages`;
 
-  // Get URLs from submissions or phase submission_comment
-  const phaseSubmissions = submissions.filter(s => {
-    if (displayPhase.phase_number === 1) return s.designer_comment?.includes('Homepage');
-    return s.designer_comment && !s.designer_comment.includes('Homepage');
-  });
-
+  // Get URLs — prioritize phase.submission_comment (phase-specific) over design_submissions
   let urls: { label: string; url: string }[] = [];
-  if (phaseSubmissions.length > 0) {
-    urls = phaseSubmissions.flatMap(s => parseUrls(s.designer_comment || ''));
-  } else if (displayPhase.submission_comment) {
+  if (displayPhase.submission_comment) {
     urls = parseUrls(displayPhase.submission_comment);
+  } else {
+    // Fallback to design_submissions
+    const phaseSubmissions = submissions.filter(s => {
+      if (displayPhase.phase_number === 1) return s.designer_comment?.includes('Homepage');
+      return s.designer_comment && !s.designer_comment.includes('Homepage');
+    });
+    urls = phaseSubmissions.flatMap(s => parseUrls(s.designer_comment || ''));
   }
 
   // Determine the state for action buttons
