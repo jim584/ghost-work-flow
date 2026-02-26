@@ -1,24 +1,19 @@
 
 
-## Two bugs identified in the phase review workflow
+## Problem
 
-### Bug 1: Phase badge stuck on "Changes Done" after Round 2 review
+The Developer Dashboard's `DevPhaseReviewTimeline.tsx` has the same stale-status bug that was fixed in the PM Dashboard. The `getPhaseStatusBadge` function (line 636) reads `phase.review_status` and `phase.change_completed_at` directly from the `project_phases` table. When a PM submits a new round of "Approve with Changes," the top-level `project_phases` row may still have the old `change_completed_at` timestamp from the previous round, causing the badge to incorrectly show "Changes Done" instead of "Revision In Progress."
 
-**Root cause**: When the PM submits a Round 2 "Approve with Changes" review, the `submitReview` mutation updates `project_phases.review_status` and `change_deadline` but does NOT reset `change_completed_at` to `null`. Since `getReviewBadge()` checks `if (phase.change_completed_at)` first (line 401 in PhaseReviewSection.tsx), it continues showing "Changes Done (minor)" from Round 1 instead of "Changes In Progress" for Round 2.
+This is confusing for developers because they see "Changes Done" in the accordion header but have to expand and scroll to the bottom to discover there is actually a new round of changes requested.
 
-**Fix** (in `PhaseReviewSection.tsx`, `submitReview` mutation, ~line 316):
-- When `reviewStatus` is `approved_with_changes` or `disapproved_with_changes`, add `change_completed_at: null` and `change_completed_by: null` to the `phaseUpdateData` object so the old round's completion is cleared.
+## Fix
 
-### Bug 2: "Awaiting Review" badge doesn't indicate it's a revision resubmission
+**File: `src/components/dashboards/DevPhaseReviewTimeline.tsx`**
 
-**Root cause**: In `LatestSubmissionPanel.tsx`, the `getStatusBadge()` function (line 118-130) shows the same "Awaiting Review" badge for both fresh phase submissions and developer revision resubmissions. The PM has no way to know it's a completed revision needing re-review.
+1. Update `getPhaseStatusBadge` to accept `phaseReviews` as a second parameter.
+2. Inside the function, find the latest actionable review (filtering out `pm_note` and `add_revision_notes`, sorting by `round_number` desc then `reviewed_at` desc).
+3. Derive `reviewStatus`, `changeCompletedAt`, and `changeSeverity` from the latest review if one exists, otherwise fall back to the phase-level fields.
+4. Update all three call sites (lines 688, 761, 811) to pass `phaseReviews` as the second argument.
 
-**Fix** (in `LatestSubmissionPanel.tsx`, `getStatusBadge` function):
-- Check if the actionable phase has `change_completed_at` set (meaning it's a revision resubmission, not a fresh submission).
-- If so, display a distinct badge like **"Changes Submitted — Awaiting Re-review"** (e.g., green-tinted or purple) with a `CheckCircle2` icon, instead of the generic "Awaiting Review".
-- Also update the header label to say "Revision Submitted" instead of "Latest Submission" in this case.
-
-### Files to edit
-1. `src/components/dashboards/PhaseReviewSection.tsx` — reset `change_completed_at` and `change_completed_by` to null when submitting a new round of changes
-2. `src/components/dashboards/LatestSubmissionPanel.tsx` — differentiate the status badge between fresh submissions and revision resubmissions
+This mirrors the exact same pattern already applied in `PhaseReviewSection.tsx` and `LatestSubmissionPanel.tsx`.
 
