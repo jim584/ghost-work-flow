@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, RotateCcw, Link, MessageCircle, Users, History, Paperclip } from "lucide-react";
+import { LogOut, Upload, CheckCircle2, Clock, FolderKanban, Download, ChevronDown, ChevronUp, FileText, AlertCircle, AlertTriangle, Globe, Timer, Play, Pause, RotateCcw, Link, MessageCircle, Users, History, Paperclip } from "lucide-react";
 import TeamOverviewDashboard from "@/components/dashboards/TeamOverviewDashboard";
 import { OrderChat, useUnreadMessageCounts } from "@/components/OrderChat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -29,7 +29,54 @@ import {
   timeToMinutes, getISODay, toTimezoneDate, isOvernightShift, isWithinShift
 } from "@/utils/workingHours";
 
-// Format overdue minutes with decimal days and hours/minutes
+// Helper: marks unread PM notes as read after 2s delay
+const UnreadNotesMarker = ({ taskId, phaseReviews, queryClient }: { taskId: string | undefined; phaseReviews: any[] | undefined; queryClient: any }) => {
+  useEffect(() => {
+    if (!taskId || !phaseReviews) return;
+    const unreadIds = phaseReviews
+      .filter(pr => pr.task_id === taskId && pr.review_status === "pm_note" && !(pr as any).dev_read_at)
+      .map(pr => pr.id);
+    if (unreadIds.length === 0) return;
+    const timer = setTimeout(async () => {
+      for (const id of unreadIds) {
+        await supabase.from("phase_reviews").update({ dev_read_at: new Date().toISOString() }).eq("id", id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["developer-phase-reviews"] });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [taskId, phaseReviews, queryClient]);
+  return null;
+};
+
+// Helper: simple voice note player for focused notes dialog
+const SimpleVoicePlayer = ({ voicePath }: { voicePath: string }) => {
+  const [playing, setPlaying] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    supabase.storage.from("design-files").createSignedUrl(voicePath, 3600).then(({ data }) => {
+      if (data?.signedUrl) setUrl(data.signedUrl);
+    });
+  }, [voicePath]);
+  if (!url) return null;
+  return (
+    <div className="flex items-center gap-2">
+      <Button size="sm" variant="outline" onClick={() => {
+        if (!audioRef.current) {
+          audioRef.current = new Audio(url);
+          audioRef.current.onended = () => setPlaying(false);
+        }
+        if (playing) { audioRef.current.pause(); setPlaying(false); }
+        else { audioRef.current.play(); setPlaying(true); }
+      }}>
+        {playing ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+      </Button>
+      <span className="text-xs text-muted-foreground">Voice note</span>
+    </div>
+  );
+};
+
+
 function formatOverdueTime(totalMinutes: number, slaHoursPerDay: number, paused: boolean): string {
   const h = Math.floor(totalMinutes / 60);
   const m = Math.floor(totalMinutes % 60);
@@ -365,6 +412,7 @@ const DeveloperDashboard = () => {
   const [homepageUrls, setHomepageUrls] = useState<string[]>([]);
   const [urlInput, setUrlInput] = useState("");
   const [chatTask, setChatTask] = useState<any>(null);
+  const [unreadNotesTask, setUnreadNotesTask] = useState<any>(null);
   const [nameserverInputs, setNameserverInputs] = useState<{[taskId: string]: {ns1: string; ns2: string; ns3: string; ns4: string}}>({});
   const [dnsInputs, setDnsInputs] = useState<{[taskId: string]: {aRecord: string; cname: string; mx: string}}>({});
   const [wetransferInputs, setWetransferInputs] = useState<{[taskId: string]: string}>({});
@@ -1470,7 +1518,10 @@ const DeveloperDashboard = () => {
                                 ? ` (Phase ${phaseNumbers.join(', ')})`
                                 : '';
                               return (
-                                <Badge className="gap-1 bg-destructive text-destructive-foreground animate-pulse">
+                                <Badge 
+                                  className="gap-1 bg-destructive text-destructive-foreground animate-pulse cursor-pointer hover:bg-destructive/90"
+                                  onClick={(e) => { e.stopPropagation(); setUnreadNotesTask(task); }}
+                                >
                                   <FileText className="h-3 w-3" />
                                   {unreadNoteReviews.length} unread note{unreadNoteReviews.length !== 1 ? 's' : ''}{phaseLabel}
                                 </Badge>
@@ -2508,7 +2559,7 @@ const DeveloperDashboard = () => {
                   return (
                     <div className="p-4 bg-muted/30 rounded-lg">
                       <h3 className="font-semibold text-lg mb-3">Phase Submissions</h3>
-                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} devNames={devNames} autoMarkRead={true} />
+                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} devNames={devNames} autoMarkRead={false} />
                     </div>
                   );
                 }
@@ -2643,6 +2694,72 @@ const DeveloperDashboard = () => {
               )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* Unread PM Notes Dialog */}
+      <Dialog open={!!unreadNotesTask} onOpenChange={(open) => !open && setUnreadNotesTask(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Unread PM Notes — #{unreadNotesTask?.task_number}</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-4">
+            {unreadNotesTask && (() => {
+              const unreadNotes = phaseReviews?.filter(
+                pr => pr.task_id === unreadNotesTask.id && pr.review_status === "pm_note" && !(pr as any).dev_read_at
+              ) || [];
+              // Group by phase
+              const byPhase = new Map<string, typeof unreadNotes>();
+              unreadNotes.forEach(note => {
+                const existing = byPhase.get(note.phase_id) || [];
+                existing.push(note);
+                byPhase.set(note.phase_id, existing);
+              });
+              return (
+                <div className="space-y-4">
+                  {Array.from(byPhase.entries()).map(([phaseId, notes]) => {
+                    const phase = projectPhases?.find(p => p.id === phaseId);
+                    return (
+                      <div key={phaseId} className="space-y-3">
+                        <h4 className="font-semibold text-sm text-muted-foreground">Phase {phase?.phase_number || '?'}</h4>
+                        {notes.map(note => (
+                          <div key={note.id} className="p-3 bg-muted/40 rounded-lg border space-y-2">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span className="font-medium">{reviewerNames[note.reviewed_by] || 'PM'}</span>
+                              <span>{format(new Date(note.reviewed_at), 'MMM d, yyyy h:mm a')}</span>
+                            </div>
+                            {note.review_comment && (
+                              <p className="text-sm whitespace-pre-wrap">{note.review_comment}</p>
+                            )}
+                            {note.review_voice_path && (
+                              <SimpleVoicePlayer voicePath={note.review_voice_path} />
+                            )}
+                            {note.review_file_paths && (() => {
+                              const paths = note.review_file_paths.split(',').map(s => s.trim()).filter(Boolean);
+                              const names = (note.review_file_names || '').split(',').map(s => s.trim());
+                              return (
+                                <div className="flex flex-wrap gap-2">
+                                  {paths.map((fp, i) => (
+                                    <div key={i} className="flex items-center gap-1">
+                                      <FilePreview filePath={fp} fileName={names[i] || `file_${i+1}`} className="w-10 h-10" />
+                                      <span className="text-xs text-muted-foreground truncate max-w-[120px]">{names[i] || `file_${i+1}`}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                  {unreadNotes.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No unread notes</p>
+                  )}
+                </div>
+              );
+            })()}
+          </ScrollArea>
+          <UnreadNotesMarker taskId={unreadNotesTask?.id} phaseReviews={phaseReviews} queryClient={queryClient} />
         </DialogContent>
       </Dialog>
       {/* Chat Dialog */}
