@@ -1,35 +1,25 @@
 
 
-## Make Unread Reply Badge Clickable — Open Specific Phase Accordion
+## Fix: "Submit Phase 6" Button Showing After Revision Changes on Completed Website
 
-### What happens today
-The "X new replies" badge on developer task cards is static (not clickable). Unread PM replies are fetched but don't include `phase_review_id`, so there's no way to know which phase they belong to.
+### Problem
+When a website is marked complete (all phases submitted), then a PM requests changes on a phase, and the developer completes those changes, the task status remains `in_progress`. Since the "Submit Phase 6" button only checks `task.status === "in_progress"` (line 2084), it incorrectly shows even though Phase 6 was already submitted.
 
-### Proposed Changes
+### Root Cause
+The condition `task.status === "in_progress"` is too broad. It doesn't account for whether the current phase has already been submitted (`completed_at` is set on the `project_phases` record).
 
-**1. Fetch phase context with replies**
-In the unread PM replies query (`DeveloperDashboard.tsx`), also select `phase_review_id`. Then join against `phaseReviews` data to resolve which `phase_id` each reply belongs to, giving us the phase numbers to display on the badge (like the unread notes badge already does).
+### Proposed Fix
 
-**2. Make the reply badge clickable**
-Add `cursor-pointer`, `onClick` with `e.stopPropagation()`. The badge text will show phase numbers, e.g. "2 new replies (Phase 1, 3)".
+**1. Hide "Submit Phase" when current phase is already submitted**
+In `DeveloperDashboard.tsx` (around line 2084), add a check: only show the "Submit Phase X" button if the current phase record does NOT have `completed_at` set. This means:
+- Look up the current phase from `projectPhases` by matching `task_id` and `phase_number === task.current_phase`
+- If that phase has `completed_at`, hide the button — the phase was already submitted, only revisions may be needed
 
-**3. On click: expand the task card and open the phase accordion**
-- Add new state: `scrollToReplyPhase: { taskId: string; phaseId: string } | null`
-- On badge click: set `expandedTaskId` to the task, and set `scrollToReplyPhase` to the first phase with unread replies
-- Pass a new `defaultOpenPhaseId` prop to `DevPhaseReviewTimeline` — when set, the component renders that phase's accordion as open by default so the developer lands directly on the relevant phase
-
-**4. Mark replies as read**
-Add a "Mark as Read" button inside the reply section (similar to the unread notes pattern). On click, update `dev_read_at` for all unread replies on that task, invalidate `developer-unread-replies` query, and show a toast.
-
-**5. Show "Replies Read" in the timeline**
-In `DevPhaseReviewTimeline.tsx`, add timeline events for replies that have `dev_read_at` set — similar to the existing "Notes Read" events. Show developer name, phase number, and timestamp in both grouped and chronological views.
+**2. Auto-revert task status to `completed` after revision changes are done**
+In `handleMarkPhaseComplete` (line 431), after marking changes as complete, check if the task was previously completed (i.e., the task's `total_phases` is set and equals `current_phase`, meaning the website was finished). If so, set `task.status` back to `completed` instead of leaving it as `in_progress`. This restores the correct workflow state.
 
 ### Files to modify
-- `src/components/dashboards/DeveloperDashboard.tsx` — query update, clickable badge, scroll state, mark-as-read logic
-- `src/components/dashboards/DevPhaseReviewTimeline.tsx` — accept `defaultOpenPhaseId` prop, add "Replies Read" timeline events
-- `src/components/dashboards/PhaseReviewReplySection.tsx` — add "Mark as Read" button for unread replies
-
-### Technical detail
-- The reply query adds `phase_review_id` to the select. Phase mapping is done client-side by joining `phase_review_id` against the already-fetched `phaseReviews` to get `phase_id`, then against `projectPhases` to get `phase_number`.
-- The `DevPhaseReviewTimeline` active phase accordion currently uses `<Accordion type="single" collapsible>` without a controlled `value`. Adding a `defaultValue` prop set to the target phase ID will auto-expand it on render.
+- `src/components/dashboards/DeveloperDashboard.tsx`
+  - Line ~2084: Add phase completion check to the submit button condition
+  - Line ~431 (`handleMarkPhaseComplete`): After marking changes complete, check if all phases are submitted and auto-revert task status to `completed` if applicable
 
