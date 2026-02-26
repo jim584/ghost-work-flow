@@ -1227,7 +1227,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                             P{p.phaseNumber} Revision In Progress{p.changeSeverity ? ` (${p.changeSeverity})` : ""}
                           </Badge>
                         ))}
-                        {taskSubmissions.length > 0 && (
+                        {taskSubmissions.length > 0 && !(allPhases?.some(p => p.task_id === task.id)) && (
                           <Button size="sm" variant="ghost" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </Button>
@@ -1280,7 +1280,7 @@ const TeamOverviewDashboard = ({ userId }: TeamOverviewProps) => {
                     </div>
 
                     {/* Expanded submissions */}
-                    {isExpanded && taskSubmissions.length > 0 && (
+                    {isExpanded && taskSubmissions.length > 0 && !(allPhases?.some(p => p.task_id === task.id)) && (
                       <div className="border-t bg-muted/20 p-4">
                         <h4 className="text-sm font-semibold mb-3">Uploaded Files:</h4>
                         <div className="space-y-2">
