@@ -70,9 +70,9 @@ export const LatestSubmissionPanel = ({
   const getPhaseState = (phase: any) => {
     const latestReview = getLatestActionableReview(phase.id);
     return {
-      review_status: latestReview?.review_status ?? phase.review_status,
-      change_completed_at: latestReview?.change_completed_at ?? phase.change_completed_at,
-      change_deadline: latestReview?.change_deadline ?? phase.change_deadline,
+      review_status: latestReview ? latestReview.review_status : phase.review_status,
+      change_completed_at: latestReview ? latestReview.change_completed_at : phase.change_completed_at,
+      change_deadline: latestReview ? latestReview.change_deadline : phase.change_deadline,
     };
   };
 

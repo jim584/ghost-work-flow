@@ -422,10 +422,10 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
 
   const getReviewBadge = (phase: any) => {
     const latestReview = getLatestActionableReviewForPhase(phase.id);
-    const reviewStatus = latestReview?.review_status ?? phase.review_status;
-    const changeSeverity = latestReview?.change_severity ?? phase.change_severity;
-    const changeCompletedAt = latestReview?.change_completed_at ?? phase.change_completed_at;
-    const changeDeadline = latestReview?.change_deadline ?? phase.change_deadline;
+    const reviewStatus = latestReview ? latestReview.review_status : phase.review_status;
+    const changeSeverity = latestReview ? latestReview.change_severity : phase.change_severity;
+    const changeCompletedAt = latestReview ? latestReview.change_completed_at : phase.change_completed_at;
+    const changeDeadline = latestReview ? latestReview.change_deadline : phase.change_deadline;
 
     if (!reviewStatus) return null;
 
