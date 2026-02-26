@@ -834,7 +834,16 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
       <AccordionItem key={phase.id} value={phase.id} className="border rounded-md mb-2 px-2">
         <AccordionTrigger className="py-2 hover:no-underline">
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2 flex-wrap">
-            <span className="text-xs font-medium truncate">{phaseLabel}</span>
+           <span className="text-xs font-medium truncate">{phaseLabel}</span>
+            {(() => {
+              const unreadNotes = phaseReviews.filter(pr => pr.phase_id === phase.id && pr.review_status === "pm_note" && !pr.dev_read_at).length;
+              return unreadNotes > 0 ? (
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-destructive"></span>
+                </span>
+              ) : null;
+            })()}
             {getPhaseStatusBadge(phase, phaseReviews)}
             {reviewCount > 0 && (
               <span className="text-[10px] text-muted-foreground ml-auto">
