@@ -2501,7 +2501,7 @@ const DeveloperDashboard = () => {
                   return (
                     <div className="p-4 bg-muted/30 rounded-lg">
                       <h3 className="font-semibold text-lg mb-3">Phase Submissions</h3>
-                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} devNames={devNames} />
+                      <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={viewDetailsTask.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} devNames={devNames} autoMarkRead={true} />
                     </div>
                   );
                 }

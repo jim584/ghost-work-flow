@@ -87,6 +87,7 @@ interface DevPhaseReviewTimelineProps {
   userId?: string;
   canReply?: boolean;
   devNames?: Record<string, string>;
+  autoMarkRead?: boolean;
 }
 
 // ─── Shared Sub-components ──────────────────────────────────────────
@@ -1118,7 +1119,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
 
 // ─── Main Component ─────────────────────────────────────────────────
 
-export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false, devNames = {} }: DevPhaseReviewTimelineProps) => {
+export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false, devNames = {}, autoMarkRead = false }: DevPhaseReviewTimelineProps) => {
   const [showFullTimeline, setShowFullTimeline] = useState(false);
 
   // Fetch hold/resume events for this task
@@ -1227,8 +1228,9 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
     enabled: showFullTimeline,
   });
 
-  // Mark unread PM notes as read after a 2-second delay so the card badge is visible first
+  // Mark unread PM notes as read after a 2-second delay — only when autoMarkRead is true (View Details dialog)
   useEffect(() => {
+    if (!autoMarkRead) return;
     const unreadNoteIds = phaseReviews
       .filter(pr => pr.review_status === "pm_note" && !pr.dev_read_at)
       .map(pr => pr.id);
