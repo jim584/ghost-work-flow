@@ -698,6 +698,15 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
   devNames?: Record<string, string>;
   defaultOpen?: boolean;
 }) => {
+  const [accordionValue, setAccordionValue] = useState<string | undefined>(defaultOpen ? phase.id : undefined);
+  
+  // When defaultOpen changes (e.g. badge clicked), force-open the accordion
+  useEffect(() => {
+    if (defaultOpen) {
+      setAccordionValue(phase.id);
+    }
+  }, [defaultOpen, phase.id]);
+
   const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
   const reviewsForPhase = phaseReviews
     .filter(pr => pr.phase_id === phase.id)
@@ -709,7 +718,7 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
     : (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at;
 
   return (
-    <Accordion type="single" collapsible defaultValue={defaultOpen ? phase.id : undefined}>
+    <Accordion type="single" collapsible value={accordionValue} onValueChange={setAccordionValue}>
       <AccordionItem value={phase.id} className="border rounded-md px-2">
         <AccordionTrigger className="py-2 hover:no-underline">
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2 flex-wrap">
