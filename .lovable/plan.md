@@ -1,60 +1,24 @@
 
 
-## Cancel & Re-review + PM Notes Edit/Delete (1-hour window)
+## Fix: Unread PM Notes Badge Not Appearing Reliably
 
-### Scenario Walkthrough
+### Root Causes
 
-**Approved phases**: The existing "Request Changes" button creates a new `approved_with_changes` review. Once that revision request exists, the PM can then use "Cancel & Re-review" on it (same as any other pending revision). No separate "Revoke Approval" action needed.
+1. **Race condition**: When the developer has a task card expanded, the `DevPhaseReviewTimeline` useEffect auto-marks PM notes as read immediately upon refetch. The badge on the card exterior flashes for milliseconds then vanishes -- the developer never sees it.
 
-**Approved with Changes / Disapproved with Changes (pending revision)**: PM sees a "Cancel Revision" button next to the active revision. Clicking it marks that review as superseded and lets the PM submit a fresh review (different notes, severity, or even change from disapproved to approved_with_changes).
+2. **No polling fallback**: The `developer-phase-reviews` query relies solely on realtime subscription for updates. If the event is missed or delayed, the badge never appears.
 
-**After canceling**: The phase reverts to the state before the canceled review — if it was approved before the revision request, it goes back to approved. The superseded review remains visible in the timeline with a "Superseded" badge (strikethrough/muted styling) for audit purposes.
+### Implementation Steps
 
-**PM Notes**: PM can edit or delete their own PM Notes within **1 hour** of creation. After 1 hour, notes become immutable.
+**File: `src/components/dashboards/DeveloperDashboard.tsx`**
 
-### Database Changes
+1. Add a `refetchInterval` of 30 seconds to the `developer-phase-reviews` query as a fallback for missed realtime events. This ensures the badge will appear within 30 seconds even if realtime fails.
 
-**Add columns to `phase_reviews`:**
-- `superseded_at` (timestamptz, nullable) — when this review was canceled
-- `superseded_by` (uuid, nullable) — the PM who canceled it
-
-### Code Changes
-
-**File: `src/components/dashboards/PhaseReviewSection.tsx`**
-
-1. Add "Cancel Revision" button visible to the assigned PM when a phase has an active (non-superseded) revision with no `change_completed_at`. Clicking it:
-   - Sets `superseded_at = now()` and `superseded_by = userId` on the review
-   - Reverts `project_phases` fields (review_status, change_deadline, change_severity, etc.) to the previous review's state or null
-   - Re-opens the review dialog so the PM can submit a corrected review immediately
-2. Update `getLatestActionableReviewForPhase` to filter out superseded reviews (`superseded_at IS NULL`)
-3. Update `hasActiveRevision` check to exclude superseded reviews
+2. Add the same `refetchInterval` to the `developer-unread-replies` query for consistency.
 
 **File: `src/components/dashboards/DevPhaseReviewTimeline.tsx`**
 
-4. Update `getPhaseStatusBadge` and review filtering to exclude superseded reviews from status derivation
-5. Render superseded reviews in the timeline with a muted "Superseded" badge and reduced opacity
+3. Delay the auto-mark-as-read behavior: only mark PM notes as read after a 2-second delay when the timeline is visible. This gives the card-level badge time to render and be noticed before the timeline clears the unread state. Use a `setTimeout` inside the `useEffect` with cleanup on unmount.
 
-**File: `src/components/dashboards/LatestSubmissionPanel.tsx`**
-
-6. Update `getLatestActionableReview` to filter out superseded reviews
-
-**File: `src/components/dashboards/TeamOverviewDashboard.tsx`**
-
-7. Update phase status derivation to exclude superseded reviews
-
-**PM Notes Edit/Delete (1-hour window):**
-
-**File: `src/components/dashboards/PhaseReviewSection.tsx`**
-
-8. Add edit/delete buttons on `pm_note` review items where `reviewed_by === userId` and `created_at` is within 1 hour
-9. Edit: opens a dialog pre-filled with existing comment, updates the `phase_reviews` row
-10. Delete: removes the `phase_reviews` row after confirmation
-
-**File: `src/components/dashboards/DevPhaseReviewTimeline.tsx`**
-
-11. Show edit/delete controls on PM Notes in the developer timeline (only if the current user is the author and within 1 hour)
-
-**RLS Policy Updates:**
-- Add UPDATE policy for PMs on `phase_reviews` (currently PMs can only INSERT and SELECT) to allow setting `superseded_at`/`superseded_by` and editing PM notes
-- Add DELETE policy for PMs on `phase_reviews` restricted to `pm_note` records they authored
+### No database changes needed.
 
