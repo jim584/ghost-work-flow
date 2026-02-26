@@ -1,25 +1,38 @@
 
 
-## Fix: "Submit Phase 6" Button Showing After Revision Changes on Completed Website
+## Fix: Auto-revert task status when all phases are completed after revision
 
 ### Problem
-When a website is marked complete (all phases submitted), then a PM requests changes on a phase, and the developer completes those changes, the task status remains `in_progress`. Since the "Submit Phase 6" button only checks `task.status === "in_progress"` (line 2084), it incorrectly shows even though Phase 6 was already submitted.
+Order 151 shows "Phase 6 In Progress" even though all 6 phases are completed. Two issues:
+1. `total_phases` is `NULL` for this task, so the existing auto-revert check (`current_phase === total_phases`) never triggers
+2. The `getStatusLabel` function blindly shows "Phase X in Progress" for any `in_progress` task, even when all phases are submitted
 
-### Root Cause
-The condition `task.status === "in_progress"` is too broad. It doesn't account for whether the current phase has already been submitted (`completed_at` is set on the `project_phases` record).
+### Fix
 
-### Proposed Fix
+**1. Improve auto-revert logic in `handleMarkPhaseComplete` (line ~477)**
+Instead of relying solely on `total_phases`, also check if ALL project phases for the task have `completed_at` set. This handles cases where `total_phases` was never populated:
 
-**1. Hide "Submit Phase" when current phase is already submitted**
-In `DeveloperDashboard.tsx` (around line 2084), add a check: only show the "Submit Phase X" button if the current phase record does NOT have `completed_at` set. This means:
-- Look up the current phase from `projectPhases` by matching `task_id` and `phase_number === task.current_phase`
-- If that phase has `completed_at`, hide the button — the phase was already submitted, only revisions may be needed
+```typescript
+// After existing check, add fallback: query all phases for this task
+const { data: allPhases } = await supabase
+  .from("project_phases")
+  .select("completed_at")
+  .eq("task_id", phaseData.task_id);
+const allPhasesCompleted = allPhases && allPhases.length > 0 && allPhases.every(p => p.completed_at);
+if (allPhasesCompleted && taskData.status === 'in_progress') {
+  await supabase.from("tasks").update({ status: 'completed' }).eq("id", taskData.id);
+}
+```
 
-**2. Auto-revert task status to `completed` after revision changes are done**
-In `handleMarkPhaseComplete` (line 431), after marking changes as complete, check if the task was previously completed (i.e., the task's `total_phases` is set and equals `current_phase`, meaning the website was finished). If so, set `task.status` back to `completed` instead of leaving it as `in_progress`. This restores the correct workflow state.
+**2. Update `getStatusLabel` (line ~1173)**
+When status is `in_progress`, check if the current phase already has `completed_at`. If all phases are submitted, show "Website Complete" instead of "Phase X in Progress".
+
+**3. Fix Order 151 data**
+Update order 151's status to `completed` since all 6 phases are already submitted.
 
 ### Files to modify
 - `src/components/dashboards/DeveloperDashboard.tsx`
-  - Line ~2084: Add phase completion check to the submit button condition
-  - Line ~431 (`handleMarkPhaseComplete`): After marking changes complete, check if all phases are submitted and auto-revert task status to `completed` if applicable
+  - Line ~477: Improve auto-revert to check all phases have `completed_at` as fallback
+  - Line ~1173: Update `getStatusLabel` to account for already-submitted phases
+- Database: Update task 151 status to `completed`
 
