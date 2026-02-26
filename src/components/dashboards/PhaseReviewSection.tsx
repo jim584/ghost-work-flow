@@ -555,21 +555,8 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
               <MessageSquare className="h-3 w-3 mr-1" />Add Notes
             </Button>
           )}
-          {/* Show URLs from design_submissions */}
-          {phaseUrls.length > 0 && (
-            <div className="space-y-1">
-              {phaseUrls.map((sub: any) => {
-                const urls = parseUrls(sub.designer_comment || '');
-                return urls.map((u, i) => (
-                  <a key={`${sub.id}-${i}`} href={u.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-primary hover:underline">
-                    <Globe className="h-3 w-3 shrink-0" /><span className="truncate">{u.label}: {u.url}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
-                  </a>
-                ));
-              })}
-            </div>
-          )}
-          {/* Show URLs from phase submission_comment (fallback if no design_submissions) */}
-          {phaseUrls.length === 0 && phase.submission_comment && (() => {
+          {/* Show URLs from phase submission_comment (phase-specific, primary source) */}
+          {phase.submission_comment && (() => {
             const urls = parseUrls(phase.submission_comment);
             const nonUrlComment = phase.submission_comment.split('\n').filter((line: string) => !line.match(/🔗/)).join('\n').trim();
             return (
@@ -585,6 +572,19 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
               </div>
             );
           })()}
+          {/* Fallback: Show URLs from design_submissions if no phase submission_comment */}
+          {!phase.submission_comment && phaseUrls.length > 0 && (
+            <div className="space-y-1">
+              {phaseUrls.map((sub: any) => {
+                const urls = parseUrls(sub.designer_comment || '');
+                return urls.map((u, i) => (
+                  <a key={`${sub.id}-${i}`} href={u.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                    <Globe className="h-3 w-3 shrink-0" /><span className="truncate">{u.label}: {u.url}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
+                  </a>
+                ));
+              })}
+            </div>
+          )}
           {reviewsForPhase.length > 0 && (
             <div className="space-y-2">
               <span className="text-xs font-medium text-muted-foreground">Activity History</span>
