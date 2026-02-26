@@ -29,24 +29,7 @@ import {
   timeToMinutes, getISODay, toTimezoneDate, isOvernightShift, isWithinShift
 } from "@/utils/workingHours";
 
-// Helper: marks unread PM notes as read after 2s delay
-const UnreadNotesMarker = ({ taskId, phaseReviews, queryClient }: { taskId: string | undefined; phaseReviews: any[] | undefined; queryClient: any }) => {
-  useEffect(() => {
-    if (!taskId || !phaseReviews) return;
-    const unreadIds = phaseReviews
-      .filter(pr => pr.task_id === taskId && pr.review_status === "pm_note" && !(pr as any).dev_read_at)
-      .map(pr => pr.id);
-    if (unreadIds.length === 0) return;
-    const timer = setTimeout(async () => {
-      for (const id of unreadIds) {
-        await supabase.from("phase_reviews").update({ dev_read_at: new Date().toISOString() }).eq("id", id);
-      }
-      queryClient.invalidateQueries({ queryKey: ["developer-phase-reviews"] });
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [taskId, phaseReviews, queryClient]);
-  return null;
-};
+// (UnreadNotesMarker removed — notes are now marked read via explicit button)
 
 // Helper: simple voice note player for focused notes dialog
 const SimpleVoicePlayer = ({ voicePath }: { voicePath: string }) => {
@@ -2759,7 +2742,34 @@ const DeveloperDashboard = () => {
               );
             })()}
           </ScrollArea>
-          <UnreadNotesMarker taskId={unreadNotesTask?.id} phaseReviews={phaseReviews} queryClient={queryClient} />
+          {/* Mark as Read button */}
+          {unreadNotesTask && (() => {
+            const hasUnread = phaseReviews?.some(
+              pr => pr.task_id === unreadNotesTask.id && pr.review_status === "pm_note" && !(pr as any).dev_read_at
+            );
+            if (!hasUnread) return null;
+            return (
+              <div className="flex justify-end pt-2 border-t">
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    const unreadIds = phaseReviews
+                      ?.filter(pr => pr.task_id === unreadNotesTask.id && pr.review_status === "pm_note" && !(pr as any).dev_read_at)
+                      .map(pr => pr.id) || [];
+                    for (const id of unreadIds) {
+                      await supabase.from("phase_reviews").update({ dev_read_at: new Date().toISOString() }).eq("id", id);
+                    }
+                    queryClient.invalidateQueries({ queryKey: ["developer-phase-reviews"] });
+                    setUnreadNotesTask(null);
+                    toast({ title: "Notes marked as read" });
+                  }}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                  Mark as Read
+                </Button>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
       {/* Chat Dialog */}
