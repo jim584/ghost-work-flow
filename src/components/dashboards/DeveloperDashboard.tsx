@@ -1458,14 +1458,21 @@ const DeveloperDashboard = () => {
                             </Badge>
                           )}
                           {(() => {
-                            const unreadNotes = phaseReviews?.filter(
+                            const unreadNoteReviews = phaseReviews?.filter(
                               pr => pr.task_id === task.id && pr.review_status === "pm_note" && !(pr as any).dev_read_at
-                            ).length || 0;
-                            if (unreadNotes > 0) {
+                            ) || [];
+                            if (unreadNoteReviews.length > 0) {
+                              const phaseNumbers = [...new Set(unreadNoteReviews.map(pr => {
+                                const phase = projectPhases?.find(p => p.id === pr.phase_id);
+                                return phase?.phase_number;
+                              }).filter(Boolean))].sort((a, b) => a! - b!);
+                              const phaseLabel = phaseNumbers.length > 0
+                                ? ` (Phase ${phaseNumbers.join(', ')})`
+                                : '';
                               return (
                                 <Badge className="gap-1 bg-destructive text-destructive-foreground animate-pulse">
                                   <FileText className="h-3 w-3" />
-                                  {unreadNotes} unread note{unreadNotes !== 1 ? 's' : ''}
+                                  {unreadNoteReviews.length} unread note{unreadNoteReviews.length !== 1 ? 's' : ''}{phaseLabel}
                                 </Badge>
                               );
                             }
