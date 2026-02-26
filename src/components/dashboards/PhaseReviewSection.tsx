@@ -441,26 +441,45 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     return results;
   };
 
-  // Group submissions by phase using time-based correlation with phase completion dates
+  // Group submissions by phase using sequential assignment:
+  // Sort all URL-containing submissions chronologically and assign them to phases in order.
+  // Each phase gets the submissions that were created closest to its completion window.
   const getPhaseSubmissions = (phaseNumber: number) => {
-    const sorted = [...submissions].sort((a, b) => 
-      new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime()
-    );
+    const urlSubmissions = [...submissions]
+      .filter(s => s.designer_comment?.includes('🔗'))
+      .sort((a, b) => new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime());
     
-    const phase = taskPhases.find(p => p.phase_number === phaseNumber);
-    if (!phase?.completed_at) return [];
+    if (!urlSubmissions.length) return [];
     
-    const phaseCompletedAt = new Date(phase.completed_at).getTime();
-    // Find the previous phase's completion time as a lower bound
-    const prevPhase = taskPhases.find(p => p.phase_number === phaseNumber - 1);
-    const lowerBound = prevPhase?.completed_at ? new Date(prevPhase.completed_at).getTime() : 0;
+    // Build phase-to-submission mapping using closest-match approach
+    const completedPhases = [...taskPhases]
+      .filter(p => p.completed_at)
+      .sort((a, b) => a.phase_number - b.phase_number);
     
-    // Submissions that fall between the previous phase completion and this phase's completion
-    return sorted.filter(s => {
-      if (!s.designer_comment?.includes('🔗')) return false;
-      const subTime = new Date(s.submitted_at || '').getTime();
-      return subTime > lowerBound && subTime <= phaseCompletedAt + 60000; // 1 min tolerance
-    });
+    if (!completedPhases.length) return [];
+    
+    // Assign each submission to its nearest phase by completion time
+    const phaseSubmissionMap: Record<number, any[]> = {};
+    for (const phase of completedPhases) {
+      phaseSubmissionMap[phase.phase_number] = [];
+    }
+    
+    for (const sub of urlSubmissions) {
+      const subTime = new Date(sub.submitted_at || '').getTime();
+      let bestPhase = completedPhases[0];
+      let bestDiff = Math.abs(new Date(bestPhase.completed_at).getTime() - subTime);
+      
+      for (const phase of completedPhases) {
+        const diff = Math.abs(new Date(phase.completed_at).getTime() - subTime);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestPhase = phase;
+        }
+      }
+      phaseSubmissionMap[bestPhase.phase_number]?.push(sub);
+    }
+    
+    return phaseSubmissionMap[phaseNumber] || [];
   };
 
   // Determine which phase should be open by default (active/latest)
