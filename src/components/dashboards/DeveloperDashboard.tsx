@@ -1370,6 +1370,30 @@ const DeveloperDashboard = () => {
                 const isAssigned = task.status === "assigned";
                 const ackOverdue = isAckOverdue(task);
                 const hasReassignmentRequest = !!(task as any).reassignment_requested_at;
+                const taskPhasesForTask = projectPhases?.filter(p => p.task_id === task.id) || [];
+                const taskReviewsForTask = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
+                const pendingRevisionPhases = taskPhasesForTask
+                  .map((p) => {
+                    const latestActionableReview = [...taskReviewsForTask]
+                      .filter((r) => r.phase_id === p.id && r.review_status !== "pm_note" && r.review_status !== "add_revision_notes")
+                      .sort((a, b) => {
+                        const roundDiff = ((b as any).round_number || 0) - ((a as any).round_number || 0);
+                        if (roundDiff !== 0) return roundDiff;
+                        return new Date(b.reviewed_at || 0).getTime() - new Date(a.reviewed_at || 0).getTime();
+                      })[0] as any;
+
+                    if (!latestActionableReview) return null;
+                    if ((latestActionableReview.review_status === "approved_with_changes" || latestActionableReview.review_status === "disapproved_with_changes") && !latestActionableReview.change_completed_at) {
+                      return {
+                        phaseId: p.id,
+                        phaseNumber: p.phase_number,
+                        changeSeverity: latestActionableReview.change_severity,
+                        changeDeadline: latestActionableReview.change_deadline,
+                      };
+                    }
+                    return null;
+                  })
+                  .filter(Boolean) as Array<{ phaseId: string; phaseNumber: number; changeSeverity: string | null; changeDeadline: string | null }>;
                 
                 return (
                   <div 
@@ -1406,27 +1430,12 @@ const DeveloperDashboard = () => {
                               Revision Needed
                             </Badge>
                           )}
-                          {(() => {
-                            const changePhases = projectPhases?.filter(
-                              p => p.task_id === task.id && 
-                              (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes')
-                            ) || [];
-                            return changePhases.map(p => {
-                              // Find latest review round for this phase
-                              const latestReview = (phaseReviews || []).find(
-                                (r: any) => r.phase_id === p.id && 
-                                (r.review_status === 'approved_with_changes' || r.review_status === 'disapproved_with_changes')
-                              );
-                              // Only show "Changes Needed" if latest round has no completion
-                              if (!latestReview || latestReview.change_completed_at) return null;
-                              return (
-                                <Badge key={p.id} className="gap-1 bg-amber-500 text-white animate-pulse">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  Changes Needed (P{p.phase_number}{latestReview.change_severity ? ` - ${latestReview.change_severity}` : ''})
-                                </Badge>
-                              );
-                            });
-                          })()}
+                          {pendingRevisionPhases.map((p) => (
+                            <Badge key={p.phaseId} className="gap-1 bg-amber-500 text-white animate-pulse">
+                              <AlertTriangle className="h-3 w-3" />
+                              Changes Needed (P{p.phaseNumber}{p.changeSeverity ? ` - ${p.changeSeverity}` : ''})
+                            </Badge>
+                          ))}
                           {hasReassignmentRequest && (
                             <Badge variant="outline" className="gap-1 border-orange-500 text-orange-600">
                               <RotateCcw className="h-3 w-3" />
@@ -1507,22 +1516,11 @@ const DeveloperDashboard = () => {
                           <div className="mt-2 p-2.5 bg-muted/30 rounded-md space-y-2">
                             {task.sla_deadline && <SlaCountdown deadline={task.sla_deadline} calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={9} />}
                             {/* Change timers for phases with changes needed — derived from latest review */}
-                            {projectPhases?.filter(p => p.task_id === task.id).map(p => {
-                              const latestReview = (phaseReviews || [])
-                                .filter((r: any) => r.phase_id === p.id && r.review_status !== 'pm_note' && r.review_status !== 'add_revision_notes')
-                                .sort((a: any, b: any) => {
-                                  const rd = ((b as any).round_number || 0) - ((a as any).round_number || 0);
-                                  if (rd !== 0) return rd;
-                                  return new Date(b.reviewed_at || 0).getTime() - new Date(a.reviewed_at || 0).getTime();
-                                })[0] as any;
-                              if (!latestReview) return null;
-                              const changeDeadline = latestReview.change_deadline;
-                              const changeCompleted = latestReview.change_completed_at;
-                              const severity = latestReview.change_severity;
-                              if (!changeDeadline || changeCompleted || (latestReview.review_status !== 'approved_with_changes' && latestReview.review_status !== 'disapproved_with_changes')) return null;
+                            {pendingRevisionPhases.map((p) => {
+                              if (!p.changeDeadline) return null;
                               return (
-                                <SlaCountdown key={p.id} deadline={changeDeadline} label={`Changes (P${p.phase_number} - ${severity})`} calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={
-                                  severity === 'minor' ? 2 : severity === 'average' ? 4 : severity === 'major' ? 9 : 18
+                                <SlaCountdown key={`timer-${p.phaseId}`} deadline={p.changeDeadline} label={`Changes (P${p.phaseNumber} - ${p.changeSeverity || 'minor'})`} calendar={devCalendar?.calendar} leaves={devLeaves} slaHours={
+                                  p.changeSeverity === 'minor' ? 2 : p.changeSeverity === 'average' ? 4 : p.changeSeverity === 'major' ? 9 : 18
                                 } />
                               );
                             })}
@@ -1967,29 +1965,12 @@ const DeveloperDashboard = () => {
                           {hasRevision ? "Revision Needed" : getStatusLabel(task.status, task)}
                         </Badge>
                         {/* Show revision-in-progress badges for phases with pending changes */}
-                        {(() => {
-                          const taskPhases = projectPhases?.filter(p => p.task_id === task.id) || [];
-                          const taskReviews = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
-                          return taskPhases.map(p => {
-                            const latestReview = [...taskReviews]
-                              .filter(r => r.phase_id === p.id && r.review_status !== "pm_note" && r.review_status !== "add_revision_notes")
-                              .sort((a, b) => {
-                                const roundDiff = ((b as any).round_number || 0) - ((a as any).round_number || 0);
-                                if (roundDiff !== 0) return roundDiff;
-                                return new Date(b.reviewed_at || 0).getTime() - new Date(a.reviewed_at || 0).getTime();
-                              })[0];
-                            if (!latestReview) return null;
-                            if ((latestReview.review_status === 'approved_with_changes' || latestReview.review_status === 'disapproved_with_changes') && !latestReview.change_completed_at) {
-                              return (
-                                <Badge key={p.id} className="gap-1 bg-amber-500 text-white text-[10px] animate-pulse">
-                                  <Clock className="h-3 w-3" />
-                                  P{p.phase_number} Revision In Progress{latestReview.change_severity ? ` (${latestReview.change_severity})` : ''}
-                                </Badge>
-                              );
-                            }
-                            return null;
-                          });
-                        })()}
+                        {pendingRevisionPhases.map((p) => (
+                          <Badge key={`top-${p.phaseId}`} className="gap-1 bg-amber-500 text-white text-[10px] animate-pulse">
+                            <Clock className="h-3 w-3" />
+                            P{p.phaseNumber} Revision In Progress{p.changeSeverity ? ` (${p.changeSeverity})` : ''}
+                          </Badge>
+                        ))}
                         {taskSubmissions.length > 0 && !(projectPhases?.some(p => p.task_id === task.id)) && (
                           <Button size="sm" variant="ghost" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
