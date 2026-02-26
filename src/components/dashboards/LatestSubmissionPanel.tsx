@@ -82,10 +82,18 @@ export const LatestSubmissionPanel = ({
   if (displayPhase.submission_comment) {
     urls = parseUrls(displayPhase.submission_comment);
   } else {
-    // Fallback to design_submissions
-    const phaseSubmissions = submissions.filter(s => {
-      if (displayPhase.phase_number === 1) return s.designer_comment?.includes('Homepage');
-      return s.designer_comment && !s.designer_comment.includes('Homepage');
+    // Fallback: use time-based correlation with phase completion dates
+    const sorted = [...submissions].sort((a, b) => 
+      new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime()
+    );
+    const phaseCompletedAt = displayPhase.completed_at ? new Date(displayPhase.completed_at).getTime() : 0;
+    const prevPhase = taskPhases.find(p => p.phase_number === displayPhase.phase_number - 1);
+    const lowerBound = prevPhase?.completed_at ? new Date(prevPhase.completed_at).getTime() : 0;
+    
+    const phaseSubmissions = sorted.filter(s => {
+      if (!s.designer_comment?.includes('🔗')) return false;
+      const subTime = new Date(s.submitted_at || '').getTime();
+      return subTime > lowerBound && subTime <= phaseCompletedAt + 60000;
     });
     urls = phaseSubmissions.flatMap(s => parseUrls(s.designer_comment || ''));
   }

@@ -441,15 +441,26 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     return results;
   };
 
-  // Group submissions by phase
+  // Group submissions by phase using time-based correlation with phase completion dates
   const getPhaseSubmissions = (phaseNumber: number) => {
     const sorted = [...submissions].sort((a, b) => 
       new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime()
     );
-    if (phaseNumber === 1) {
-      return sorted.filter(s => s.designer_comment?.includes('Homepage'));
-    }
-    return sorted.filter(s => s.designer_comment && !s.designer_comment.includes('Homepage'));
+    
+    const phase = taskPhases.find(p => p.phase_number === phaseNumber);
+    if (!phase?.completed_at) return [];
+    
+    const phaseCompletedAt = new Date(phase.completed_at).getTime();
+    // Find the previous phase's completion time as a lower bound
+    const prevPhase = taskPhases.find(p => p.phase_number === phaseNumber - 1);
+    const lowerBound = prevPhase?.completed_at ? new Date(prevPhase.completed_at).getTime() : 0;
+    
+    // Submissions that fall between the previous phase completion and this phase's completion
+    return sorted.filter(s => {
+      if (!s.designer_comment?.includes('🔗')) return false;
+      const subTime = new Date(s.submitted_at || '').getTime();
+      return subTime > lowerBound && subTime <= phaseCompletedAt + 60000; // 1 min tolerance
+    });
   };
 
   // Determine which phase should be open by default (active/latest)
