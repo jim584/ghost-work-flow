@@ -1025,6 +1025,8 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
       if (pr.review_status === "pm_note" && pr.dev_read_at) {
         const phase = sortedPhases.find(p => p.id === pr.phase_id);
         const phaseNum = phase?.phase_number ?? "?";
+        const devUserId = phase?.started_by || phase?.completed_by;
+        const devName = devUserId ? devNames?.[devUserId] : undefined;
         items.push({
           date: pr.dev_read_at,
           type: "notes_read",
@@ -1035,7 +1037,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold">Developer Read PM Notes</span>
+                  <span className="text-xs font-semibold">{devName ? `${devName} read PM notes` : "Developer Read PM Notes"}</span>
                   <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-300">Phase {phaseNum}</Badge>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -1137,6 +1139,8 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
                 .map(pr => {
                   const phase = sortedPhases.find(p => p.id === pr.phase_id);
                   const phaseNum = phase?.phase_number ?? "?";
+                  const devUserId = phase?.started_by || phase?.completed_by;
+                  const devName = devUserId ? devNames?.[devUserId] : undefined;
                   return (
                     <div key={`notes-read-${pr.id}`} className="flex items-start gap-3 p-3 rounded-md border bg-indigo-50 border-indigo-200 dark:bg-indigo-500/10 dark:border-indigo-500/30">
                       <div className="mt-0.5 p-1 rounded-full bg-indigo-100 dark:bg-indigo-500/20">
@@ -1144,7 +1148,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-semibold">Developer Read PM Notes</span>
+                          <span className="text-xs font-semibold">{devName ? `${devName} read PM notes` : "Developer Read PM Notes"}</span>
                           <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-300">Phase {phaseNum}</Badge>
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5">
