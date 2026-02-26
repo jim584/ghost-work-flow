@@ -325,6 +325,12 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           change_deadline: changeDeadline,
         };
 
+        // Reset change completion when starting a new round of changes
+        if (reviewStatus === "approved_with_changes" || reviewStatus === "disapproved_with_changes") {
+          phaseUpdateData.change_completed_at = null;
+          phaseUpdateData.change_completed_by = null;
+        }
+
         if (reviewStatus === "approved") {
           phaseUpdateData.status = "completed";
           phaseUpdateData.completed_at = now;

@@ -113,10 +113,14 @@ export const LatestSubmissionPanel = ({
 
   const isSubmittedAwaitingReview = actionablePhase && !hasActiveRevision;
   const isChangesInProgress = !!phaseWithPendingChanges && !actionablePhase;
+  const isRevisionResubmission = isSubmittedAwaitingReview && !!displayPhase.change_completed_at;
 
   // Status indicator
   const getStatusBadge = () => {
     if (isSubmittedAwaitingReview) {
+      if (isRevisionResubmission) {
+        return <Badge className="bg-emerald-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Changes Submitted — Awaiting Re-review</Badge>;
+      }
       return <Badge className="bg-blue-600 text-white text-xs gap-1"><Clock className="h-3 w-3" />Awaiting Review</Badge>;
     }
     if (isChangesInProgress) {
@@ -143,7 +147,9 @@ export const LatestSubmissionPanel = ({
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Latest Submission — {phaseLabel}</span>
+          <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+            {isRevisionResubmission ? "Revision Submitted" : "Latest Submission"} — {phaseLabel}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           {getStatusBadge()}
