@@ -1,31 +1,22 @@
 
 
-## Make Unread Notes Badge Clickable → Opens Focused Notes Dialog
+## Change Unread Notes Dialog: Manual "Mark as Read" Button
 
-### Approach
+### Current Behavior
+Notes are automatically marked as read after a 2-second delay when the focused dialog opens.
 
-Instead of opening the full "View Details" dialog, clicking the badge will open a lightweight, focused dialog showing **only the unread PM notes** for that task. On open, the notes get marked as read (with the existing 2-second delay pattern), and the badge disappears when the query refreshes.
+### Proposed Change
+Replace the auto-mark logic with a explicit "Mark as Read" button inside the dialog. The badge only disappears when the developer deliberately clicks the button.
 
 ### Implementation Steps
 
 **File: `src/components/dashboards/DeveloperDashboard.tsx`**
 
-1. **Add new state**: `const [unreadNotesTask, setUnreadNotesTask] = useState<any>(null);` — tracks which task's unread notes dialog is open.
+1. **Remove the `UnreadNotesMarker` component** (or its auto-mark `useEffect`) — no more 2-second auto-read.
 
-2. **Make badge clickable**: Add `onClick` with `e.stopPropagation()` to the unread notes `<Badge>` (around line 1473) that sets `setUnreadNotesTask(task)` and adds `cursor-pointer` styling.
+2. **Add a "Mark as Read" button** in the dialog footer:
+   - On click: update `dev_read_at = now()` for all unread `pm_note` reviews for that task, invalidate `developer-phase-reviews` query, then close the dialog.
+   - Show a loading state while the update runs.
 
-3. **Add a new focused Dialog** (after the View Details dialog, around line 2660):
-   - Title: "Unread PM Notes - #\{task_number\}"
-   - Content: Filter `phaseReviews` for `task_id === unreadNotesTask.id`, `review_status === "pm_note"`, `!dev_read_at`
-   - Render each note with: phase number, reviewer name, timestamp, comment text, voice player (if any), file attachments (if any) — reusing the same rendering patterns already in `DevPhaseReviewTimeline`
-   - On mount (useEffect): mark those notes as read by updating `dev_read_at` after 2-second delay, then invalidate the `developer-phase-reviews` query so the badge disappears
-
-4. **Remove autoMarkRead from View Details**: The View Details dialog no longer needs to mark notes as read since that responsibility moves to this new focused dialog. (Keep `autoMarkRead` prop on the component for backwards compatibility but the View Details usage can set it to `false`.)
-
-### Summary
-
-- Badge becomes clickable with pointer cursor
-- Click opens a small dialog with just the unread PM notes (grouped by phase)
-- Notes are marked as read on viewing, badge disappears
-- View Details dialog remains unchanged for full task info
+3. **Also update the View Details dialog** — remove `autoMarkRead` usage there too, since notes should only be cleared via the explicit button in the focused dialog.
 
