@@ -50,30 +50,63 @@ export const LatestSubmissionPanel = ({
   if (taskPhases.length === 0) return null;
 
   // Find the latest phase that needs attention:
-  // 1. Submitted (completed_at set) but not yet reviewed (no review_status)
-  // 2. Has review with pending changes (approved_with_changes/disapproved_with_changes with change_completed_at set — meaning dev resubmitted)
-  // Priority: most recent completed_at phase without "approved" review_status
+  // 1. Submitted (completed_at set) but not yet reviewed
+  // 2. Has review with completed changes (revision re-submitted, needs re-review)
+  // 3. Has latest review in a non-approved non-change-request intermediate state
+  const getLatestActionableReview = (phaseId: string) => {
+    return [...phaseReviews]
+      .filter((r: any) =>
+        r.phase_id === phaseId &&
+        r.review_status !== "pm_note" &&
+        r.review_status !== "add_revision_notes"
+      )
+      .sort((a: any, b: any) => {
+        const roundDiff = (b.round_number || 0) - (a.round_number || 0);
+        if (roundDiff !== 0) return roundDiff;
+        return new Date(b.reviewed_at || 0).getTime() - new Date(a.reviewed_at || 0).getTime();
+      })[0];
+  };
 
-  const actionablePhase = [...taskPhases].reverse().find(phase => {
-    // Phase submitted but not yet reviewed at all
-    if (phase.completed_at && !phase.review_status) return true;
-    // Phase submitted and reviewed but changes were completed (re-submitted, needs re-review)
-    if (phase.completed_at && phase.change_completed_at && phase.review_status !== "approved") return true;
-    // Phase submitted, review is pending (not approved yet)
-    if (phase.completed_at && phase.review_status && phase.review_status !== "approved" && 
-        phase.review_status !== "approved_with_changes" && phase.review_status !== "disapproved_with_changes") return true;
+  const getPhaseState = (phase: any) => {
+    const latestReview = getLatestActionableReview(phase.id);
+    return {
+      review_status: latestReview?.review_status ?? phase.review_status,
+      change_completed_at: latestReview?.change_completed_at ?? phase.change_completed_at,
+      change_deadline: latestReview?.change_deadline ?? phase.change_deadline,
+    };
+  };
+
+  const actionablePhase = [...taskPhases].reverse().find((phase) => {
+    const phaseState = getPhaseState(phase);
+
+    if (phase.completed_at && !phaseState.review_status) return true;
+    if (phase.completed_at && phaseState.change_completed_at && phaseState.review_status !== "approved") return true;
+    if (
+      phase.completed_at &&
+      phaseState.review_status &&
+      phaseState.review_status !== "approved" &&
+      phaseState.review_status !== "approved_with_changes" &&
+      phaseState.review_status !== "disapproved_with_changes"
+    ) {
+      return true;
+    }
+
     return false;
   });
 
-  // Also check for phases with active change requests (developer hasn't completed yet)
-  const phaseWithPendingChanges = [...taskPhases].reverse().find(phase => 
-    (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") &&
-    !phase.change_completed_at
-  );
+  const phaseWithPendingChanges = [...taskPhases].reverse().find((phase) => {
+    const phaseState = getPhaseState(phase);
+    return (
+      (phaseState.review_status === "approved_with_changes" || phaseState.review_status === "disapproved_with_changes") &&
+      !phaseState.change_completed_at
+    );
+  });
 
   const displayPhase = actionablePhase || phaseWithPendingChanges;
 
   if (!displayPhase) return null;
+
+  const displayPhaseState = getPhaseState(displayPhase);
 
   const phaseLabel = displayPhase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${displayPhase.phase_number} — Inner Pages`;
 
@@ -103,17 +136,15 @@ export const LatestSubmissionPanel = ({
     urls = phaseSubmissions.flatMap(s => parseUrls(s.designer_comment || ''));
   }
 
-  // Determine the state for action buttons
-  const reviewsForPhase = phaseReviews.filter((r: any) => r.phase_id === displayPhase.id);
-  const hasActiveRevision = reviewsForPhase.some((r: any) =>
-    (r.review_status === "approved_with_changes" || r.review_status === "disapproved_with_changes") && !r.change_completed_at
-  ) || (
-    (displayPhase.review_status === "approved_with_changes" || displayPhase.review_status === "disapproved_with_changes") && !displayPhase.change_completed_at
-  );
+  // Determine the state for action buttons based on latest actionable review state
+  const hasActiveRevision =
+    (displayPhaseState.review_status === "approved_with_changes" ||
+      displayPhaseState.review_status === "disapproved_with_changes") &&
+    !displayPhaseState.change_completed_at;
 
-  const isSubmittedAwaitingReview = actionablePhase && !hasActiveRevision;
+  const isSubmittedAwaitingReview = !!actionablePhase && !hasActiveRevision;
   const isChangesInProgress = !!phaseWithPendingChanges && !actionablePhase;
-  const isRevisionResubmission = isSubmittedAwaitingReview && !!displayPhase.change_completed_at;
+  const isRevisionResubmission = isSubmittedAwaitingReview && !!displayPhaseState.change_completed_at;
 
   // Status indicator
   const getStatusBadge = () => {
@@ -124,7 +155,7 @@ export const LatestSubmissionPanel = ({
       return <Badge className="bg-blue-600 text-white text-xs gap-1"><Clock className="h-3 w-3" />Awaiting Review</Badge>;
     }
     if (isChangesInProgress) {
-      const isOverdue = displayPhase.change_deadline && new Date(displayPhase.change_deadline) < new Date();
+      const isOverdue = displayPhaseState.change_deadline && new Date(displayPhaseState.change_deadline) < new Date();
       if (isOverdue) {
         return <Badge variant="destructive" className="text-xs gap-1"><AlertTriangle className="h-3 w-3" />Changes Overdue</Badge>;
       }
@@ -228,12 +259,12 @@ export const LatestSubmissionPanel = ({
       )}
 
       {/* Change deadline info when changes are in progress */}
-      {isChangesInProgress && displayPhase.change_deadline && (
+      {isChangesInProgress && displayPhaseState.change_deadline && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Clock className="h-3 w-3" />
           <span>
-            Change deadline: {format(new Date(displayPhase.change_deadline), "MMM d, yyyy 'at' h:mm a")}
-            {" "}({formatDistanceToNow(new Date(displayPhase.change_deadline), { addSuffix: true })})
+            Change deadline: {format(new Date(displayPhaseState.change_deadline), "MMM d, yyyy 'at' h:mm a")}
+            {" "}({formatDistanceToNow(new Date(displayPhaseState.change_deadline), { addSuffix: true })})
           </span>
         </div>
       )}
