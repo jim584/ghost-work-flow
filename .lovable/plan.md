@@ -1,23 +1,31 @@
-## Add Unread PM Notes Badge to Both Card and Phase Accordion
 
-### Current State
 
-- The **card-level badge** already exists (line 1460-1473 in `DeveloperDashboard.tsx`) showing total unread notes count.
-- The **phase accordion** in `DevPhaseReviewTimeline.tsx` (line 828-857) shows phases but has no per-phase unread indicator.
-- Notes are only marked as read when `autoMarkRead={true}` (View Details dialog).
+## Make Unread Notes Badge Clickable → Opens Focused Notes Dialog
+
+### Approach
+
+Instead of opening the full "View Details" dialog, clicking the badge will open a lightweight, focused dialog showing **only the unread PM notes** for that task. On open, the notes get marked as read (with the existing 2-second delay pattern), and the badge disappears when the query refreshes.
 
 ### Implementation Steps
 
-**File: `src/components/dashboards/DevPhaseReviewTimeline.tsx**`
+**File: `src/components/dashboards/DeveloperDashboard.tsx`**
 
-1. In `renderPhaseAccordionItem` (line 836-843), add a small pulsing red dot/badge next to phases that have unread PM notes. Filter `phaseReviews` for entries matching the phase's `id` with `review_status === "pm_note"` and `!dev_read_at`, and if count > 0, render a small red dot indicator beside the phase label.
+1. **Add new state**: `const [unreadNotesTask, setUnreadNotesTask] = useState<any>(null);` — tracks which task's unread notes dialog is open.
 
-**File: `src/components/dashboards/DeveloperDashboard.tsx**`
+2. **Make badge clickable**: Add `onClick` with `e.stopPropagation()` to the unread notes `<Badge>` (around line 1473) that sets `setUnreadNotesTask(task)` and adds `cursor-pointer` styling.
 
-2. No changes needed — the card-level badge already works correctly now that `autoMarkRead` defaults to `false` on the card's embedded timeline.
+3. **Add a new focused Dialog** (after the View Details dialog, around line 2660):
+   - Title: "Unread PM Notes - #\{task_number\}"
+   - Content: Filter `phaseReviews` for `task_id === unreadNotesTask.id`, `review_status === "pm_note"`, `!dev_read_at`
+   - Render each note with: phase number, reviewer name, timestamp, comment text, voice player (if any), file attachments (if any) — reusing the same rendering patterns already in `DevPhaseReviewTimeline`
+   - On mount (useEffect): mark those notes as read by updating `dev_read_at` after 2-second delay, then invalidate the `developer-phase-reviews` query so the badge disappears
+
+4. **Remove autoMarkRead from View Details**: The View Details dialog no longer needs to mark notes as read since that responsibility moves to this new focused dialog. (Keep `autoMarkRead` prop on the component for backwards compatibility but the View Details usage can set it to `false`.)
 
 ### Summary
 
-- Card shows "X unread notes" badge (existing).
-- Phase accordion items show a red dot next to specific phases with unread notes.
-- Notes only get marked as read when developer opens View Details dialog or expands the phase accordian for which the notes were added.
+- Badge becomes clickable with pointer cursor
+- Click opens a small dialog with just the unread PM notes (grouped by phase)
+- Notes are marked as read on viewing, badge disappears
+- View Details dialog remains unchanged for full task info
+
