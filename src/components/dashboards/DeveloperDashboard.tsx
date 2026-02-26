@@ -396,6 +396,7 @@ const DeveloperDashboard = () => {
   const [urlInput, setUrlInput] = useState("");
   const [chatTask, setChatTask] = useState<any>(null);
   const [unreadNotesTask, setUnreadNotesTask] = useState<any>(null);
+  const [scrollToReplyPhase, setScrollToReplyPhase] = useState<{ taskId: string; phaseId: string } | null>(null);
   const [nameserverInputs, setNameserverInputs] = useState<{[taskId: string]: {ns1: string; ns2: string; ns3: string; ns4: string}}>({});
   const [dnsInputs, setDnsInputs] = useState<{[taskId: string]: {aRecord: string; cname: string; mx: string}}>({});
   const [wetransferInputs, setWetransferInputs] = useState<{[taskId: string]: string}>({});
@@ -552,7 +553,7 @@ const DeveloperDashboard = () => {
       const taskIds = tasks.map(t => t.id);
       const { data, error } = await supabase
         .from("phase_review_replies")
-        .select("id, task_id, user_id, dev_read_at" as any)
+        .select("id, task_id, user_id, dev_read_at, phase_review_id" as any)
         .in("task_id", taskIds)
         .is("dev_read_at" as any, null)
         .neq("user_id", user!.id); // only PM replies (not the developer's own)
@@ -1513,12 +1514,38 @@ const DeveloperDashboard = () => {
                              return null;
                            })()}
                            {(() => {
-                             const unreadReplies = getUnreadPMReplyCount(task.id);
+                             const taskReplies = (unreadPMReplies as any[])?.filter((r: any) => r.task_id === task.id) || [];
+                             const unreadReplies = taskReplies.length;
                              if (unreadReplies > 0) {
+                               // Resolve phase numbers from phase_review_id -> phaseReviews -> projectPhases
+                               const phaseNumbers = [...new Set(taskReplies.map((r: any) => {
+                                 const pr = phaseReviews?.find(p => p.id === r.phase_review_id);
+                                 if (!pr) return null;
+                                 const phase = projectPhases?.find(p => p.id === (pr as any).phase_id);
+                                 return phase?.phase_number;
+                               }).filter(Boolean))].sort((a, b) => a! - b!);
+                               const phaseLabel = phaseNumbers.length > 0
+                                 ? ` (Phase ${phaseNumbers.join(', ')})`
+                                 : '';
                                return (
-                                 <Badge className="gap-1 bg-destructive text-destructive-foreground animate-pulse">
+                                 <Badge 
+                                   className="gap-1 bg-destructive text-destructive-foreground animate-pulse cursor-pointer hover:bg-destructive/90"
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     // Find the first phase with unread replies
+                                     const firstPhaseReviewId = taskReplies[0]?.phase_review_id;
+                                     const firstPR = phaseReviews?.find(p => p.id === firstPhaseReviewId);
+                                     const firstPhaseId = firstPR ? (firstPR as any).phase_id : null;
+                                     setExpandedTaskId(task.id);
+                                     if (firstPhaseId) {
+                                       setScrollToReplyPhase({ taskId: task.id, phaseId: firstPhaseId });
+                                       // Clear after component has rendered with the phase open
+                                       setTimeout(() => setScrollToReplyPhase(null), 500);
+                                     }
+                                   }}
+                                 >
                                    <MessageCircle className="h-3 w-3" />
-                                   {unreadReplies} new {unreadReplies === 1 ? 'reply' : 'replies'}
+                                   {unreadReplies} new {unreadReplies === 1 ? 'reply' : 'replies'}{phaseLabel}
                                  </Badge>
                                );
                              }
@@ -1572,7 +1599,7 @@ const DeveloperDashboard = () => {
                               const taskPhases = projectPhases?.filter(p => p.task_id === task.id) || [];
                               const taskReviews = phaseReviews?.filter(pr => pr.task_id === task.id) || [];
                               if (taskPhases.length > 0) {
-                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} devNames={devNames} />;
+                                return <DevPhaseReviewTimeline phases={taskPhases} phaseReviews={taskReviews} taskId={task.id} onMarkPhaseComplete={handleMarkPhaseComplete} reviewerNames={reviewerNames} userId={user?.id} canReply={true} devNames={devNames} defaultOpenPhaseId={scrollToReplyPhase?.taskId === task.id ? scrollToReplyPhase.phaseId : null} />;
                               }
                               return null;
                             })()}

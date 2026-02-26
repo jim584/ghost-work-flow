@@ -88,6 +88,7 @@ interface DevPhaseReviewTimelineProps {
   canReply?: boolean;
   devNames?: Record<string, string>;
   autoMarkRead?: boolean;
+  defaultOpenPhaseId?: string | null;
 }
 
 // ─── Shared Sub-components ──────────────────────────────────────────
@@ -686,7 +687,7 @@ const getPhaseStatusBadge = (phase: Phase, phaseReviews: PhaseReview[] = []) => 
 
 // ─── Compact Active Phase Card ──────────────────────────────────────
 
-const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerNames, taskId, userId, canReply, devNames }: {
+const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerNames, taskId, userId, canReply, devNames, defaultOpen = false }: {
   phase: Phase;
   phaseReviews: PhaseReview[];
   onMarkComplete?: (phaseId: string, reviewStatus: string) => void;
@@ -695,6 +696,7 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
   userId?: string;
   canReply?: boolean;
   devNames?: Record<string, string>;
+  defaultOpen?: boolean;
 }) => {
   const phaseLabel = phase.phase_number === 1 ? "Phase 1 — Homepage" : `Phase ${phase.phase_number} — Inner Pages`;
   const reviewsForPhase = phaseReviews
@@ -707,7 +709,7 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
     : (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") && !phase.change_completed_at;
 
   return (
-    <Accordion type="single" collapsible>
+    <Accordion type="single" collapsible defaultValue={defaultOpen ? phase.id : undefined}>
       <AccordionItem value={phase.id} className="border rounded-md px-2">
         <AccordionTrigger className="py-2 hover:no-underline">
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2 flex-wrap">
@@ -810,7 +812,7 @@ const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, t
 
 // ─── Full Timeline Dialog Content ───────────────────────────────────
 
-const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames, holdEvents = [], taskMilestones, reassignmentEvents = [] }: {
+const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComplete, reviewerNames, taskId, userId, canReply, devNames, holdEvents = [], taskMilestones, reassignmentEvents = [], readReplies = [] }: {
   sortedPhases: Phase[];
   phaseReviews: PhaseReview[];
   onMarkPhaseComplete?: (phaseId: string, reviewStatus: string, comment?: string, filePaths?: string, fileNames?: string) => void;
@@ -822,6 +824,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
   holdEvents?: any[];
   taskMilestones?: { assigned_at?: string; acknowledged_at?: string; first_phase_started_at?: string; completed_at?: string; approved_at?: string; cancelled_at?: string; cancellation_reason?: string } | null;
   reassignmentEvents?: any[];
+  readReplies?: any[];
 }) => {
   const [viewMode, setViewMode] = useState<"grouped" | "chronological">("grouped");
 
@@ -1051,6 +1054,38 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
       }
     });
 
+    // Add "Replies Read" events for phase_review_replies with dev_read_at
+    readReplies.forEach((reply: any) => {
+      if (reply.dev_read_at) {
+        const pr = phaseReviews.find(p => p.id === reply.phase_review_id);
+        const phase = pr ? sortedPhases.find(p => p.id === pr.phase_id) : null;
+        const phaseNum = phase?.phase_number ?? "?";
+        const devUserId = phase?.started_by || phase?.completed_by;
+        const devName = devUserId ? devNames?.[devUserId] : undefined;
+        items.push({
+          date: reply.dev_read_at,
+          type: "replies_read",
+          render: () => (
+            <div key={`replies-read-${reply.id}`} className="flex items-start gap-3 p-3 rounded-md border bg-teal-50 border-teal-200 dark:bg-teal-500/10 dark:border-teal-500/30">
+              <div className="mt-0.5 p-1 rounded-full bg-teal-100 dark:bg-teal-500/20">
+                <Eye className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold">{devName ? `${devName} read PM reply` : "Developer Read PM Reply"}</span>
+                  <Badge variant="outline" className="text-[10px] text-teal-600 border-teal-300">Phase {phaseNum}</Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {format(new Date(reply.dev_read_at), "MMM d, yyyy 'at' h:mm a")}
+                  {" "}({formatDistanceToNow(new Date(reply.dev_read_at), { addSuffix: true })})
+                </p>
+              </div>
+            </div>
+          ),
+        });
+      }
+    });
+
     items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     if (items.length === 0) {
@@ -1067,6 +1102,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
               item.type === "hold" ? "bg-amber-500" :
               item.type === "reassignment" ? "bg-orange-500" :
               item.type === "notes_read" ? "bg-indigo-500" :
+              item.type === "replies_read" ? "bg-teal-500" :
               item.type === "pm_review" ? "bg-amber-500" :
               "bg-primary"
             }`} />
@@ -1163,6 +1199,48 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
           </Collapsible>
         );
       })()}
+      {/* Replies Read section */}
+      {(() => {
+        if (readReplies.length === 0) return null;
+        return (
+          <Collapsible defaultOpen={true}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group mb-1">
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Replies Read</h4>
+              <Badge variant="outline" className="text-[10px] ml-auto">{readReplies.length}</Badge>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1.5 mb-3">
+              {readReplies
+                .filter((r: any) => r.dev_read_at)
+                .sort((a: any, b: any) => new Date(a.dev_read_at).getTime() - new Date(b.dev_read_at).getTime())
+                .map((reply: any) => {
+                  const pr = phaseReviews.find(p => p.id === reply.phase_review_id);
+                  const phase = pr ? sortedPhases.find(p => p.id === pr.phase_id) : null;
+                  const phaseNum = phase?.phase_number ?? "?";
+                  const devUserId = phase?.started_by || phase?.completed_by;
+                  const devName = devUserId ? devNames?.[devUserId] : undefined;
+                  return (
+                    <div key={`replies-read-${reply.id}`} className="flex items-start gap-3 p-3 rounded-md border bg-teal-50 border-teal-200 dark:bg-teal-500/10 dark:border-teal-500/30">
+                      <div className="mt-0.5 p-1 rounded-full bg-teal-100 dark:bg-teal-500/20">
+                        <Eye className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-semibold">{devName ? `${devName} read PM reply` : "Developer Read PM Reply"}</span>
+                          <Badge variant="outline" className="text-[10px] text-teal-600 border-teal-300">Phase {phaseNum}</Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {format(new Date(reply.dev_read_at), "MMM d, yyyy 'at' h:mm a")}
+                          {" "}({formatDistanceToNow(new Date(reply.dev_read_at), { addSuffix: true })})
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+            </CollapsibleContent>
+          </Collapsible>
+        );
+      })()}
 
       <Accordion type="multiple" defaultValue={sortedPhases.map(p => p.id)}>
         {sortedPhases.map(phase => renderPhaseAccordionItem(phase))}
@@ -1202,7 +1280,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
 
 // ─── Main Component ─────────────────────────────────────────────────
 
-export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false, devNames = {}, autoMarkRead = false }: DevPhaseReviewTimelineProps) => {
+export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact = false, onMarkPhaseComplete, reviewerNames = {}, userId, canReply = false, devNames = {}, autoMarkRead = false, defaultOpenPhaseId = null }: DevPhaseReviewTimelineProps) => {
   const [showFullTimeline, setShowFullTimeline] = useState(false);
 
   // Fetch hold/resume events for this task
@@ -1311,6 +1389,21 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
     enabled: showFullTimeline,
   });
 
+  // Fetch read replies for timeline display
+  const { data: readReplies } = useQuery({
+    queryKey: ["task-read-replies", taskId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("phase_review_replies")
+        .select("id, phase_review_id, task_id, user_id, dev_read_at, created_at" as any)
+        .eq("task_id", taskId)
+        .not("dev_read_at" as any, "is", null);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: showFullTimeline,
+  });
+
   // Mark unread PM notes as read after a 2-second delay — only when autoMarkRead is true (View Details dialog)
   useEffect(() => {
     if (!autoMarkRead) return;
@@ -1341,7 +1434,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
     return sortedPhases[sortedPhases.length - 1]?.id;
   };
 
-  const activePhaseId = getActivePhaseId();
+  const activePhaseId = defaultOpenPhaseId || getActivePhaseId();
   const activePhase = sortedPhases.find(p => p.id === activePhaseId);
   const otherPhases = sortedPhases.filter(p => p.id !== activePhaseId);
 
@@ -1358,6 +1451,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
           userId={userId}
           canReply={canReply}
           devNames={devNames}
+          defaultOpen={!!defaultOpenPhaseId}
         />
       )}
 
@@ -1404,6 +1498,7 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
             holdEvents={holdEvents || []}
             taskMilestones={taskMilestones}
             reassignmentEvents={reassignmentEvents || []}
+            readReplies={readReplies || []}
           />
         </DialogContent>
       </Dialog>
