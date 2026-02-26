@@ -928,10 +928,11 @@ const DeveloperDashboard = () => {
         phaseUpdate.submission_file_paths = uploadedPaths.join("|||");
         phaseUpdate.submission_file_names = uploadedNames.join("|||");
       }
-      await supabase.from("project_phases")
+      const { error: phaseUpdateError } = await supabase.from("project_phases")
         .update(phaseUpdate)
         .eq("task_id", selectedTask.id)
         .eq("phase_number", selectedTask.current_phase || 1);
+      if (phaseUpdateError) console.error("Phase update error:", phaseUpdateError);
 
       // Reset SLA to 9 working hours from now after every upload
       if (selectedTask.developer_id) {
