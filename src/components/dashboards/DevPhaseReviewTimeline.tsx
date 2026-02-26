@@ -1227,18 +1227,20 @@ export const DevPhaseReviewTimeline = ({ phases, phaseReviews, taskId, compact =
     enabled: showFullTimeline,
   });
 
-  // Mark unread PM notes as read when this timeline mounts
+  // Mark unread PM notes as read after a 2-second delay so the card badge is visible first
   useEffect(() => {
     const unreadNoteIds = phaseReviews
       .filter(pr => pr.review_status === "pm_note" && !pr.dev_read_at)
       .map(pr => pr.id);
-    if (unreadNoteIds.length > 0) {
+    if (unreadNoteIds.length === 0) return;
+    const timer = setTimeout(() => {
       supabase
         .from("phase_reviews")
         .update({ dev_read_at: new Date().toISOString() } as any)
         .in("id", unreadNoteIds)
         .then();
-    }
+    }, 2000);
+    return () => clearTimeout(timer);
   }, [phaseReviews, taskId]);
 
   const sortedPhases = [...phases].sort((a, b) => a.phase_number - b.phase_number);

@@ -510,6 +510,7 @@ const DeveloperDashboard = () => {
       return data;
     },
     enabled: !!tasks?.length,
+    refetchInterval: 30000,
   });
 
   // Fetch unread PM replies for developer's tasks
@@ -528,6 +529,7 @@ const DeveloperDashboard = () => {
       return data || [];
     },
     enabled: !!tasks?.length,
+    refetchInterval: 30000,
   });
 
   const getUnreadPMReplyCount = (taskId: string) => {
