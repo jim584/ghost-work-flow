@@ -82,19 +82,24 @@ export const LatestSubmissionPanel = ({
   if (displayPhase.submission_comment) {
     urls = parseUrls(displayPhase.submission_comment);
   } else {
-    // Fallback: use time-based correlation with phase completion dates
-    const sorted = [...submissions].sort((a, b) => 
-      new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime()
-    );
-    const phaseCompletedAt = displayPhase.completed_at ? new Date(displayPhase.completed_at).getTime() : 0;
-    const prevPhase = taskPhases.find(p => p.phase_number === displayPhase.phase_number - 1);
-    const lowerBound = prevPhase?.completed_at ? new Date(prevPhase.completed_at).getTime() : 0;
+    // Fallback: assign submissions to nearest phase by completion time
+    const urlSubmissions = [...submissions]
+      .filter(s => s.designer_comment?.includes('🔗'))
+      .sort((a, b) => new Date(a.submitted_at || '').getTime() - new Date(b.submitted_at || '').getTime());
     
-    const phaseSubmissions = sorted.filter(s => {
-      if (!s.designer_comment?.includes('🔗')) return false;
-      const subTime = new Date(s.submitted_at || '').getTime();
-      return subTime > lowerBound && subTime <= phaseCompletedAt + 60000;
-    });
+    const completedPhases = taskPhases.filter(p => p.completed_at).sort((a, b) => a.phase_number - b.phase_number);
+    
+    const phaseSubmissions: any[] = [];
+    for (const sub of urlSubmissions) {
+      const subTime = new Date(sub.submitted_at || '').getTime();
+      let bestPhase = completedPhases[0];
+      let bestDiff = bestPhase ? Math.abs(new Date(bestPhase.completed_at).getTime() - subTime) : Infinity;
+      for (const phase of completedPhases) {
+        const diff = Math.abs(new Date(phase.completed_at).getTime() - subTime);
+        if (diff < bestDiff) { bestDiff = diff; bestPhase = phase; }
+      }
+      if (bestPhase?.phase_number === displayPhase.phase_number) phaseSubmissions.push(sub);
+    }
     urls = phaseSubmissions.flatMap(s => parseUrls(s.designer_comment || ''));
   }
 
