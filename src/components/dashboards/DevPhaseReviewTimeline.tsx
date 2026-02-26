@@ -633,24 +633,38 @@ const ReviewCard = ({ review, phaseNumber, isCurrent, phaseId, onMarkComplete, r
 
 // ─── Phase status badge for accordion header ────────────────────────
 
-const getPhaseStatusBadge = (phase: Phase) => {
-  if (!phase.review_status) {
+const getPhaseStatusBadge = (phase: Phase, phaseReviews: PhaseReview[] = []) => {
+  // Derive status from latest actionable review to avoid stale project_phases data
+  const latestReview = [...phaseReviews]
+    .filter(r => r.phase_id === phase.id && r.review_status !== "pm_note" && r.review_status !== "add_revision_notes")
+    .sort((a, b) => {
+      const roundDiff = (b.round_number || 0) - (a.round_number || 0);
+      if (roundDiff !== 0) return roundDiff;
+      return new Date(b.reviewed_at || 0).getTime() - new Date(a.reviewed_at || 0).getTime();
+    })[0];
+
+  const reviewStatus = latestReview ? latestReview.review_status : phase.review_status;
+  const changeCompletedAt = latestReview ? latestReview.change_completed_at : phase.change_completed_at;
+  const changeSeverity = latestReview ? latestReview.change_severity : phase.change_severity;
+  const severityLabel = changeSeverity ? ` (${changeSeverity})` : "";
+
+  if (!reviewStatus) {
     return <Badge variant="outline" className="text-[10px] shrink-0">{phase.status}</Badge>;
   }
-  if (phase.review_status === "approved") {
+  if (reviewStatus === "approved") {
     return <Badge className="bg-green-600 text-white text-[10px] gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />Approved</Badge>;
   }
-  if (phase.review_status === "approved_with_changes") {
-    if (phase.change_completed_at) {
-      return <Badge className="bg-green-600 text-white text-[10px] gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />Changes Done</Badge>;
+  if (reviewStatus === "approved_with_changes") {
+    if (changeCompletedAt) {
+      return <Badge className="bg-green-600 text-white text-[10px] gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />Changes Done{severityLabel}</Badge>;
     }
-    return <Badge className="bg-amber-500 text-white text-[10px] gap-0.5"><Clock className="h-2.5 w-2.5" />Revision In Progress</Badge>;
+    return <Badge className="bg-amber-500 text-white text-[10px] gap-0.5"><Clock className="h-2.5 w-2.5" />Revision In Progress{severityLabel}</Badge>;
   }
-  if (phase.review_status === "disapproved_with_changes") {
-    if (phase.change_completed_at) {
-      return <Badge className="bg-green-600 text-white text-[10px] gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />Changes Done</Badge>;
+  if (reviewStatus === "disapproved_with_changes") {
+    if (changeCompletedAt) {
+      return <Badge className="bg-green-600 text-white text-[10px] gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />Changes Done{severityLabel}</Badge>;
     }
-    return <Badge variant="destructive" className="text-[10px] gap-0.5"><AlertTriangle className="h-2.5 w-2.5" />Changes Required</Badge>;
+    return <Badge variant="destructive" className="text-[10px] gap-0.5"><AlertTriangle className="h-2.5 w-2.5" />Changes Required{severityLabel}</Badge>;
   }
   return <Badge variant="outline" className="text-[10px] shrink-0">{phase.status}</Badge>;
 };
@@ -685,7 +699,7 @@ const CompactActivePhaseCard = ({ phase, phaseReviews, onMarkComplete, reviewerN
         <AccordionTrigger className="py-2 hover:no-underline">
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2 flex-wrap">
             <span className="text-xs font-medium truncate">{phaseLabel}</span>
-            {getPhaseStatusBadge(phase)}
+            {getPhaseStatusBadge(phase, phaseReviews)}
             <div className="flex items-center gap-2 ml-auto shrink-0">
               {hasActiveRevision && (() => {
                 const reviewDate = latestReview?.reviewed_at || phase.reviewed_at;
@@ -758,7 +772,7 @@ const CompactPhaseRow = ({ phase, phaseReviews, onMarkComplete, reviewerNames, t
         <AccordionTrigger className="py-1.5 hover:no-underline">
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
             <span className="text-[11px] text-muted-foreground font-medium">{phaseLabel}</span>
-            {getPhaseStatusBadge(phase)}
+            {getPhaseStatusBadge(phase, phaseReviews)}
             {reviewCount > 0 && (
               <span className="text-[10px] text-muted-foreground ml-auto">
                 {reviewCount} review{reviewCount !== 1 ? "s" : ""}
@@ -808,7 +822,7 @@ const FullTimelineDialogContent = ({ sortedPhases, phaseReviews, onMarkPhaseComp
         <AccordionTrigger className="py-2 hover:no-underline">
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2 flex-wrap">
             <span className="text-xs font-medium truncate">{phaseLabel}</span>
-            {getPhaseStatusBadge(phase)}
+            {getPhaseStatusBadge(phase, phaseReviews)}
             {reviewCount > 0 && (
               <span className="text-[10px] text-muted-foreground ml-auto">
                 {reviewCount} review{reviewCount !== 1 ? "s" : ""}
