@@ -58,7 +58,8 @@ export const LatestSubmissionPanel = ({
       .filter((r: any) =>
         r.phase_id === phaseId &&
         r.review_status !== "pm_note" &&
-        r.review_status !== "add_revision_notes"
+        r.review_status !== "add_revision_notes" &&
+        !r.superseded_at
       )
       .sort((a: any, b: any) => {
         const roundDiff = (b.round_number || 0) - (a.round_number || 0);
