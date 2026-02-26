@@ -1,24 +1,23 @@
+## Add Unread PM Notes Badge to Both Card and Phase Accordion
 
+### Current State
 
-## Fix: Unread PM Notes Badge Not Appearing Reliably
-
-### Root Causes
-
-1. **Race condition**: When the developer has a task card expanded, the `DevPhaseReviewTimeline` useEffect auto-marks PM notes as read immediately upon refetch. The badge on the card exterior flashes for milliseconds then vanishes -- the developer never sees it.
-
-2. **No polling fallback**: The `developer-phase-reviews` query relies solely on realtime subscription for updates. If the event is missed or delayed, the badge never appears.
+- The **card-level badge** already exists (line 1460-1473 in `DeveloperDashboard.tsx`) showing total unread notes count.
+- The **phase accordion** in `DevPhaseReviewTimeline.tsx` (line 828-857) shows phases but has no per-phase unread indicator.
+- Notes are only marked as read when `autoMarkRead={true}` (View Details dialog).
 
 ### Implementation Steps
 
-**File: `src/components/dashboards/DeveloperDashboard.tsx`**
+**File: `src/components/dashboards/DevPhaseReviewTimeline.tsx**`
 
-1. Add a `refetchInterval` of 30 seconds to the `developer-phase-reviews` query as a fallback for missed realtime events. This ensures the badge will appear within 30 seconds even if realtime fails.
+1. In `renderPhaseAccordionItem` (line 836-843), add a small pulsing red dot/badge next to phases that have unread PM notes. Filter `phaseReviews` for entries matching the phase's `id` with `review_status === "pm_note"` and `!dev_read_at`, and if count > 0, render a small red dot indicator beside the phase label.
 
-2. Add the same `refetchInterval` to the `developer-unread-replies` query for consistency.
+**File: `src/components/dashboards/DeveloperDashboard.tsx**`
 
-**File: `src/components/dashboards/DevPhaseReviewTimeline.tsx`**
+2. No changes needed — the card-level badge already works correctly now that `autoMarkRead` defaults to `false` on the card's embedded timeline.
 
-3. Delay the auto-mark-as-read behavior: only mark PM notes as read after a 2-second delay when the timeline is visible. This gives the card-level badge time to render and be noticed before the timeline clears the unread state. Use a `setTimeout` inside the `useEffect` with cleanup on unmount.
+### Summary
 
-### No database changes needed.
-
+- Card shows "X unread notes" badge (existing).
+- Phase accordion items show a red dot next to specific phases with unread notes.
+- Notes only get marked as read when developer opens View Details dialog or expands the phase accordian for which the notes were added.
