@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -158,6 +158,12 @@ const ReviewHistoryItem = ({ review, taskId, replyUserId, canReply }: { review: 
 };
 
 
+export interface ExternalReviewTrigger {
+  phaseId: string;
+  phaseNumber: number;
+  reviewType: "approved" | "approved_with_changes" | "disapproved_with_changes";
+}
+
 interface PhaseReviewSectionProps {
   task: any;
   phases: any[];
@@ -166,9 +172,11 @@ interface PhaseReviewSectionProps {
   queryKeysToInvalidate: string[][];
   readOnly?: boolean;
   submissions?: any[];
+  externalReviewTrigger?: ExternalReviewTrigger | null;
+  onExternalReviewHandled?: () => void;
 }
 
-export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKeysToInvalidate, readOnly, submissions = [] }: PhaseReviewSectionProps) => {
+export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKeysToInvalidate, readOnly, submissions = [], externalReviewTrigger, onExternalReviewHandled }: PhaseReviewSectionProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [reviewDialog, setReviewDialog] = useState<{
@@ -198,6 +206,20 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
     },
     enabled: taskPhases.length > 0,
   });
+
+  // Handle external review triggers from LatestSubmissionPanel (dialog-based only)
+  useEffect(() => {
+    if (!externalReviewTrigger) return;
+    if (externalReviewTrigger.reviewType !== "approved") {
+      setReviewDialog({
+        open: true,
+        phaseId: externalReviewTrigger.phaseId,
+        phaseNumber: externalReviewTrigger.phaseNumber,
+        reviewType: externalReviewTrigger.reviewType,
+      });
+    }
+    onExternalReviewHandled?.();
+  }, [externalReviewTrigger, onExternalReviewHandled]);
 
   if (taskPhases.length === 0) return null;
 

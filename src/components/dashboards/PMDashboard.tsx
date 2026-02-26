@@ -25,7 +25,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePreview } from "@/components/FilePreview";
 import { format, subDays, isAfter, formatDistanceToNow } from "date-fns";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { PhaseReviewSection } from "./PhaseReviewSection";
+import { PhaseReviewSection, ExternalReviewTrigger } from "./PhaseReviewSection";
+import { LatestSubmissionPanel } from "./LatestSubmissionPanel";
 
 const PMDashboard = () => {
   const { user, signOut } = useAuth();
@@ -709,7 +710,82 @@ const PMDashboard = () => {
     },
     enabled: !!taskIds.length,
   });
+  const [externalReviewTrigger, setExternalReviewTrigger] = useState<Record<string, ExternalReviewTrigger | null>>({});
 
+
+  // Direct phase approve mutation for LatestSubmissionPanel
+  const directPhaseApprove = useMutation({
+    mutationFn: async ({ phaseId, taskId }: { phaseId: string; taskId: string }) => {
+      const now = new Date().toISOString();
+      
+      // Get existing reviews count for round number
+      const { data: existingReviews } = await supabase
+        .from("phase_reviews")
+        .select("round_number")
+        .eq("phase_id", phaseId)
+        .order("round_number", { ascending: false })
+        .limit(1);
+      
+      const nextRound = existingReviews && existingReviews.length > 0 
+        ? existingReviews[0].round_number + 1 : 1;
+      
+      // Insert phase review record
+      const { error: insertError } = await supabase
+        .from("phase_reviews")
+        .insert({
+          phase_id: phaseId,
+          task_id: taskId,
+          review_status: "approved",
+          reviewed_by: user!.id,
+          reviewed_at: now,
+          round_number: nextRound,
+        });
+      if (insertError) throw insertError;
+
+      // Update the project_phases record
+      const { error } = await supabase
+        .from("project_phases")
+        .update({
+          review_status: "approved",
+          reviewed_at: now,
+          reviewed_by: user!.id,
+          status: "completed",
+          completed_at: now,
+        })
+        .eq("id", phaseId);
+      if (error) throw error;
+
+      // Notify developer
+      const task = tasks?.find(t => t.id === taskId);
+      if (task?.developer_id) {
+        const { data: dev } = await supabase
+          .from("developers")
+          .select("user_id")
+          .eq("id", task.developer_id)
+          .single();
+        if (dev?.user_id) {
+          const phase = projectPhases?.find(p => p.id === phaseId);
+          const phaseLabel = phase?.phase_number === 1 ? "Homepage" : `Phase ${phase?.phase_number}`;
+          await supabase.from("notifications").insert({
+            user_id: dev.user_id,
+            type: "phase_review",
+            title: "Phase Review: Approved",
+            message: `${phaseLabel} for "${task.title}" has been approved.`,
+            task_id: taskId,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pm-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["pm-project-phases"] });
+      queryClient.invalidateQueries({ queryKey: ["pm-phase-reviews"] });
+      toast({ title: "Phase approved" });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error approving phase", description: error.message });
+    },
+  });
 
   const updateTaskStatus = useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string; status: Database["public"]["Enums"]["task_status"] }) => {
@@ -2376,6 +2452,22 @@ const PMDashboard = () => {
 
 
 
+                      {/* Latest Submission Panel for Website Orders */}
+                      {isWebsiteOrder(task) && projectPhases && (
+                        <LatestSubmissionPanel
+                          task={task}
+                          phases={projectPhases || []}
+                          phaseReviews={phaseReviews || []}
+                          unreadReplyCount={getUnreadReplyCount(task.id)}
+                          submissions={groupSubmissions.filter((s: any) => s.file_name === 'comment-only')}
+                          isAssignedPM={task.project_manager_id === user?.id}
+                          onApprove={(phaseId) => directPhaseApprove.mutate({ phaseId, taskId: task.id })}
+                          onApproveWithChanges={(phaseId, phaseNumber) => setExternalReviewTrigger(prev => ({ ...prev, [task.id]: { phaseId, phaseNumber, reviewType: "approved_with_changes" } }))}
+                          onDisapprove={(phaseId, phaseNumber) => setExternalReviewTrigger(prev => ({ ...prev, [task.id]: { phaseId, phaseNumber, reviewType: "disapproved_with_changes" } }))}
+                          isPending={directPhaseApprove.isPending}
+                        />
+                      )}
+
                       {/* Phase Review Section for Website Orders */}
                       {isWebsiteOrder(task) && projectPhases && (
                         <div className="px-4 pb-2">
@@ -2384,8 +2476,10 @@ const PMDashboard = () => {
                             phases={projectPhases || []}
                             userId={user!.id}
                             isAssignedPM={task.project_manager_id === user?.id}
-                            queryKeysToInvalidate={[["pm-tasks"], ["pm-project-phases"], ["design-submissions"]]}
+                            queryKeysToInvalidate={[["pm-tasks"], ["pm-project-phases"], ["design-submissions"], ["pm-phase-reviews"]]}
                             submissions={groupSubmissions.filter((s: any) => s.file_name === 'comment-only')}
+                            externalReviewTrigger={externalReviewTrigger[task.id] || null}
+                            onExternalReviewHandled={() => setExternalReviewTrigger(prev => ({ ...prev, [task.id]: null }))}
                           />
                         </div>
                       )}
