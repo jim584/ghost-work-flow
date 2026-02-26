@@ -379,9 +379,18 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
         }
       }
     },
-    onSuccess: () => {
-      queryKeysToInvalidate.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
-      queryClient.invalidateQueries({ queryKey: ["phase-reviews", task.id] });
+    onSuccess: async () => {
+      await Promise.all([
+        ...queryKeysToInvalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })),
+        queryClient.invalidateQueries({ queryKey: ["phase-reviews", task.id] }),
+      ]);
+
+      // Force immediate refresh to avoid waiting for realtime latency
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["phase-reviews", task.id] }),
+        queryClient.refetchQueries({ queryKey: ["pm-project-phases"] }),
+      ]);
+
       toast({ title: "Phase review submitted" });
       setReviewDialog(null);
       setReviewComment("");
@@ -397,20 +406,45 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
 
 
 
+  const getLatestActionableReviewForPhase = (phaseId: string) => {
+    return [...phaseReviews]
+      .filter((review: any) =>
+        review.phase_id === phaseId &&
+        review.review_status !== "pm_note" &&
+        review.review_status !== "add_revision_notes"
+      )
+      .sort((a: any, b: any) => {
+        const roundDiff = (b.round_number || 0) - (a.round_number || 0);
+        if (roundDiff !== 0) return roundDiff;
+        return new Date(b.reviewed_at || 0).getTime() - new Date(a.reviewed_at || 0).getTime();
+      })[0];
+  };
+
   const getReviewBadge = (phase: any) => {
-    if (!phase.review_status) return null;
-    if (phase.review_status === "approved") {
+    const latestReview = getLatestActionableReviewForPhase(phase.id);
+    const reviewStatus = latestReview?.review_status ?? phase.review_status;
+    const changeSeverity = latestReview?.change_severity ?? phase.change_severity;
+    const changeCompletedAt = latestReview?.change_completed_at ?? phase.change_completed_at;
+    const changeDeadline = latestReview?.change_deadline ?? phase.change_deadline;
+
+    if (!reviewStatus) return null;
+
+    if (reviewStatus === "approved") {
       return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Approved</Badge>;
     }
-    if (phase.review_status === "approved_with_changes" || phase.review_status === "disapproved_with_changes") {
-      const severity = phase.change_severity ? `(${phase.change_severity})` : "";
-      if (phase.change_completed_at) {
+
+    if (reviewStatus === "approved_with_changes" || reviewStatus === "disapproved_with_changes") {
+      const severity = changeSeverity ? `(${changeSeverity})` : "";
+
+      if (changeCompletedAt) {
         return <Badge className="bg-green-600 text-white text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Changes Done {severity}</Badge>;
       }
-      const isOverdue = phase.change_deadline && new Date(phase.change_deadline) < new Date();
-      const deadlineInfo = phase.change_deadline
-        ? `${isOverdue ? "was due" : "due"} ${formatDistanceToNow(new Date(phase.change_deadline), { addSuffix: true })}`
+
+      const isOverdue = changeDeadline && new Date(changeDeadline) < new Date();
+      const deadlineInfo = changeDeadline
+        ? `${isOverdue ? "was due" : "due"} ${formatDistanceToNow(new Date(changeDeadline), { addSuffix: true })}`
         : "";
+
       if (isOverdue) {
         return (
           <Badge variant="destructive" className="text-xs gap-1">
@@ -419,6 +453,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
           </Badge>
         );
       }
+
       return (
         <Badge className="bg-amber-500 text-white text-xs gap-1">
           <Clock className="h-3 w-3" />
@@ -426,6 +461,7 @@ export const PhaseReviewSection = ({ task, phases, userId, isAssignedPM, queryKe
         </Badge>
       );
     }
+
     return null;
   };
 
