@@ -461,6 +461,24 @@ const DeveloperDashboard = () => {
       if (changeFileNames) reviewUpdate.change_file_names = changeFileNames;
       await supabase.from("phase_reviews").update(reviewUpdate).eq("id", latestReview.id);
     }
+    // Check if this task was a completed website (all phases submitted) and auto-revert status
+    // Find the task that owns this phase
+    const { data: phaseData } = await supabase
+      .from("project_phases")
+      .select("task_id")
+      .eq("id", phaseId)
+      .maybeSingle();
+    if (phaseData) {
+      const { data: taskData } = await supabase
+        .from("tasks")
+        .select("id, current_phase, total_phases, status")
+        .eq("id", phaseData.task_id)
+        .maybeSingle();
+      if (taskData && taskData.total_phases && taskData.current_phase === taskData.total_phases && taskData.status === 'in_progress') {
+        // All phases were submitted before, revert to completed
+        await supabase.from("tasks").update({ status: 'completed' }).eq("id", taskData.id);
+      }
+    }
     queryClient.invalidateQueries({ queryKey: ["developer-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["developer-phases"] });
     queryClient.invalidateQueries({ queryKey: ["developer-phase-reviews"] });
@@ -2081,12 +2099,17 @@ const DeveloperDashboard = () => {
                             Start
                           </Button>
                         )}
-                        {task.status === "in_progress" && (
-                          <Button size="sm" onClick={() => setSelectedTask(task)}>
-                            <Globe className="mr-2 h-4 w-4" />
-                            Submit Phase {task.current_phase || 1}
-                          </Button>
-                        )}
+                        {task.status === "in_progress" && (() => {
+                          const currentPhaseRecord = projectPhases?.find(p => p.task_id === task.id && p.phase_number === (task.current_phase || 1));
+                          const isCurrentPhaseAlreadySubmitted = currentPhaseRecord?.completed_at;
+                          if (isCurrentPhaseAlreadySubmitted) return null;
+                          return (
+                            <Button size="sm" onClick={() => setSelectedTask(task)}>
+                              <Globe className="mr-2 h-4 w-4" />
+                              Submit Phase {task.current_phase || 1}
+                            </Button>
+                          );
+                        })()}
                         {/* Mark Changes Complete button removed - now inline in review timeline cards */}
                         {hasRevision && (
                           <Button size="sm" variant="default" className="bg-destructive hover:bg-destructive/90" onClick={() => setSelectedTask(task)}>
