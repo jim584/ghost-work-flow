@@ -1498,10 +1498,17 @@ const PMDashboard = () => {
     if (hasAnyCancelled) categories.push('cancelled');
     if (hasAnyOnHold) categories.push('on_hold');
     
-    // Check for awaiting launch: website approved but not yet live
+    // Check for launch in progress: website approved, launch submitted, but not yet live
+    const hasLaunchInProgress = activeTasks.some((t: any) => 
+      t.post_type === 'Website Design' && t.status === 'approved' && t.launch_domain && !t.launch_website_live_at
+    );
+    if (hasLaunchInProgress) categories.push('pending_delivery');
+
+    // Check for awaiting launch: website approved but not yet live (launch NOT yet submitted)
     // Also handle completed website tasks where all phases are approved (pre-auto-promotion orders)
     const hasAwaitingLaunch = activeTasks.some((t: any) => {
       if (t.post_type !== 'Website Design' || t.launch_website_live_at) return false;
+      if (t.launch_domain) return false; // launch already submitted — handled above as launch in progress
       const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === t.id);
       const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
       if ((t.status === 'approved' || t.status === 'completed') && allPhasesApproved) return true;
@@ -1578,12 +1585,16 @@ const PMDashboard = () => {
     if (task.status === 'approved' && task.launch_website_live_at && !task.upsell_verified_at) {
       return 'pending_delivery';
     }
-    // Website approved but not yet launched
+    // Website launch in progress: approved, launch submitted, but not yet live
+    if (task?.post_type === 'Website Design' && task.status === 'approved' && task.launch_domain && !task.launch_website_live_at) {
+      return 'pending_delivery';
+    }
+    // Website approved but not yet launched (launch NOT yet submitted)
     if (task?.post_type === 'Website Design' && !task.launch_website_live_at) {
       if (task.status === 'approved' || task.status === 'completed') {
         const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === task.id);
         const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
-        if (allPhasesApproved) return 'awaiting_launch';
+        if (allPhasesApproved && !task.launch_domain) return 'awaiting_launch';
       }
     }
     if (task.status === 'completed' || task.status === 'approved') return 'other';
