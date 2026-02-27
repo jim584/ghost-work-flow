@@ -2,31 +2,38 @@
 
 ## Problem
 
-Order 151 has **all 6 phases approved** but its task status is still `completed` (not `approved`). This happened because all phases were approved **before** the auto-promotion code was added. The auto-promotion logic only runs at the moment a phase is approved going forward — it doesn't retroactively fix existing orders.
-
-Because the status is `completed` (not `approved`):
-- The badge logic at line 2266 checks `task.status === 'approved'` → fails → no "Website Completed" badge
-- The categorization at line 1576 checks `task.status === 'approved'` → fails → not categorized as `awaiting_launch`
-- Instead it falls through to line 2250 which checks `task.status === 'completed'` → shows "Website Completed - Awaiting Final Review"
+In both `getTaskCategory` and `getGroupCategories`, the `awaiting_launch` detection for website orders with `status === 'approved'` blindly trusts the task status without verifying that all phases are actually approved. Order 143 has `status = 'approved'` but Phase 2 is still awaiting review (`reviewed_at = null`, `review_status = null`).
 
 ## Fix
 
-**Two changes needed:**
+### File: `src/components/dashboards/PMDashboard.tsx`
 
-### 1. Data fix: Update Order 151's status to `approved`
-Use the insert tool to run:
-```sql
-UPDATE tasks SET status = 'approved' WHERE id = '431c4554-336f-409c-838a-34bdf2397359';
+**1. Update `getTaskCategory` (~line 1583-1584)**
+Change the `status === 'approved'` check to also verify all phases have `review_status === 'approved'`:
+
+```typescript
+if (task.status === 'approved') {
+  const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === task.id);
+  const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
+  if (allPhasesApproved) return 'awaiting_launch';
+}
 ```
 
-### 2. Code fix: Also handle `completed` status with all phases approved
-In `PMDashboard.tsx`, update the categorization and badge logic to also check for tasks with `status === 'completed'` where all phases have `review_status === 'approved'`. This handles any other orders that were approved before the auto-promotion code existed.
+**2. Update `getGroupCategories` (~line 1502-1510)**
+Same fix — when `status === 'approved'`, also verify all phases are approved before including in `awaiting_launch`:
 
-**In `getPriorityCategory` (~line 1576):** Before the existing `awaiting_launch` check, add a fallback that also catches `completed` website tasks where all phases are approved.
+```typescript
+const hasAwaitingLaunch = activeTasks.some((t: any) => {
+  if (t.post_type !== 'Website Design' || t.launch_website_live_at) return false;
+  const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === t.id);
+  const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
+  if ((t.status === 'approved' || t.status === 'completed') && allPhasesApproved) return true;
+  return false;
+});
+```
 
-**In `getGroupCategories` (~line 1500):** Same logic — check if a `completed` website task has all phases approved.
+This consolidates both the `approved` and `completed` paths into one check that always verifies phase-level approval.
 
-**In badge rendering (~line 2250):** Before the "Awaiting Final Review" badge, check if all phases are actually approved — if so, show "Website Completed" instead.
-
-This way, even without the data fix, the UI will correctly identify these orders. The data fix ensures consistency.
+### Data consideration
+Order 143's task status is `approved` but it shouldn't be — it still has unreviewed phases. The code fix above will prevent it from appearing in Awaiting Launch regardless. However, you may also want to revert Order 143's status back to `in_progress` or `completed` in the database so it shows correctly elsewhere.
 
