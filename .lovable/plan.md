@@ -1,38 +1,44 @@
 
 
-## Fix: Auto-revert task status when all phases are completed after revision
+## Problem
 
-### Problem
-Order 151 shows "Phase 6 In Progress" even though all 6 phases are completed. Two issues:
-1. `total_phases` is `NULL` for this task, so the existing auto-revert check (`current_phase === total_phases`) never triggers
-2. The `getStatusLabel` function blindly shows "Phase X in Progress" for any `in_progress` task, even when all phases are submitted
+Order 151 is stuck in "All Tasks" instead of the Priority View because the PM dashboard's "awaiting review" detection only checks `completed_at && !reviewed_at`. After a revision cycle, `reviewed_at` is already set from the initial PM review, so the check fails — even though the developer has submitted revised changes that the PM hasn't re-reviewed yet.
 
-### Fix
+**Phase 6 data confirms this:**
+- `reviewed_at` = set (PM reviewed with changes)
+- `review_status` = `approved_with_changes`
+- `change_completed_at` = set (dev completed the changes)
+- PM has NOT re-reviewed → but the system thinks it's already reviewed
 
-**1. Improve auto-revert logic in `handleMarkPhaseComplete` (line ~477)**
-Instead of relying solely on `total_phases`, also check if ALL project phases for the task have `completed_at` set. This handles cases where `total_phases` was never populated:
+## Root Cause
 
+The `hasPhaseAwaitingReview` check at two locations uses:
+```
+p.completed_at && !p.reviewed_at
+```
+This misses the case where changes were completed and need re-review. `reviewed_at` is non-null from the first review round.
+
+## Fix
+
+Update `hasPhaseAwaitingReview` in **two places** in `PMDashboard.tsx` to also detect phases with completed revisions awaiting re-review:
+
+**1. Single-task categorization (~line 1529)**
+**2. Group-level categorization (~line 1458)**
+
+Add this condition alongside the existing one:
 ```typescript
-// After existing check, add fallback: query all phases for this task
-const { data: allPhases } = await supabase
-  .from("project_phases")
-  .select("completed_at")
-  .eq("task_id", phaseData.task_id);
-const allPhasesCompleted = allPhases && allPhases.length > 0 && allPhases.every(p => p.completed_at);
-if (allPhasesCompleted && taskData.status === 'in_progress') {
-  await supabase.from("tasks").update({ status: 'completed' }).eq("id", taskData.id);
-}
+// Existing: initial submission not yet reviewed
+(p.completed_at && !p.reviewed_at) ||
+// New: changes completed but PM hasn't re-approved yet
+(p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes'))
 ```
 
-**2. Update `getStatusLabel` (line ~1173)**
-When status is `in_progress`, check if the current phase already has `completed_at`. If all phases are submitted, show "Website Complete" instead of "Phase X in Progress".
+This ensures that when a developer marks revision changes as done, the order returns to the Priority View under "Recently Delivered" — and since the task status is `completed`, the badge will correctly show **"Website Completed - Awaiting Final Review"**.
 
-**3. Fix Order 151 data**
-Update order 151's status to `completed` since all 6 phases are already submitted.
+## Files to modify
+- `src/components/dashboards/PMDashboard.tsx`
+  - Line ~1529: Update `hasPhaseAwaitingReview` in `getPriorityCategory`
+  - Line ~1458: Update `hasPhaseAwaitingReview` in `getGroupCategories`
 
-### Files to modify
-- `src/components/dashboards/DeveloperDashboard.tsx`
-  - Line ~477: Improve auto-revert to check all phases have `completed_at` as fallback
-  - Line ~1173: Update `getStatusLabel` to account for already-submitted phases
-- Database: Update task 151 status to `completed`
+No database changes needed — Order 151's data is correct; only the detection logic is wrong.
 
