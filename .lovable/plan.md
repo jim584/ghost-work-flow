@@ -2,59 +2,40 @@
 
 ## Problem
 
-Order 141 shows "Website Completed" badge because line 2286 checks `task.status === 'approved'` without verifying that all phases are actually approved. Phase 4 is still in progress, so the badge is wrong.
+Order 151 has all 6 phases approved. The auto-promotion logic (line 768-772) sets the task status directly to `approved` when all phases are approved. But the "Launch Website" button (line 2928) only renders when `task.status === "completed"`. So the button never appears -- the order skipped the `completed` state entirely.
 
-The categorization logic (lines 1581-1586) already correctly requires all phases to be approved -- so Order 141 won't appear in Awaiting Launch. But the **badge rendering** at line 2286 doesn't have the same guard.
+```text
+Current flow:    in_progress → approved (skips "completed")
+                                ↑ Launch Website button requires "completed" — never shows
+
+Correct flow:    in_progress → completed → [PM clicks Launch Website] → approved
+```
 
 ## Fix
 
-### 1. Badge rendering fix (`PMDashboard.tsx`, line 2286-2293)
+### 1. Auto-promotion logic (`PMDashboard.tsx`, ~line 768-772)
 
-Add phase verification to the `approved` status badge path, identical to the `completed` path:
+Change the auto-promotion to set status to `completed` instead of `approved` for website orders. The `approved` state should only be reached after the PM completes the launch workflow.
 
 ```typescript
-if (isWebsite && (task.status === 'approved') && !task.launch_website_live_at) {
-  const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === task.id);
-  const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
-  if (allPhasesApproved) {
-    return (
-      <Badge className="bg-blue-600 text-white shadow-sm">
-        <Rocket className="h-3 w-3 mr-1" />
-        Website Completed
-      </Badge>
-    );
-  }
-  // Has unreviewed phases - show awaiting review badge
-  const hasPhaseAwaitingReview = taskPhases.some(
-    (p: any) => (p.completed_at && !p.reviewed_at) ||
-      (p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes'))
-  );
-  if (hasPhaseAwaitingReview) {
-    return (
-      <Badge className="bg-green-500 text-white shadow-sm">
-        Website Completed - Awaiting Final Review
-      </Badge>
-    );
-  }
+if (allPhasesApproved) {
+  const isWebsiteTask = tasks?.find(t => t.id === taskId)?.post_type === 'Website Design';
+  await supabase
+    .from("tasks")
+    .update({ status: (isWebsiteTask ? "completed" : "approved") as any })
+    .eq("id", taskId);
 }
 ```
 
-### 2. Data fix: Revert Order 141's status
+### 2. Data fix: Revert Order 151
 
-Order 141 has Phase 4 still in progress -- its status should not be `approved`. Revert it to `in_progress`:
-
-```sql
-UPDATE tasks SET status = 'in_progress' WHERE task_number = 141;
-```
-
-Similarly, revert Order 143 (Phase 2 still awaiting review):
+Order 151 is currently `approved` but needs to be `completed` so the Launch Website button appears:
 
 ```sql
-UPDATE tasks SET status = 'in_progress' WHERE task_number = 143;
+UPDATE tasks SET status = 'completed' WHERE task_number = 151;
 ```
 
-This ensures:
-- Website orders only show "Website Completed" when every phase is approved
-- Orders with pending reviews stay in Priority View with "Awaiting Final Review"
-- Database statuses reflect reality
+### 3. Badge rendering already handles this
+
+The existing badge logic at line 2259 already handles `status === 'completed'` with all phases approved -- it shows the "Website Completed" badge. The "Launch Website" button will also appear since it checks for `status === "completed"`. No badge changes needed.
 
