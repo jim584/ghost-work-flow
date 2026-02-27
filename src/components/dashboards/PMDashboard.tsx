@@ -1498,6 +1498,12 @@ const PMDashboard = () => {
     if (hasAnyCancelled) categories.push('cancelled');
     if (hasAnyOnHold) categories.push('on_hold');
     
+    // Check for website live but not yet verified (upsell awaiting)
+    const hasWebsiteLive = activeTasks.some((t: any) => 
+      t.launch_website_live_at && !t.upsell_verified_at
+    );
+    if (hasWebsiteLive) categories.push('website_live');
+
     // Check for launch in progress: website approved, launch submitted, but not yet live
     const hasLaunchInProgress = activeTasks.some((t: any) => 
       t.post_type === 'Website Design' && t.status === 'approved' && t.launch_domain && !t.launch_website_live_at
@@ -1541,6 +1547,7 @@ const PMDashboard = () => {
     pending_delivery: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending_delivery')).length,
     cancelled: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('cancelled')).length,
     awaiting_launch: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('awaiting_launch')).length,
+    website_live: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('website_live')).length,
     total: groupedOrders.length,
   };
 
@@ -1580,10 +1587,9 @@ const PMDashboard = () => {
     // Task must have submissions AND all must be approved to leave priority
     if (allApproved) return 'other';
     
-    // Task status-based completion only applies if explicitly set
-    // Website orders marked live but not yet verified should stay in priority
-    if (task.status === 'approved' && task.launch_website_live_at && !task.upsell_verified_at) {
-      return 'pending_delivery';
+    // Website orders marked live but not yet verified → website_live category
+    if (task.launch_website_live_at && !task.upsell_verified_at) {
+      return 'website_live';
     }
     // Website launch in progress: approved, launch submitted, but not yet live
     if (task?.post_type === 'Website Design' && task.status === 'approved' && task.launch_domain && !task.launch_website_live_at) {
@@ -1615,7 +1621,8 @@ const PMDashboard = () => {
       in_progress: 7,
       needs_revision: 8,
       awaiting_launch: 9,
-      other: 10,
+      website_live: 10,
+      other: 11,
     };
     return priorities[category] || 99;
   };
@@ -1803,6 +1810,18 @@ const PMDashboard = () => {
               {stats.awaiting_launch > 0 && (
                 <Badge className="ml-1.5 bg-blue-500 text-white text-xs px-1.5 py-0 h-5 min-w-[20px] flex items-center justify-center">
                   {stats.awaiting_launch}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant={statusFilter === 'website_live' ? 'default' : 'outline'}
+              onClick={() => setStatusFilter('website_live')}
+            >
+              <Rocket className="h-4 w-4 mr-1 text-green-500" />
+              Live, Upsell Awaiting
+              {stats.website_live > 0 && (
+                <Badge className="ml-1.5 bg-green-500 text-white text-xs px-1.5 py-0 h-5 min-w-[20px] flex items-center justify-center">
+                  {stats.website_live}
                 </Badge>
               )}
             </Button>
