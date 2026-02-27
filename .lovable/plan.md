@@ -2,38 +2,59 @@
 
 ## Problem
 
-In both `getTaskCategory` and `getGroupCategories`, the `awaiting_launch` detection for website orders with `status === 'approved'` blindly trusts the task status without verifying that all phases are actually approved. Order 143 has `status = 'approved'` but Phase 2 is still awaiting review (`reviewed_at = null`, `review_status = null`).
+Order 141 shows "Website Completed" badge because line 2286 checks `task.status === 'approved'` without verifying that all phases are actually approved. Phase 4 is still in progress, so the badge is wrong.
+
+The categorization logic (lines 1581-1586) already correctly requires all phases to be approved -- so Order 141 won't appear in Awaiting Launch. But the **badge rendering** at line 2286 doesn't have the same guard.
 
 ## Fix
 
-### File: `src/components/dashboards/PMDashboard.tsx`
+### 1. Badge rendering fix (`PMDashboard.tsx`, line 2286-2293)
 
-**1. Update `getTaskCategory` (~line 1583-1584)**
-Change the `status === 'approved'` check to also verify all phases have `review_status === 'approved'`:
+Add phase verification to the `approved` status badge path, identical to the `completed` path:
 
 ```typescript
-if (task.status === 'approved') {
+if (isWebsite && (task.status === 'approved') && !task.launch_website_live_at) {
   const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === task.id);
   const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
-  if (allPhasesApproved) return 'awaiting_launch';
+  if (allPhasesApproved) {
+    return (
+      <Badge className="bg-blue-600 text-white shadow-sm">
+        <Rocket className="h-3 w-3 mr-1" />
+        Website Completed
+      </Badge>
+    );
+  }
+  // Has unreviewed phases - show awaiting review badge
+  const hasPhaseAwaitingReview = taskPhases.some(
+    (p: any) => (p.completed_at && !p.reviewed_at) ||
+      (p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes'))
+  );
+  if (hasPhaseAwaitingReview) {
+    return (
+      <Badge className="bg-green-500 text-white shadow-sm">
+        Website Completed - Awaiting Final Review
+      </Badge>
+    );
+  }
 }
 ```
 
-**2. Update `getGroupCategories` (~line 1502-1510)**
-Same fix — when `status === 'approved'`, also verify all phases are approved before including in `awaiting_launch`:
+### 2. Data fix: Revert Order 141's status
 
-```typescript
-const hasAwaitingLaunch = activeTasks.some((t: any) => {
-  if (t.post_type !== 'Website Design' || t.launch_website_live_at) return false;
-  const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === t.id);
-  const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
-  if ((t.status === 'approved' || t.status === 'completed') && allPhasesApproved) return true;
-  return false;
-});
+Order 141 has Phase 4 still in progress -- its status should not be `approved`. Revert it to `in_progress`:
+
+```sql
+UPDATE tasks SET status = 'in_progress' WHERE task_number = 141;
 ```
 
-This consolidates both the `approved` and `completed` paths into one check that always verifies phase-level approval.
+Similarly, revert Order 143 (Phase 2 still awaiting review):
 
-### Data consideration
-Order 143's task status is `approved` but it shouldn't be — it still has unreviewed phases. The code fix above will prevent it from appearing in Awaiting Launch regardless. However, you may also want to revert Order 143's status back to `in_progress` or `completed` in the database so it shows correctly elsewhere.
+```sql
+UPDATE tasks SET status = 'in_progress' WHERE task_number = 143;
+```
+
+This ensures:
+- Website orders only show "Website Completed" when every phase is approved
+- Orders with pending reviews stay in Priority View with "Awaiting Final Review"
+- Database statuses reflect reality
 
