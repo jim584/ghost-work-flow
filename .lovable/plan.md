@@ -2,22 +2,30 @@
 
 ## Problem
 
-Order 142 has the exact same issue as Order 151. All 2 phases are approved, but the auto-promotion logic (before our recent fix) set the status directly to `approved`, skipping `completed`. The "Launch Website" button only renders when `task.status === "completed"`, so it never appears.
+After the PM clicks "Launch Website" and submits the launch dialog, the task status changes to `approved` and various launch workflow statuses are set (e.g., `launch_nameserver_status: "pending_nameservers"`, `launch_dns_status: "pending_dns"`, etc.). However, the task disappears from the Priority Dashboard because:
 
-```text
-Order 142:  status = 'approved',  all phases approved,  launch_website_live_at = null
-            → "Launch Website" button requires status === "completed" → button hidden
-```
+1. It no longer qualifies as `awaiting_launch` (that requires `launch_website_live_at` to be null AND no launch data set -- but now launch data IS set, and status is `approved`)
+2. Line 1574 catches it as `allApproved` → `other`, or line 1589 catches `status === 'approved'` → `other`
+
+The task gets buried in "All Tasks" during the active launch workflow.
 
 ## Fix
 
-### Data fix only — no code changes needed
+### `PMDashboard.tsx` — Add "launch in progress" to priority categorization
 
-The auto-promotion code was already fixed in the previous change (line 770-773 now sets website tasks to `completed` instead of `approved`). Order 142 just needs its status corrected in the database:
+**Single-task categorization** (~line 1577-1588): Before the `awaiting_launch` check, add a new condition that detects tasks in an active launch workflow (status `approved`, launch data submitted via `launch_domain` being set, but `launch_website_live_at` is still null). Categorize these as `pending_delivery` so they appear in the priority view with launch status visibility.
 
-```sql
-UPDATE tasks SET status = 'completed' WHERE task_number = 142;
+**Multi-team categorization** (~line 1501-1510): Add the same detection logic in `getGroupCategories` so multi-team orders also surface.
+
+**Priority filter** (line 1674-1676): `pending_delivery` is already included in the priority filter list, so no change needed there.
+
+The detection condition:
+```
+task.post_type === 'Website Design' 
+  && task.status === 'approved' 
+  && task.launch_domain          // launch has been submitted
+  && !task.launch_website_live_at // not yet live
 ```
 
-This will make the "Launch Website" button appear, allowing the PM to enter domain/hosting details and complete the launch workflow (which then sets status to `approved`).
+This ensures that once the PM submits the launch dialog, the order stays visible in the Priority Dashboard until the developer marks it live.
 
