@@ -766,9 +766,10 @@ const PMDashboard = () => {
         && allPhases.every(p => p.review_status === 'approved');
 
       if (allPhasesApproved) {
+        const isWebsiteTask = tasks?.find(t => t.id === taskId)?.post_type === 'Website Design';
         await supabase
           .from("tasks")
-          .update({ status: "approved" as any })
+          .update({ status: (isWebsiteTask ? "completed" : "approved") as any })
           .eq("id", taskId);
       }
 
