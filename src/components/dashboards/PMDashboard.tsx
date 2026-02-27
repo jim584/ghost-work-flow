@@ -1501,11 +1501,9 @@ const PMDashboard = () => {
     // Also handle completed website tasks where all phases are approved (pre-auto-promotion orders)
     const hasAwaitingLaunch = activeTasks.some((t: any) => {
       if (t.post_type !== 'Website Design' || t.launch_website_live_at) return false;
-      if (t.status === 'approved') return true;
-      if (t.status === 'completed') {
-        const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === t.id);
-        return taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
-      }
+      const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === t.id);
+      const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
+      if ((t.status === 'approved' || t.status === 'completed') && allPhasesApproved) return true;
       return false;
     });
     if (hasAwaitingLaunch) categories.push('awaiting_launch');
@@ -1581,9 +1579,7 @@ const PMDashboard = () => {
     }
     // Website approved but not yet launched
     if (task?.post_type === 'Website Design' && !task.launch_website_live_at) {
-      if (task.status === 'approved') return 'awaiting_launch';
-      // Handle completed website tasks where all phases are approved (pre-auto-promotion orders)
-      if (task.status === 'completed') {
+      if (task.status === 'approved' || task.status === 'completed') {
         const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === task.id);
         const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
         if (allPhasesApproved) return 'awaiting_launch';
