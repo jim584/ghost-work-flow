@@ -756,6 +756,22 @@ const PMDashboard = () => {
         .eq("id", phaseId);
       if (error) throw error;
 
+      // Check if ALL phases for this task are now approved → auto-promote task
+      const { data: allPhases } = await supabase
+        .from("project_phases")
+        .select("id, review_status")
+        .eq("task_id", taskId);
+
+      const allPhasesApproved = allPhases && allPhases.length > 0 
+        && allPhases.every(p => p.review_status === 'approved');
+
+      if (allPhasesApproved) {
+        await supabase
+          .from("tasks")
+          .update({ status: "approved" as any })
+          .eq("id", taskId);
+      }
+
       // Notify developer
       const task = tasks?.find(t => t.id === taskId);
       if (task?.developer_id) {
