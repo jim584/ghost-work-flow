@@ -1456,7 +1456,10 @@ const PMDashboard = () => {
     else if (hasCompletedTask && groupSubmissions.length === 0) categories.push('recently_delivered');
     if (isWebsiteGroup && !categories.includes('recently_delivered')) {
       const hasPhaseAwaitingReview = (projectPhases || []).some(
-        (p: any) => activeTasks.some((t: any) => t.id === p.task_id) && p.completed_at && !p.reviewed_at
+        (p: any) => activeTasks.some((t: any) => t.id === p.task_id) && (
+          (p.completed_at && !p.reviewed_at) ||
+          (p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes'))
+        )
       );
       if (hasPhaseAwaitingReview) categories.push('recently_delivered');
     }
@@ -1527,7 +1530,10 @@ const PMDashboard = () => {
     // For website orders, check if any phase awaits review
     if (task?.post_type === "Website Design") {
       const hasPhaseAwaitingReview = (projectPhases || []).some(
-        (p: any) => p.task_id === task.id && p.completed_at && !p.reviewed_at
+        (p: any) => p.task_id === task.id && (
+          (p.completed_at && !p.reviewed_at) ||
+          (p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes'))
+        )
       );
       if (hasPhaseAwaitingReview) return 'recently_delivered';
     }
