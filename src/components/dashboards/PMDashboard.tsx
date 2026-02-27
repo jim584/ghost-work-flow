@@ -2206,6 +2206,22 @@ const PMDashboard = () => {
                                 );
                               }
                             }
+                            // For website orders with completed status, check if phases await review
+                            if (isWebsite && task.status === 'completed') {
+                              const hasPhaseAwaitingReview = (projectPhases || []).some(
+                                (p: any) => p.task_id === task.id && (
+                                  (p.completed_at && !p.reviewed_at) ||
+                                  (p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes'))
+                                )
+                              );
+                              if (hasPhaseAwaitingReview) {
+                                return (
+                                  <Badge className="bg-green-500 text-white shadow-sm">
+                                    Website Completed - Awaiting Final Review
+                                  </Badge>
+                                );
+                              }
+                            }
                             // Default to regular status
                             return (
                               <Badge className={`${getStatusColor(task.status)} shadow-sm`}>
