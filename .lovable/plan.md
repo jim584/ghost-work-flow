@@ -1,31 +1,34 @@
 
 
-## Problem
+## Plan: "Live, Upsell Awaiting" Tab in PM Dashboard
 
-After the PM clicks "Launch Website" and submits the launch dialog, the task status changes to `approved` and various launch workflow statuses are set (e.g., `launch_nameserver_status: "pending_nameservers"`, `launch_dns_status: "pending_dns"`, etc.). However, the task disappears from the Priority Dashboard because:
+The "Verify & Close Order" button already exists on task cards (appears when `launch_website_live_at` is set, hidden after `upsell_verified_at` is set). No changes needed there.
 
-1. It no longer qualifies as `awaiting_launch` (that requires `launch_website_live_at` to be null AND no launch data set -- but now launch data IS set, and status is `approved`)
-2. Line 1574 catches it as `allApproved` → `other`, or line 1589 catches `status === 'approved'` → `other`
+### Changes to `PMDashboard.tsx`
 
-The task gets buried in "All Tasks" during the active launch workflow.
+**1. New category `website_live` in single-task categorization (~line 1585)**
+- Tasks with `launch_website_live_at` set AND `upsell_verified_at` not set → `website_live`
+- Currently these fall into `pending_delivery`; split them into their own category
 
-## Fix
+**2. New category `website_live` in multi-team categorization (`getGroupCategories`)**
+- Same detection logic for grouped orders
 
-### `PMDashboard.tsx` — Add "launch in progress" to priority categorization
+**3. Add stat count for `website_live`**
+- Count grouped orders with the `website_live` category for the badge
 
-**Single-task categorization** (~line 1577-1588): Before the `awaiting_launch` check, add a new condition that detects tasks in an active launch workflow (status `approved`, launch data submitted via `launch_domain` being set, but `launch_website_live_at` is still null). Categorize these as `pending_delivery` so they appear in the priority view with launch status visibility.
+**4. Add "Live, Upsell Awaiting" tab button (after the Awaiting Launch button)**
+- Green rocket icon, badge with count, filters by `website_live`
 
-**Multi-team categorization** (~line 1501-1510): Add the same detection logic in `getGroupCategories` so multi-team orders also surface.
+**5. Add `website_live` to priority category order (after `awaiting_launch`)**
+- Ensures cards render in the priority view
 
-**Priority filter** (line 1674-1676): `pending_delivery` is already included in the priority filter list, so no change needed there.
-
-The detection condition:
+### Complete workflow after changes
+```text
+All phases approved → "Awaiting Launch" tab (status: completed)
+PM clicks Launch Website → Priority Dashboard / pending_delivery (status: approved, launch_domain set)
+Developer marks live → "Live, Upsell Awaiting" tab (launch_website_live_at set)
+PM clicks Verify & Close → exits priority views (upsell_verified_at set)
 ```
-task.post_type === 'Website Design' 
-  && task.status === 'approved' 
-  && task.launch_domain          // launch has been submitted
-  && !task.launch_website_live_at // not yet live
-```
 
-This ensures that once the PM submits the launch dialog, the order stays visible in the Priority Dashboard until the developer marks it live.
+No database changes needed. No new components needed.
 
