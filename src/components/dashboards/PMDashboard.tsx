@@ -1481,6 +1481,12 @@ const PMDashboard = () => {
     if (hasAnyCancelled) categories.push('cancelled');
     if (hasAnyOnHold) categories.push('on_hold');
     
+    // Check for awaiting launch: website approved but not yet live
+    const hasAwaitingLaunch = activeTasks.some((t: any) => 
+      t.post_type === 'Website Design' && t.status === 'approved' && !t.launch_website_live_at
+    );
+    if (hasAwaitingLaunch) categories.push('awaiting_launch');
+
     if (categories.length === 0) {
       if (allApproved) categories.push('other');
       else if (representativeTask.status === 'completed' || representativeTask.status === 'approved') categories.push('other');
@@ -1505,6 +1511,7 @@ const PMDashboard = () => {
     needs_revision: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('needs_revision')).length,
     pending_delivery: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('pending_delivery')).length,
     cancelled: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('cancelled')).length,
+    awaiting_launch: groupedOrders.filter(g => getGroupCategories(g, submissions || []).includes('awaiting_launch')).length,
     total: groupedOrders.length,
   };
 
@@ -1549,6 +1556,10 @@ const PMDashboard = () => {
     if (task.status === 'approved' && task.launch_website_live_at && !task.upsell_verified_at) {
       return 'pending_delivery';
     }
+    // Website approved but not yet launched
+    if (task?.post_type === 'Website Design' && task.status === 'approved' && !task.launch_website_live_at) {
+      return 'awaiting_launch';
+    }
     if (task.status === 'completed' || task.status === 'approved') return 'other';
     
     if (task.status === 'pending' || task.status === 'assigned') return 'pending';
@@ -1566,7 +1577,8 @@ const PMDashboard = () => {
       pending: 5,
       in_progress: 7,
       needs_revision: 8,
-      other: 9,
+      awaiting_launch: 9,
+      other: 10,
     };
     return priorities[category] || 99;
   };
@@ -1744,6 +1756,18 @@ const PMDashboard = () => {
               onClick={() => setStatusFilter(null)}
             >
               All Tasks
+            </Button>
+            <Button
+              variant={statusFilter === 'awaiting_launch' ? 'default' : 'outline'}
+              onClick={() => setStatusFilter('awaiting_launch')}
+            >
+              <Rocket className="h-4 w-4 mr-1" />
+              Awaiting Launch
+              {stats.awaiting_launch > 0 && (
+                <Badge className="ml-1.5 bg-blue-500 text-white text-xs px-1.5 py-0 h-5 min-w-[20px] flex items-center justify-center">
+                  {stats.awaiting_launch}
+                </Badge>
+              )}
             </Button>
           </div>
           <div className="flex gap-2">
@@ -2221,6 +2245,15 @@ const PMDashboard = () => {
                                   </Badge>
                                 );
                               }
+                            }
+                            // Website approved but not yet launched
+                            if (isWebsite && task.status === 'approved' && !task.launch_website_live_at) {
+                              return (
+                                <Badge className="bg-blue-600 text-white shadow-sm">
+                                  <Rocket className="h-3 w-3 mr-1" />
+                                  Website Completed
+                                </Badge>
+                              );
                             }
                             // Default to regular status
                             return (
