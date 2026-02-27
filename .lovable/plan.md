@@ -1,29 +1,41 @@
 
 
-## Plan: Add "Awaiting Launch" Tab & Update Badge
+## Problem
+
+Order 151 doesn't appear in "Awaiting Launch" because the phase approval logic in `PMDashboard.tsx` (lines 730-757) never auto-promotes the task status from `completed` to `approved` when all phases are approved. The auto-promotion exists for design submissions but is missing for website phases.
+
+## Plan
 
 ### File: `src/components/dashboards/PMDashboard.tsx`
 
-**1. Add `awaiting_launch` category in `getPriorityCategory` (~line 1549)**
-- Before the generic fallback, check: `isWebsite && status === 'approved' && !launch_website_live_at` → return `'awaiting_launch'`
-- This category is **excluded** from Priority View (not added to the priority categories array)
+**Add auto-promotion logic after phase approval (~line 757, after updating the phase)**
 
-**2. Same logic in `getGroupCategories` (~line 1484)**
-- Add matching `awaiting_launch` detection for group-level categorization
+After a phase is approved, query all phases for that task. If every phase has `review_status === 'approved'`, update the task status to `'approved'`. This mirrors the existing design submission auto-promotion logic at lines 551-571.
 
-**3. Add "Awaiting Launch" button to top nav (~line 1741)**
-- New button between existing filters with a Rocket icon
-- Filters to show only `awaiting_launch` orders
-- Shows count badge of pending launches
+```typescript
+// After phase update succeeds (~line 757):
+// Check if ALL phases for this task are now approved
+const { data: allPhases } = await supabase
+  .from("project_phases")
+  .select("id, review_status")
+  .eq("task_id", taskId);
 
-**4. Update badge for approved websites (~line 2209)**
-- When `isWebsite && task.status === 'approved' && !task.launch_website_live_at` → show "Website Completed" badge (green/blue styling, distinct from "Awaiting Final Review")
+const allPhasesApproved = allPhases && allPhases.length > 0 
+  && allPhases.every(p => p.review_status === 'approved');
 
-**5. Add `awaiting_launch` to `getCategoryPriority` (~line 1560)**
-- Assign a sort priority for when these appear in filtered views
+if (allPhasesApproved) {
+  await supabase
+    .from("tasks")
+    .update({ status: "approved" as any })
+    .eq("id", taskId);
+}
+```
 
-### What stays the same
-- Priority View categories remain unchanged — no `awaiting_launch` in priority view
-- All Tasks continues to show everything including awaiting launch orders
-- Launch Website button functionality unchanged
+This single change will:
+- Auto-promote website tasks to `approved` when the last phase is approved
+- Make them automatically appear in the "Awaiting Launch" section
+- Show the "Website Completed" badge
+- Show the "Launch Website" button
+
+No other files need changes.
 
