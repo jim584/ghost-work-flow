@@ -1,44 +1,29 @@
 
 
-## Problem
+## Plan: Add "Awaiting Launch" Tab & Update Badge
 
-Order 151 is stuck in "All Tasks" instead of the Priority View because the PM dashboard's "awaiting review" detection only checks `completed_at && !reviewed_at`. After a revision cycle, `reviewed_at` is already set from the initial PM review, so the check fails — even though the developer has submitted revised changes that the PM hasn't re-reviewed yet.
+### File: `src/components/dashboards/PMDashboard.tsx`
 
-**Phase 6 data confirms this:**
-- `reviewed_at` = set (PM reviewed with changes)
-- `review_status` = `approved_with_changes`
-- `change_completed_at` = set (dev completed the changes)
-- PM has NOT re-reviewed → but the system thinks it's already reviewed
+**1. Add `awaiting_launch` category in `getPriorityCategory` (~line 1549)**
+- Before the generic fallback, check: `isWebsite && status === 'approved' && !launch_website_live_at` → return `'awaiting_launch'`
+- This category is **excluded** from Priority View (not added to the priority categories array)
 
-## Root Cause
+**2. Same logic in `getGroupCategories` (~line 1484)**
+- Add matching `awaiting_launch` detection for group-level categorization
 
-The `hasPhaseAwaitingReview` check at two locations uses:
-```
-p.completed_at && !p.reviewed_at
-```
-This misses the case where changes were completed and need re-review. `reviewed_at` is non-null from the first review round.
+**3. Add "Awaiting Launch" button to top nav (~line 1741)**
+- New button between existing filters with a Rocket icon
+- Filters to show only `awaiting_launch` orders
+- Shows count badge of pending launches
 
-## Fix
+**4. Update badge for approved websites (~line 2209)**
+- When `isWebsite && task.status === 'approved' && !task.launch_website_live_at` → show "Website Completed" badge (green/blue styling, distinct from "Awaiting Final Review")
 
-Update `hasPhaseAwaitingReview` in **two places** in `PMDashboard.tsx` to also detect phases with completed revisions awaiting re-review:
+**5. Add `awaiting_launch` to `getCategoryPriority` (~line 1560)**
+- Assign a sort priority for when these appear in filtered views
 
-**1. Single-task categorization (~line 1529)**
-**2. Group-level categorization (~line 1458)**
-
-Add this condition alongside the existing one:
-```typescript
-// Existing: initial submission not yet reviewed
-(p.completed_at && !p.reviewed_at) ||
-// New: changes completed but PM hasn't re-approved yet
-(p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes'))
-```
-
-This ensures that when a developer marks revision changes as done, the order returns to the Priority View under "Recently Delivered" — and since the task status is `completed`, the badge will correctly show **"Website Completed - Awaiting Final Review"**.
-
-## Files to modify
-- `src/components/dashboards/PMDashboard.tsx`
-  - Line ~1529: Update `hasPhaseAwaitingReview` in `getPriorityCategory`
-  - Line ~1458: Update `hasPhaseAwaitingReview` in `getGroupCategories`
-
-No database changes needed — Order 151's data is correct; only the detection logic is wrong.
+### What stays the same
+- Priority View categories remain unchanged — no `awaiting_launch` in priority view
+- All Tasks continues to show everything including awaiting launch orders
+- Launch Website button functionality unchanged
 
