@@ -2282,14 +2282,30 @@ const PMDashboard = () => {
                                 );
                               }
                             }
-                            // Website approved but not yet launched
+                            // Website approved but not yet launched - verify all phases are actually approved
                             if (isWebsite && (task.status === 'approved') && !task.launch_website_live_at) {
-                              return (
-                                <Badge className="bg-blue-600 text-white shadow-sm">
-                                  <Rocket className="h-3 w-3 mr-1" />
-                                  Website Completed
-                                </Badge>
+                              const taskPhases = (projectPhases || []).filter((p: any) => p.task_id === task.id);
+                              const allPhasesApproved = taskPhases.length > 0 && taskPhases.every((p: any) => p.review_status === 'approved');
+                              if (allPhasesApproved) {
+                                return (
+                                  <Badge className="bg-blue-600 text-white shadow-sm">
+                                    <Rocket className="h-3 w-3 mr-1" />
+                                    Website Completed
+                                  </Badge>
+                                );
+                              }
+                              // Has unreviewed phases - show awaiting review badge
+                              const hasPhaseAwaitingReview = taskPhases.some(
+                                (p: any) => (p.completed_at && !p.reviewed_at) ||
+                                  (p.change_completed_at && (p.review_status === 'approved_with_changes' || p.review_status === 'disapproved_with_changes'))
                               );
+                              if (hasPhaseAwaitingReview) {
+                                return (
+                                  <Badge className="bg-green-500 text-white shadow-sm">
+                                    Website Completed - Awaiting Final Review
+                                  </Badge>
+                                );
+                              }
                             }
                             // Default to regular status
                             return (
